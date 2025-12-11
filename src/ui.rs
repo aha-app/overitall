@@ -884,16 +884,24 @@ fn draw_help_overlay(f: &mut Frame) {
             Span::styled("Batch Navigation:", Style::default().add_modifier(Modifier::BOLD)),
         ]),
         Line::from(vec![
-            Span::styled("  :sb", Style::default().fg(Color::Yellow)),
-            Span::raw("      Toggle batch view mode"),
+            Span::styled("  [", Style::default().fg(Color::Yellow)),
+            Span::raw("       Previous batch"),
         ]),
         Line::from(vec![
-            Span::styled("  :nb", Style::default().fg(Color::Yellow)),
-            Span::raw("      Next batch"),
+            Span::styled("  ]", Style::default().fg(Color::Yellow)),
+            Span::raw("       Next batch"),
         ]),
         Line::from(vec![
             Span::styled("  :pb", Style::default().fg(Color::Yellow)),
-            Span::raw("      Previous batch"),
+            Span::raw("      Previous batch (same as [)"),
+        ]),
+        Line::from(vec![
+            Span::styled("  :nb", Style::default().fg(Color::Yellow)),
+            Span::raw("      Next batch (same as ])"),
+        ]),
+        Line::from(vec![
+            Span::styled("  :sb", Style::default().fg(Color::Yellow)),
+            Span::raw("      Toggle batch view mode"),
         ]),
         Line::from(""),
         Line::from(vec![

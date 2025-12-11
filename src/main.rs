@@ -429,6 +429,13 @@ async fn run_app(
                             .count();
                         app.prev_match(total_matches);
                     }
+                    // Batch navigation with [ and ] keys
+                    KeyCode::Char('[') if !app.command_mode && !app.search_mode => {
+                        app.prev_batch();
+                    }
+                    KeyCode::Char(']') if !app.command_mode && !app.search_mode => {
+                        app.next_batch();
+                    }
                     // Clear search with Esc (when not in command/search mode)
                     KeyCode::Esc if !app.command_mode && !app.search_mode => {
                         app.clear_search();
