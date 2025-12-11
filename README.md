@@ -41,20 +41,35 @@ web: bundle exec rails server
 worker: bundle exec sidekiq
 ```
 
-2. Create a `.overitall.toml` configuration file:
+2. Generate a default configuration file:
+
+```bash
+oit --init
+```
+
+This creates a `.overitall.toml` file with all processes from your Procfile:
 
 ```toml
 procfile = "Procfile"
+batch_window_ms = 100
 
 [processes.web]
-log_file = "log/development.log"
+log_file = "logs/web.log"
 
 [processes.worker]
-log_file = "log/sidekiq.log"
+log_file = "logs/worker.log"
 
 [filters]
 include = []
 exclude = []
+```
+
+Edit the generated config to customize log file paths and other settings.
+
+Alternatively, you can create the config file manually or specify a custom path:
+
+```bash
+oit --init -c custom-config.toml
 ```
 
 3. Run `oit`:
@@ -245,6 +260,7 @@ Overitall is built with a modular architecture:
 
 Overitall is under active development. Current features:
 
+- Easy initialization with `--init` flag (automatically generates config from Procfile)
 - Process management (start/stop/restart)
 - Log file tailing and interleaved viewing
 - Filtering (include/exclude patterns)
