@@ -8,7 +8,6 @@ pub struct LogBuffer {
 }
 
 impl LogBuffer {
-    /// Create a new log buffer with the specified maximum size
     pub fn new(max_size: usize) -> Self {
         Self {
             logs: VecDeque::with_capacity(max_size),
@@ -21,7 +20,6 @@ impl LogBuffer {
         Self::new(10_000)
     }
 
-    /// Add a log line to the buffer
     /// If the buffer is full, the oldest line is removed
     pub fn push(&mut self, log: LogLine) {
         if self.logs.len() >= self.max_size {
@@ -30,7 +28,6 @@ impl LogBuffer {
         self.logs.push_back(log);
     }
 
-    /// Get the last n log lines
     pub fn get_last(&self, n: usize) -> Vec<&LogLine> {
         self.logs
             .iter()
@@ -40,22 +37,18 @@ impl LogBuffer {
             .collect()
     }
 
-    /// Get all log lines
     pub fn get_all(&self) -> Vec<&LogLine> {
         self.logs.iter().collect()
     }
 
-    /// Get the number of logs in the buffer
     pub fn len(&self) -> usize {
         self.logs.len()
     }
 
-    /// Check if the buffer is empty
     pub fn is_empty(&self) -> bool {
         self.logs.is_empty()
     }
 
-    /// Clear all logs from the buffer
     pub fn clear(&mut self) {
         self.logs.clear();
     }

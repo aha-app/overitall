@@ -99,7 +99,6 @@ impl ProcessHandle {
         Ok(())
     }
 
-    /// Kill the process
     pub async fn kill(&mut self) -> Result<()> {
         if let Some(mut child) = self.child.take() {
             child.kill().await.context("Failed to kill process")?;
@@ -159,7 +158,6 @@ pub struct ProcessManager {
 }
 
 impl ProcessManager {
-    /// Create a new process manager
     pub fn new() -> Self {
         let (log_tx, log_rx) = mpsc::unbounded_channel();
         Self {
@@ -176,14 +174,12 @@ impl ProcessManager {
         self.processes.insert(name.clone(), ProcessHandle::new(name, command));
     }
 
-    /// Start a specific process by name
     pub async fn start_process(&mut self, name: &str) -> Result<()> {
         let process = self.processes.get_mut(name)
             .ok_or_else(|| anyhow::anyhow!("Process '{}' not found", name))?;
         process.start(self.log_tx.clone()).await
     }
 
-    /// Start all processes
     pub async fn start_all(&mut self) -> Result<()> {
         let names: Vec<String> = self.processes.keys().cloned().collect();
         for name in names {
@@ -192,21 +188,18 @@ impl ProcessManager {
         Ok(())
     }
 
-    /// Kill a specific process by name
     pub async fn kill_process(&mut self, name: &str) -> Result<()> {
         let process = self.processes.get_mut(name)
             .ok_or_else(|| anyhow::anyhow!("Process '{}' not found", name))?;
         process.kill().await
     }
 
-    /// Restart a specific process by name
     pub async fn restart_process(&mut self, name: &str) -> Result<()> {
         let process = self.processes.get_mut(name)
             .ok_or_else(|| anyhow::anyhow!("Process '{}' not found", name))?;
         process.restart(self.log_tx.clone()).await
     }
 
-    /// Kill all processes
     pub async fn kill_all(&mut self) -> Result<()> {
         for process in self.processes.values_mut() {
             let _ = process.kill().await; // Ignore errors during shutdown
@@ -214,19 +207,16 @@ impl ProcessManager {
         Ok(())
     }
 
-    /// Check status of all processes
     pub async fn check_all_status(&mut self) {
         for process in self.processes.values_mut() {
             process.check_status().await;
         }
     }
 
-    /// Get status of a specific process
     pub fn get_status(&self, name: &str) -> Option<ProcessStatus> {
         self.processes.get(name).map(|p| p.status.clone())
     }
 
-    /// Get all process names and statuses
     pub fn get_all_statuses(&self) -> Vec<(String, ProcessStatus)> {
         self.processes
             .iter()
@@ -249,12 +239,10 @@ impl ProcessManager {
         }
     }
 
-    /// Get the last n log lines from the buffer
     pub fn get_recent_logs(&self, n: usize) -> Vec<&LogLine> {
         self.log_buffer.get_last(n)
     }
 
-    /// Get all logs from the buffer
     pub fn get_all_logs(&self) -> Vec<&LogLine> {
         self.log_buffer.get_all()
     }

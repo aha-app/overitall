@@ -41,7 +41,6 @@ pub enum LogSource {
 }
 
 impl LogSource {
-    /// Get the process name associated with this log source
     pub fn process_name(&self) -> &str {
         match self {
             LogSource::ProcessStdout(name) => name,
@@ -50,17 +49,14 @@ impl LogSource {
         }
     }
 
-    /// Check if this is from stdout
     pub fn is_stdout(&self) -> bool {
         matches!(self, LogSource::ProcessStdout(_))
     }
 
-    /// Check if this is from stderr
     pub fn is_stderr(&self) -> bool {
         matches!(self, LogSource::ProcessStderr(_))
     }
 
-    /// Check if this is from a file
     pub fn is_file(&self) -> bool {
         matches!(self, LogSource::File { .. })
     }

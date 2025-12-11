@@ -41,7 +41,6 @@ impl Filter {
         }
     }
 
-    /// Check if a log line matches this filter
     pub fn matches(&self, line: &str) -> bool {
         if self.is_regex {
             // Future: regex matching
@@ -115,13 +114,11 @@ impl App {
         self.should_quit = true;
     }
 
-    /// Scroll up by n lines
     pub fn scroll_up(&mut self, lines: usize) {
         self.scroll_offset = self.scroll_offset.saturating_sub(lines);
         self.auto_scroll = false;
     }
 
-    /// Scroll down by n lines
     pub fn scroll_down(&mut self, lines: usize, max_offset: usize) {
         self.scroll_offset = (self.scroll_offset + lines).min(max_offset);
         // If we scrolled to the bottom, re-enable auto-scroll
@@ -130,7 +127,6 @@ impl App {
         }
     }
 
-    /// Jump to top
     pub fn scroll_to_top(&mut self) {
         self.scroll_offset = 0;
         self.auto_scroll = false;
@@ -142,7 +138,6 @@ impl App {
         self.scroll_offset = 0; // Will be recalculated when auto_scroll is true
     }
 
-    /// Enter command mode
     pub fn enter_command_mode(&mut self) {
         self.command_mode = true;
         self.input.clear();
@@ -150,7 +145,6 @@ impl App {
         self.history_index = None; // Reset history navigation
     }
 
-    /// Exit command mode
     pub fn exit_command_mode(&mut self) {
         self.command_mode = false;
         self.input.clear();
@@ -173,27 +167,22 @@ impl App {
         }
     }
 
-    /// Set a success status message
     pub fn set_status_success(&mut self, message: String) {
         self.status_message = Some((message, StatusType::Success));
     }
 
-    /// Set an error status message
     pub fn set_status_error(&mut self, message: String) {
         self.status_message = Some((message, StatusType::Error));
     }
 
-    /// Set an info status message
     pub fn set_status_info(&mut self, message: String) {
         self.status_message = Some((message, StatusType::Info));
     }
 
-    /// Clear the status message
     pub fn clear_status(&mut self) {
         self.status_message = None;
     }
 
-    /// Save a command to history
     pub fn save_to_history(&mut self, command: String) {
         if !command.is_empty() {
             self.command_history.push(command);
@@ -245,51 +234,42 @@ impl App {
         self.history_index = None;
     }
 
-    /// Add an include filter
     pub fn add_include_filter(&mut self, pattern: String) {
         self.filters.push(Filter::new(pattern, FilterType::Include));
     }
 
-    /// Add an exclude filter
     pub fn add_exclude_filter(&mut self, pattern: String) {
         self.filters.push(Filter::new(pattern, FilterType::Exclude));
     }
 
-    /// Clear all filters
     pub fn clear_filters(&mut self) {
         self.filters.clear();
     }
 
-    /// Get count of active filters
     pub fn filter_count(&self) -> usize {
         self.filters.len()
     }
 
-    /// Enter search mode
     pub fn enter_search_mode(&mut self) {
         self.search_mode = true;
         self.input.clear();
     }
 
-    /// Exit search mode
     pub fn exit_search_mode(&mut self) {
         self.search_mode = false;
         self.input.clear();
     }
 
-    /// Perform a search
     pub fn perform_search(&mut self, pattern: String) {
         self.search_pattern = pattern;
         self.current_match = Some(0);
     }
 
-    /// Clear the search
     pub fn clear_search(&mut self) {
         self.search_pattern.clear();
         self.current_match = None;
     }
 
-    /// Move to next search match
     pub fn next_match(&mut self, total_matches: usize) {
         if total_matches == 0 {
             return;
@@ -299,7 +279,6 @@ impl App {
         }
     }
 
-    /// Move to previous search match
     pub fn prev_match(&mut self, total_matches: usize) {
         if total_matches == 0 {
             return;
@@ -313,7 +292,6 @@ impl App {
         }
     }
 
-    /// Navigate to next batch
     pub fn next_batch(&mut self) {
         if let Some(current) = self.current_batch {
             self.current_batch = Some(current + 1);
@@ -325,7 +303,6 @@ impl App {
         self.auto_scroll = false; // Disable auto-scroll
     }
 
-    /// Navigate to previous batch
     pub fn prev_batch(&mut self) {
         if let Some(current) = self.current_batch {
             if current > 0 {
@@ -337,7 +314,6 @@ impl App {
         self.auto_scroll = false; // Disable auto-scroll
     }
 
-    /// Toggle batch view mode
     pub fn toggle_batch_view(&mut self) {
         self.batch_view_mode = !self.batch_view_mode;
         if !self.batch_view_mode {
@@ -347,7 +323,6 @@ impl App {
         }
     }
 
-    /// Toggle help overlay
     pub fn toggle_help(&mut self) {
         self.show_help = !self.show_help;
     }

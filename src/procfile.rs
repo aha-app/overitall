@@ -11,7 +11,6 @@ pub struct Procfile {
 }
 
 impl Procfile {
-    /// Parse a Procfile from the given path
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
         let content = fs::read_to_string(&path)
             .with_context(|| format!("Failed to read Procfile at {:?}", path.as_ref()))?;
@@ -19,7 +18,6 @@ impl Procfile {
         Self::from_string(&content)
     }
 
-    /// Parse a Procfile from a string
     pub fn from_string(content: &str) -> Result<Self> {
         let mut processes = HashMap::new();
 
@@ -64,14 +62,12 @@ impl Procfile {
         Ok(Procfile { processes })
     }
 
-    /// Get all process names
     pub fn process_names(&self) -> Vec<&str> {
         let mut names: Vec<&str> = self.processes.keys().map(|s| s.as_str()).collect();
         names.sort();
         names
     }
 
-    /// Get the command for a specific process
     pub fn get_command(&self, name: &str) -> Option<&str> {
         self.processes.get(name).map(|s| s.as_str())
     }

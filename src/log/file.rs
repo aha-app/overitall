@@ -14,7 +14,6 @@ pub struct FileReader {
 }
 
 impl FileReader {
-    /// Create a new file reader
     pub fn new(process_name: String, path: PathBuf) -> Self {
         Self {
             process_name,
@@ -67,7 +66,6 @@ impl FileReader {
         Ok(())
     }
 
-    /// Stop tailing the file
     pub fn stop(&mut self) {
         if let Some(task) = self.task.take() {
             task.abort();
