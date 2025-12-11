@@ -86,6 +86,10 @@ pub struct App {
     pub current_batch: Option<usize>,
     /// Whether to show the help overlay
     pub show_help: bool,
+    /// Index of selected line (for line expansion/clipboard)
+    pub selected_line_index: Option<usize>,
+    /// Whether to show expanded line view
+    pub expanded_line_view: bool,
 }
 
 impl App {
@@ -107,6 +111,8 @@ impl App {
             batch_view_mode: false,
             current_batch: None,
             show_help: false,
+            selected_line_index: None,
+            expanded_line_view: false,
         }
     }
 
@@ -325,6 +331,39 @@ impl App {
 
     pub fn toggle_help(&mut self) {
         self.show_help = !self.show_help;
+    }
+
+    pub fn select_line(&mut self, index: Option<usize>) {
+        self.selected_line_index = index;
+    }
+
+    pub fn select_next_line(&mut self, max_lines: usize) {
+        if max_lines == 0 {
+            return;
+        }
+        self.selected_line_index = Some(match self.selected_line_index {
+            None => 0,
+            Some(idx) if idx >= max_lines - 1 => max_lines - 1,
+            Some(idx) => idx + 1,
+        });
+        self.auto_scroll = false;
+    }
+
+    pub fn select_prev_line(&mut self) {
+        self.selected_line_index = Some(match self.selected_line_index {
+            None => 0,
+            Some(idx) if idx > 0 => idx - 1,
+            Some(_) => 0,
+        });
+        self.auto_scroll = false;
+    }
+
+    pub fn toggle_expanded_view(&mut self) {
+        self.expanded_line_view = !self.expanded_line_view;
+    }
+
+    pub fn close_expanded_view(&mut self) {
+        self.expanded_line_view = false;
     }
 }
 
@@ -661,8 +700,20 @@ fn draw_log_viewer(
             false
         };
 
-        // Choose style based on whether this is a match
-        let line_style = if is_current_match {
+        // Check if this line is selected
+        let is_selected = app.selected_line_index == Some(log_global_idx);
+
+        // Calculate max width for the message part
+        // Format: [HH:MM:SS] process_name: message
+        // Reserve space for timestamp [HH:MM:SS] (11 chars) + process name + ": " + some margin
+        let prefix_len = 11 + process_name.len() + 2;
+        let available_width = (area.width as usize).saturating_sub(prefix_len + 4); // 4 for borders and margin
+
+        // Choose style based on whether this is selected, a match, etc.
+        let line_style = if is_selected {
+            // Selected line: blue background
+            Style::default().bg(Color::Blue).fg(Color::White)
+        } else if is_current_match {
             // Current match: yellow background
             Style::default().bg(Color::Yellow).fg(Color::Black)
         } else if is_match {
@@ -672,18 +723,28 @@ fn draw_log_viewer(
             Style::default()
         };
 
+        // Build the message span, truncating if needed
+        let message_span = if log.line.len() > available_width {
+            let truncated = format!("{}... [Enter to expand]", &log.line[..available_width.saturating_sub(22)]);
+            Span::styled(truncated, line_style)
+        } else {
+            Span::styled(log.line.clone(), line_style)
+        };
+
         let line = Line::from(vec![
             Span::styled(
                 format!("[{}] ", timestamp),
-                Style::default().fg(Color::Cyan),
+                if is_selected { Style::default().bg(Color::Blue).fg(Color::Cyan) } else { Style::default().fg(Color::Cyan) },
             ),
             Span::styled(
                 format!("{}: ", process_name),
-                Style::default()
-                    .fg(Color::Yellow)
-                    .add_modifier(Modifier::BOLD),
+                if is_selected {
+                    Style::default().bg(Color::Blue).fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                },
             ),
-            Span::styled(&log.line, line_style),
+            message_span,
         ]);
         log_lines.push(line);
     }

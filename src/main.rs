@@ -441,12 +441,13 @@ async fn run_app(
                         app.clear_search();
                     }
                     KeyCode::Up if !app.command_mode && !app.search_mode => {
-                        app.scroll_up(1);
+                        // Line selection: select previous line
+                        app.select_prev_line();
                     }
                     KeyCode::Down if !app.command_mode && !app.search_mode => {
+                        // Line selection: select next line
                         let total_logs = manager.get_all_logs().len();
-                        let max_offset = total_logs.saturating_sub(1);
-                        app.scroll_down(1, max_offset);
+                        app.select_next_line(total_logs);
                     }
                     KeyCode::PageUp if !app.command_mode && !app.search_mode => {
                         // Calculate page size (roughly 85% of terminal height - 2 for borders)
