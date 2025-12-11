@@ -624,11 +624,32 @@ fn draw_log_viewer(
 
             // If we're transitioning to a new batch, insert a separator
             if prev_batch != curr_batch && curr_batch.is_some() {
-                let separator = Line::from(Span::styled(
-                    "─".repeat(80),
-                    Style::default().fg(Color::DarkGray),
-                ));
-                log_lines.push(separator);
+                let batch_num = curr_batch.unwrap();
+
+                // Get batch info from batches array
+                if batch_num < batches.len() {
+                    let (batch_start, batch_end) = batches[batch_num];
+                    let batch_size = batch_end - batch_start + 1;
+
+                    // Create separator text with batch info
+                    let separator_text = format!(" Batch {} ({} logs) ", batch_num + 1, batch_size);
+                    let padding_needed = 80_usize.saturating_sub(separator_text.len());
+                    let left_padding = padding_needed / 2;
+                    let right_padding = padding_needed - left_padding;
+
+                    let separator_line = format!(
+                        "{}{}{}",
+                        "─".repeat(left_padding),
+                        separator_text,
+                        "─".repeat(right_padding)
+                    );
+
+                    let separator = Line::from(Span::styled(
+                        separator_line,
+                        Style::default().fg(Color::DarkGray),
+                    ));
+                    log_lines.push(separator);
+                }
             }
         }
 
