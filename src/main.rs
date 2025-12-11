@@ -453,6 +453,197 @@ async fn run_app(
                     KeyCode::Esc if !app.command_mode && !app.search_mode => {
                         app.clear_search();
                     }
+                    // Copy selected line to clipboard
+                    KeyCode::Char('c') if !app.command_mode && !app.search_mode && !app.expanded_line_view => {
+                        if let Some(line_idx) = app.selected_line_index {
+                            // Get all logs and apply filters (same logic as in draw_expanded_line_overlay)
+                            let logs = manager.get_all_logs();
+
+                            let filtered_logs: Vec<_> = if app.filters.is_empty() {
+                                logs
+                            } else {
+                                logs.into_iter()
+                                    .filter(|log| {
+                                        let line_text = &log.line;
+
+                                        // Check exclude filters first
+                                        for filter in &app.filters {
+                                            if matches!(filter.filter_type, ui::FilterType::Exclude) {
+                                                if filter.matches(line_text) {
+                                                    return false;
+                                                }
+                                            }
+                                        }
+
+                                        // Check include filters
+                                        let include_filters: Vec<_> = app
+                                            .filters
+                                            .iter()
+                                            .filter(|f| matches!(f.filter_type, ui::FilterType::Include))
+                                            .collect();
+
+                                        if include_filters.is_empty() {
+                                            return true;
+                                        }
+
+                                        include_filters.iter().any(|filter| filter.matches(line_text))
+                                    })
+                                    .collect()
+                            };
+
+                            // Apply batch view mode filtering if enabled
+                            let batches = ui::detect_batches_from_logs(&filtered_logs, app.batch_window_ms);
+                            let display_logs: Vec<_> = if app.batch_view_mode {
+                                if let Some(batch_idx) = app.current_batch {
+                                    if !batches.is_empty() && batch_idx < batches.len() {
+                                        let (start, end) = batches[batch_idx];
+                                        filtered_logs[start..=end].to_vec()
+                                    } else {
+                                        filtered_logs
+                                    }
+                                } else {
+                                    filtered_logs
+                                }
+                            } else {
+                                filtered_logs
+                            };
+
+                            if line_idx < display_logs.len() {
+                                let log = display_logs[line_idx];
+                                let formatted = format!(
+                                    "[{}] {}: {}",
+                                    log.timestamp.format("%Y-%m-%d %H:%M:%S"),
+                                    log.source.process_name(),
+                                    log.line
+                                );
+
+                                match overitall::clipboard::copy_to_clipboard(&formatted) {
+                                    Ok(_) => app.set_status_success("Copied line to clipboard".to_string()),
+                                    Err(e) => app.set_status_error(format!("Failed to copy: {}", e)),
+                                }
+                            }
+                        }
+                    }
+                    // Copy entire batch to clipboard
+                    KeyCode::Char('C') if !app.command_mode && !app.search_mode && !app.expanded_line_view => {
+                        if let Some(line_idx) = app.selected_line_index {
+                            // Get all logs and apply filters
+                            let logs = manager.get_all_logs();
+
+                            let filtered_logs: Vec<_> = if app.filters.is_empty() {
+                                logs
+                            } else {
+                                logs.into_iter()
+                                    .filter(|log| {
+                                        let line_text = &log.line;
+
+                                        // Check exclude filters first
+                                        for filter in &app.filters {
+                                            if matches!(filter.filter_type, ui::FilterType::Exclude) {
+                                                if filter.matches(line_text) {
+                                                    return false;
+                                                }
+                                            }
+                                        }
+
+                                        // Check include filters
+                                        let include_filters: Vec<_> = app
+                                            .filters
+                                            .iter()
+                                            .filter(|f| matches!(f.filter_type, ui::FilterType::Include))
+                                            .collect();
+
+                                        if include_filters.is_empty() {
+                                            return true;
+                                        }
+
+                                        include_filters.iter().any(|filter| filter.matches(line_text))
+                                    })
+                                    .collect()
+                            };
+
+                            // Detect batches
+                            let batches = ui::detect_batches_from_logs(&filtered_logs, app.batch_window_ms);
+
+                            // Find which batch contains the selected line
+                            if let Some((batch_idx, (start, end))) = batches.iter().enumerate().find(|(_, (start, end))| {
+                                line_idx >= *start && line_idx <= *end
+                            }) {
+                                // Format the entire batch
+                                let mut batch_text = format!("=== Batch {} ({} lines) ===\n", batch_idx + 1, end - start + 1);
+
+                                for log in &filtered_logs[*start..=*end] {
+                                    batch_text.push_str(&format!(
+                                        "[{}] {}: {}\n",
+                                        log.timestamp.format("%Y-%m-%d %H:%M:%S"),
+                                        log.source.process_name(),
+                                        log.line
+                                    ));
+                                }
+
+                                match overitall::clipboard::copy_to_clipboard(&batch_text) {
+                                    Ok(_) => app.set_status_success(format!("Copied batch to clipboard ({} lines)", end - start + 1)),
+                                    Err(e) => app.set_status_error(format!("Failed to copy: {}", e)),
+                                }
+                            } else {
+                                app.set_status_error("No batch found for selected line".to_string());
+                            }
+                        }
+                    }
+                    // Focus on batch containing selected line
+                    KeyCode::Char('b') if !app.command_mode && !app.search_mode && !app.expanded_line_view => {
+                        if let Some(line_idx) = app.selected_line_index {
+                            // Get all logs and apply filters
+                            let logs = manager.get_all_logs();
+
+                            let filtered_logs: Vec<_> = if app.filters.is_empty() {
+                                logs
+                            } else {
+                                logs.into_iter()
+                                    .filter(|log| {
+                                        let line_text = &log.line;
+
+                                        // Check exclude filters first
+                                        for filter in &app.filters {
+                                            if matches!(filter.filter_type, ui::FilterType::Exclude) {
+                                                if filter.matches(line_text) {
+                                                    return false;
+                                                }
+                                            }
+                                        }
+
+                                        // Check include filters
+                                        let include_filters: Vec<_> = app
+                                            .filters
+                                            .iter()
+                                            .filter(|f| matches!(f.filter_type, ui::FilterType::Include))
+                                            .collect();
+
+                                        if include_filters.is_empty() {
+                                            return true;
+                                        }
+
+                                        include_filters.iter().any(|filter| filter.matches(line_text))
+                                    })
+                                    .collect()
+                            };
+
+                            // Detect batches
+                            let batches = ui::detect_batches_from_logs(&filtered_logs, app.batch_window_ms);
+
+                            // Find which batch contains the selected line
+                            if let Some((batch_idx, _)) = batches.iter().enumerate().find(|(_, (start, end))| {
+                                line_idx >= *start && line_idx <= *end
+                            }) {
+                                app.current_batch = Some(batch_idx);
+                                app.batch_view_mode = true;
+                                app.scroll_offset = 0; // Reset scroll to show batch from the start
+                                app.set_status_info(format!("Focused on batch {}", batch_idx + 1));
+                            } else {
+                                app.set_status_error("No batch found for selected line".to_string());
+                            }
+                        }
+                    }
                     KeyCode::Up if !app.command_mode && !app.search_mode => {
                         // Line selection: select previous line
                         app.select_prev_line();

@@ -401,7 +401,7 @@ pub fn draw(f: &mut Frame, app: &App, manager: &ProcessManager) {
 
 /// Detect batches from a slice of LogLine references
 /// Returns a vector of (start_index, end_index) tuples for each batch
-fn detect_batches_from_logs(logs: &[&crate::log::LogLine], window_ms: i64) -> Vec<(usize, usize)> {
+pub fn detect_batches_from_logs(logs: &[&crate::log::LogLine], window_ms: i64) -> Vec<(usize, usize)> {
     if logs.is_empty() {
         return vec![];
     }
@@ -992,6 +992,22 @@ fn draw_help_overlay(f: &mut Frame) {
         Line::from(vec![
             Span::styled("  :sb", Style::default().fg(Color::Yellow)),
             Span::raw("      Toggle batch view mode"),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("Clipboard & Batch:", Style::default().add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(vec![
+            Span::styled("  c", Style::default().fg(Color::Yellow)),
+            Span::raw("       Copy selected line to clipboard"),
+        ]),
+        Line::from(vec![
+            Span::styled("  C", Style::default().fg(Color::Yellow)),
+            Span::raw("       Copy entire batch to clipboard"),
+        ]),
+        Line::from(vec![
+            Span::styled("  b", Style::default().fg(Color::Yellow)),
+            Span::raw("       Focus on batch containing selected line"),
         ]),
         Line::from(""),
         Line::from(vec![
