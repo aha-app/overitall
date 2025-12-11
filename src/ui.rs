@@ -754,67 +754,53 @@ fn draw_log_viewer(
         // Check if this line is selected
         let is_selected = app.selected_line_index == Some(log_global_idx);
 
-        // Calculate max width for the message part
-        // Format: [HH:MM:SS] process_name: message
-        // Reserve space for timestamp [HH:MM:SS] (11 chars) + process name + ": " + some margin
-        let prefix_len = 11 + process_name.width() + 2;
-        let available_width = (area.width as usize).saturating_sub(prefix_len + 4); // 4 for borders and margin
+        // Format the complete line first, then truncate the ENTIRE line to fit
+        // This prevents issues with multi-span lines exceeding width
+        let timestamp_part = format!("[{}] ", timestamp);
+        let process_part = format!("{}: ", process_name);
+        let full_line = format!("{}{}{}", timestamp_part, process_part, log.line);
 
-        // Choose style based on whether this is selected, a match, etc.
-        let line_style = if is_selected {
-            // Selected line: blue background
-            Style::default().bg(Color::Blue).fg(Color::White)
-        } else if is_current_match {
-            // Current match: yellow background
-            Style::default().bg(Color::Yellow).fg(Color::Black)
-        } else if is_match {
-            // Other matches: dark gray background
-            Style::default().bg(Color::DarkGray)
-        } else {
-            Style::default()
-        };
+        // Calculate max width (account for borders: 2 chars)
+        let max_line_width = (area.width as usize).saturating_sub(3); // -2 for borders, -1 for safety
 
-        // Build the message span, truncating if needed (but not in batch view mode)
-        let message_span = if current_batch_validated.is_some() {
-            // In batch view mode: show full content (no truncation)
-            Span::styled(log.line.clone(), line_style)
-        } else if log.line.width() > available_width {
-            // Not in batch view mode: truncate long lines
-            // Use unicode display width for accurate truncation
-            let max_width = available_width.saturating_sub(3);
+        // Truncate the entire line if needed (except in batch view mode)
+        let display_line = if current_batch_validated.is_some() {
+            // In batch view mode: show full content
+            full_line
+        } else if full_line.width() > max_line_width {
+            // Truncate based on display width
             let mut current_width = 0;
             let mut truncate_at = 0;
+            let ellipsis_width = 3; // "..." = 3 chars
+            let target_width = max_line_width.saturating_sub(ellipsis_width);
 
-            for (idx, ch) in log.line.char_indices() {
+            for (idx, ch) in full_line.char_indices() {
                 let char_width = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0);
-                if current_width + char_width > max_width {
+                if current_width + char_width > target_width {
                     break;
                 }
                 current_width += char_width;
                 truncate_at = idx + ch.len_utf8();
             }
 
-            let truncated = format!("{}...", &log.line[..truncate_at]);
-            Span::styled(truncated, line_style)
+            format!("{}...", &full_line[..truncate_at])
         } else {
-            Span::styled(log.line.clone(), line_style)
+            full_line
         };
 
-        let line = Line::from(vec![
-            Span::styled(
-                format!("[{}] ", timestamp),
-                if is_selected { Style::default().bg(Color::Blue).fg(Color::Cyan) } else { Style::default().fg(Color::Cyan) },
-            ),
-            Span::styled(
-                format!("{}: ", process_name),
-                if is_selected {
-                    Style::default().bg(Color::Blue).fg(Color::Yellow).add_modifier(Modifier::BOLD)
-                } else {
-                    Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
-                },
-            ),
-            message_span,
-        ]);
+        // Choose style based on whether this is selected, a match, etc.
+        let line_style = if is_selected {
+            Style::default().bg(Color::Blue).fg(Color::White)
+        } else if is_current_match {
+            Style::default().bg(Color::Yellow).fg(Color::Black)
+        } else if is_match {
+            Style::default().bg(Color::DarkGray)
+        } else {
+            Style::default()
+        };
+
+        // Create a single-span line to avoid multi-span rendering issues
+        let line = Line::from(Span::styled(display_line, line_style));
         log_lines.push(line);
     }
 
