@@ -394,15 +394,28 @@ async fn run_app(
                                 })
                                 .collect()
                         };
-                        let total_matches = filtered_logs
+
+                        // Build search matches vector
+                        let search_matches: Vec<usize> = filtered_logs
                             .iter()
-                            .filter(|log| {
+                            .enumerate()
+                            .filter(|(_, log)| {
                                 log.line
                                     .to_lowercase()
                                     .contains(&app.search_pattern.to_lowercase())
                             })
-                            .count();
+                            .map(|(idx, _)| idx)
+                            .collect();
+
+                        let total_matches = search_matches.len();
                         app.next_match(total_matches);
+
+                        // Set selected line to the current match
+                        if let Some(match_idx) = app.current_match {
+                            if match_idx < search_matches.len() {
+                                app.selected_line_index = Some(search_matches[match_idx]);
+                            }
+                        }
                     }
                     KeyCode::Char('N') if !app.command_mode && !app.search_mode => {
                         // Get total matches from filtered logs
@@ -432,15 +445,28 @@ async fn run_app(
                                 })
                                 .collect()
                         };
-                        let total_matches = filtered_logs
+
+                        // Build search matches vector
+                        let search_matches: Vec<usize> = filtered_logs
                             .iter()
-                            .filter(|log| {
+                            .enumerate()
+                            .filter(|(_, log)| {
                                 log.line
                                     .to_lowercase()
                                     .contains(&app.search_pattern.to_lowercase())
                             })
-                            .count();
+                            .map(|(idx, _)| idx)
+                            .collect();
+
+                        let total_matches = search_matches.len();
                         app.prev_match(total_matches);
+
+                        // Set selected line to the current match
+                        if let Some(match_idx) = app.current_match {
+                            if match_idx < search_matches.len() {
+                                app.selected_line_index = Some(search_matches[match_idx]);
+                            }
+                        }
                     }
                     // Batch navigation with [ and ] keys
                     KeyCode::Char('[') if !app.command_mode && !app.search_mode => {
@@ -650,7 +676,51 @@ async fn run_app(
                     }
                     KeyCode::Down if !app.command_mode && !app.search_mode => {
                         // Line selection: select next line
-                        let total_logs = manager.get_all_logs().len();
+                        // Calculate the correct max based on filtered logs and batch view mode
+                        let logs = manager.get_all_logs();
+                        let filtered_logs: Vec<_> = if app.filters.is_empty() {
+                            logs
+                        } else {
+                            logs.into_iter()
+                                .filter(|log| {
+                                    let line_text = &log.line;
+                                    for filter in &app.filters {
+                                        if matches!(filter.filter_type, ui::FilterType::Exclude) {
+                                            if filter.matches(line_text) {
+                                                return false;
+                                            }
+                                        }
+                                    }
+                                    let include_filters: Vec<_> = app
+                                        .filters
+                                        .iter()
+                                        .filter(|f| matches!(f.filter_type, ui::FilterType::Include))
+                                        .collect();
+                                    if include_filters.is_empty() {
+                                        return true;
+                                    }
+                                    include_filters.iter().any(|filter| filter.matches(line_text))
+                                })
+                                .collect()
+                        };
+
+                        // If in batch view mode, limit to current batch
+                        let total_logs = if app.batch_view_mode {
+                            if let Some(batch_idx) = app.current_batch {
+                                let batches = ui::detect_batches_from_logs(&filtered_logs, app.batch_window_ms);
+                                if !batches.is_empty() && batch_idx < batches.len() {
+                                    let (start, end) = batches[batch_idx];
+                                    end - start + 1
+                                } else {
+                                    filtered_logs.len()
+                                }
+                            } else {
+                                filtered_logs.len()
+                            }
+                        } else {
+                            filtered_logs.len()
+                        };
+
                         app.select_next_line(total_logs);
                     }
                     KeyCode::PageUp if !app.command_mode && !app.search_mode => {
