@@ -777,15 +777,14 @@ fn draw_log_viewer(
         let message_span = if current_batch_validated.is_some() {
             // In batch view mode: show full content (no truncation)
             Span::styled(log.line.clone(), line_style)
-        } else if log.line.len() > available_width {
+        } else if log.line.chars().count() > available_width {
             // Not in batch view mode: truncate long lines
-            // Use char_indices to find a safe truncation point (at char boundary)
-            let max_len = available_width.saturating_sub(3);
+            // Use chars().take() to get exactly available_width - 3 characters
+            let max_chars = available_width.saturating_sub(3);
             let truncate_at = log.line.char_indices()
-                .take_while(|(idx, _)| *idx < max_len)
-                .last()
-                .map(|(idx, ch)| idx + ch.len_utf8())
-                .unwrap_or(0);
+                .nth(max_chars)
+                .map(|(idx, _)| idx)
+                .unwrap_or(log.line.len());
             let truncated = format!("{}...", &log.line[..truncate_at]);
             Span::styled(truncated, line_style)
         } else {
