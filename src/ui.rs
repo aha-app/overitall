@@ -728,8 +728,12 @@ fn draw_log_viewer(
             Style::default()
         };
 
-        // Build the message span, truncating if needed
-        let message_span = if log.line.len() > available_width {
+        // Build the message span, truncating if needed (but not in batch view mode)
+        let message_span = if current_batch_validated.is_some() {
+            // In batch view mode: show full content (no truncation)
+            Span::styled(log.line.clone(), line_style)
+        } else if log.line.len() > available_width {
+            // Not in batch view mode: truncate long lines
             let truncated = format!("{}...", &log.line[..available_width.saturating_sub(3)]);
             Span::styled(truncated, line_style)
         } else {
@@ -793,12 +797,18 @@ fn draw_log_viewer(
 
     let title = title_parts.join(" ");
 
-    let paragraph = Paragraph::new(log_lines).block(
+    let mut paragraph = Paragraph::new(log_lines).block(
         Block::default()
             .borders(Borders::ALL)
             .title(title)
             .title_style(Style::default().add_modifier(Modifier::BOLD)),
     );
+
+    // Enable word wrapping when in batch view mode so full lines are visible
+    if current_batch_validated.is_some() {
+        use ratatui::widgets::Wrap;
+        paragraph = paragraph.wrap(Wrap { trim: true });
+    }
 
     f.render_widget(paragraph, area);
 }
