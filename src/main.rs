@@ -88,6 +88,9 @@ async fn main() -> anyhow::Result<()> {
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
 
+    // Kill all processes before exiting
+    manager.kill_all().await?;
+
     // Return result
     result
 }
@@ -108,11 +111,21 @@ async fn run_app(
         })?;
 
         // Handle input with short timeout
-        if event::poll(std::time::Duration::from_millis(100))? {
-            if let Event::Key(key) = event::read()? {
-                let mut event_handler = EventHandler::new(app, manager, config);
-                if event_handler.handle_key_event(key).await? {
-                    break; // Quit was requested
+        tokio::select! {
+            result = tokio::signal::ctrl_c() => {
+                // Ctrl+C received
+                result?;
+                break;
+            }
+            _ = tokio::time::sleep(tokio::time::Duration::from_millis(100)) => {
+                // Check for keyboard input
+                if event::poll(std::time::Duration::from_millis(0))? {
+                    if let Event::Key(key) = event::read()? {
+                        let mut event_handler = EventHandler::new(app, manager, config);
+                        if event_handler.handle_key_event(key).await? {
+                            break; // Quit was requested
+                        }
+                    }
                 }
             }
         }
