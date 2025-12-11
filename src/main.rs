@@ -40,12 +40,18 @@ async fn main() -> anyhow::Result<()> {
     // Parse procfile
     let procfile = Procfile::from_file(&config.procfile)?;
 
+    // Determine working directory from Procfile path
+    let procfile_dir = config.procfile
+        .parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| std::env::current_dir().unwrap());
+
     // Create process manager
     let mut manager = ProcessManager::new();
 
     // Add processes from Procfile
     for (name, command) in &procfile.processes {
-        manager.add_process(name.clone(), command.clone());
+        manager.add_process(name.clone(), command.clone(), Some(procfile_dir.clone()));
 
         // If this process has a log file configured, add it
         if let Some(proc_config) = config.processes.get(name) {

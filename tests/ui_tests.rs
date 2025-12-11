@@ -33,8 +33,8 @@ fn create_manager_with_logs() -> ProcessManager {
     let mut manager = ProcessManager::new();
 
     // Add some test processes
-    manager.add_process("web".to_string(), "ruby web.rb".to_string());
-    manager.add_process("worker".to_string(), "ruby worker.rb".to_string());
+    manager.add_process("web".to_string(), "ruby web.rb".to_string(), None);
+    manager.add_process("worker".to_string(), "ruby worker.rb".to_string(), None);
 
     // Add test logs with various content
     manager.add_test_log(create_test_log_line("web", "Starting web server on port 3000"));
@@ -402,8 +402,8 @@ fn test_snapshot_empty_results_after_filtering() {
 fn create_manager_with_batched_logs() -> ProcessManager {
     let mut manager = ProcessManager::new();
 
-    manager.add_process("web".to_string(), "ruby web.rb".to_string());
-    manager.add_process("worker".to_string(), "ruby worker.rb".to_string());
+    manager.add_process("web".to_string(), "ruby web.rb".to_string(), None);
+    manager.add_process("worker".to_string(), "ruby worker.rb".to_string(), None);
 
     // Batch 1: Three logs arriving within 100ms (at 12:00:00.000)
     let batch1_time = Local.with_ymd_and_hms(2024, 12, 10, 12, 0, 0).unwrap();
@@ -496,7 +496,7 @@ fn test_snapshot_batch_info_in_status() {
 #[test]
 fn test_snapshot_single_batch_no_separators() {
     let mut manager = ProcessManager::new();
-    manager.add_process("web".to_string(), "ruby web.rb".to_string());
+    manager.add_process("web".to_string(), "ruby web.rb".to_string(), None);
 
     // Add logs all in one batch (within 100ms)
     let batch_time = Local.with_ymd_and_hms(2024, 12, 10, 12, 0, 0).unwrap();
@@ -672,7 +672,7 @@ fn test_batch_window_set_value() {
 #[test]
 fn test_batch_window_affects_batch_detection() {
     let mut manager = ProcessManager::new();
-    manager.add_process("web".to_string(), "ruby web.rb".to_string());
+    manager.add_process("web".to_string(), "ruby web.rb".to_string(), None);
 
     // Create logs with 200ms gap between them
     let base_time = Local.with_ymd_and_hms(2024, 12, 10, 12, 0, 0).unwrap();
@@ -743,7 +743,7 @@ fn test_batch_window_prevents_chaining() {
     // Regression test for the "chaining" bug where logs slowly drift apart
     // over time but each consecutive pair is within the window
     let mut manager = ProcessManager::new();
-    manager.add_process("web".to_string(), "ruby web.rb".to_string());
+    manager.add_process("web".to_string(), "ruby web.rb".to_string(), None);
 
     let base_time = Local.with_ymd_and_hms(2024, 12, 10, 12, 0, 0).unwrap();
 

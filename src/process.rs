@@ -24,6 +24,7 @@ pub enum ProcessStatus {
 pub struct ProcessHandle {
     pub name: String,
     pub command: String,
+    pub working_dir: Option<PathBuf>,
     pub status: ProcessStatus,
     child: Option<Child>,
     stdout_task: Option<JoinHandle<()>>,
@@ -32,10 +33,11 @@ pub struct ProcessHandle {
 
 impl ProcessHandle {
     /// Create a new process handle (not yet started)
-    pub fn new(name: String, command: String) -> Self {
+    pub fn new(name: String, command: String, working_dir: Option<PathBuf>) -> Self {
         Self {
             name,
             command,
+            working_dir,
             status: ProcessStatus::Stopped,
             child: None,
             stdout_task: None,
@@ -49,15 +51,20 @@ impl ProcessHandle {
             return Ok(());
         }
 
-        // Parse command into parts (simple split on whitespace for now)
-        let parts: Vec<&str> = self.command.split_whitespace().collect();
-        if parts.is_empty() {
-            return Err(anyhow::anyhow!("Empty command"));
-        }
+        // Execute command through shell (handles quotes, spaces, variables, pipes, etc.)
+        let mut cmd = if cfg!(target_os = "windows") {
+            let mut c = Command::new("cmd");
+            c.args(&["/C", &self.command]);
+            c
+        } else {
+            let mut c = Command::new("sh");
+            c.args(&["-c", &self.command]);
+            c
+        };
 
-        let mut cmd = Command::new(parts[0]);
-        if parts.len() > 1 {
-            cmd.args(&parts[1..]);
+        // Set working directory if specified
+        if let Some(ref working_dir) = self.working_dir {
+            cmd.current_dir(working_dir);
         }
 
         // Spawn with piped stdout/stderr
@@ -66,7 +73,15 @@ impl ProcessHandle {
             .stderr(Stdio::piped())
             .kill_on_drop(true)
             .spawn()
-            .context("Failed to spawn process")?;
+            .with_context(|| format!(
+                "Failed to spawn process '{}': command='{}'{}",
+                self.name,
+                self.command,
+                self.working_dir
+                    .as_ref()
+                    .map(|d| format!(", working_dir='{}'", d.display()))
+                    .unwrap_or_default()
+            ))?;
 
         // Capture stdout
         let stdout = child.stdout.take().unwrap();
@@ -203,8 +218,8 @@ impl ProcessManager {
     }
 
     /// Add a process definition (doesn't start it)
-    pub fn add_process(&mut self, name: String, command: String) {
-        self.processes.insert(name.clone(), ProcessHandle::new(name, command));
+    pub fn add_process(&mut self, name: String, command: String, working_dir: Option<PathBuf>) {
+        self.processes.insert(name.clone(), ProcessHandle::new(name, command, working_dir));
     }
 
     pub async fn start_process(&mut self, name: &str) -> Result<()> {
@@ -325,7 +340,7 @@ mod tests {
     #[tokio::test]
     async fn test_process_start_stop() {
         let mut manager = ProcessManager::new();
-        manager.add_process("test".to_string(), "echo hello".to_string());
+        manager.add_process("test".to_string(), "echo hello".to_string(), None);
 
         manager.start_process("test").await.unwrap();
         assert_eq!(manager.get_status("test"), Some(ProcessStatus::Running));
@@ -334,6 +349,12 @@ mod tests {
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
         manager.kill_process("test").await.unwrap();
+
+        // Wait for the process to actually terminate
+        while !manager.check_termination_status().await {
+            tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+        }
+
         assert_eq!(manager.get_status("test"), Some(ProcessStatus::Stopped));
     }
 }
