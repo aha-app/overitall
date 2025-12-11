@@ -682,3 +682,97 @@ async fn run_app(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_bw_command_valid_values() {
+        // Test valid batch window values
+        match parse_command("bw 1000") {
+            Command::SetBatchWindow(1000) => {},
+            _ => panic!("Expected SetBatchWindow(1000)"),
+        }
+
+        match parse_command("bw 50") {
+            Command::SetBatchWindow(50) => {},
+            _ => panic!("Expected SetBatchWindow(50)"),
+        }
+
+        match parse_command("bw 5000") {
+            Command::SetBatchWindow(5000) => {},
+            _ => panic!("Expected SetBatchWindow(5000)"),
+        }
+
+        match parse_command("bw 1") {
+            Command::SetBatchWindow(1) => {},
+            _ => panic!("Expected SetBatchWindow(1)"),
+        }
+    }
+
+    #[test]
+    fn test_parse_bw_command_negative_value() {
+        // Test that negative values are rejected
+        match parse_command("bw -100") {
+            Command::Unknown(msg) => {
+                assert!(msg.contains("positive"), "Expected error about positive value, got: {}", msg);
+            },
+            _ => panic!("Expected Unknown command for negative value"),
+        }
+    }
+
+    #[test]
+    fn test_parse_bw_command_zero_value() {
+        // Test that zero is rejected
+        match parse_command("bw 0") {
+            Command::Unknown(msg) => {
+                assert!(msg.contains("positive"), "Expected error about positive value, got: {}", msg);
+            },
+            _ => panic!("Expected Unknown command for zero value"),
+        }
+    }
+
+    #[test]
+    fn test_parse_bw_command_non_numeric() {
+        // Test that non-numeric values are rejected
+        match parse_command("bw abc") {
+            Command::Unknown(msg) => {
+                assert!(msg.contains("valid number"), "Expected error about valid number, got: {}", msg);
+            },
+            _ => panic!("Expected Unknown command for non-numeric value"),
+        }
+
+        match parse_command("bw fast") {
+            Command::Unknown(msg) => {
+                assert!(msg.contains("valid number"), "Expected error about valid number, got: {}", msg);
+            },
+            _ => panic!("Expected Unknown command for 'fast'"),
+        }
+    }
+
+    #[test]
+    fn test_parse_bw_command_missing_argument() {
+        // Test that missing argument shows usage
+        match parse_command("bw") {
+            Command::Unknown(msg) => {
+                assert!(msg.contains("Usage"), "Expected usage message, got: {}", msg);
+            },
+            _ => panic!("Expected Unknown command for missing argument"),
+        }
+    }
+
+    #[test]
+    fn test_parse_bw_command_extra_whitespace() {
+        // Test that extra whitespace doesn't break parsing
+        match parse_command("bw  1000") {
+            Command::SetBatchWindow(1000) => {},
+            _ => panic!("Expected SetBatchWindow(1000) with extra whitespace"),
+        }
+
+        match parse_command("  bw 500  ") {
+            Command::SetBatchWindow(500) => {},
+            _ => panic!("Expected SetBatchWindow(500) with surrounding whitespace"),
+        }
+    }
+}

@@ -65,3 +65,131 @@ impl Config {
         self.filters.exclude = exclude_filters;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    #[test]
+    fn test_batch_window_loads_from_config() {
+        // Create a temp config file with batch_window_ms
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(
+            temp_file,
+            r#"
+procfile = "Procfile"
+batch_window_ms = 2000
+
+[processes]
+"#
+        )
+        .unwrap();
+
+        let config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert_eq!(config.batch_window_ms, Some(2000));
+    }
+
+    #[test]
+    fn test_batch_window_defaults_when_missing() {
+        // Create a temp config file WITHOUT batch_window_ms
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(
+            temp_file,
+            r#"
+procfile = "Procfile"
+
+[processes]
+"#
+        )
+        .unwrap();
+
+        let config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert_eq!(config.batch_window_ms, None);
+    }
+
+    #[test]
+    fn test_batch_window_saves_to_config() {
+        // Create a config with batch_window_ms
+        let config = Config {
+            procfile: PathBuf::from("Procfile"),
+            processes: HashMap::new(),
+            filters: FilterConfig::default(),
+            batch_window_ms: Some(5000),
+            config_path: None,
+        };
+
+        // Save to temp file
+        let temp_file = NamedTempFile::new().unwrap();
+        config.save(temp_file.path().to_str().unwrap()).unwrap();
+
+        // Read back and verify
+        let loaded_config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert_eq!(loaded_config.batch_window_ms, Some(5000));
+    }
+
+    #[test]
+    fn test_batch_window_updates_in_config() {
+        // Start with no batch_window_ms
+        let mut config = Config {
+            procfile: PathBuf::from("Procfile"),
+            processes: HashMap::new(),
+            filters: FilterConfig::default(),
+            batch_window_ms: None,
+            config_path: None,
+        };
+
+        // Save initial config
+        let temp_file = NamedTempFile::new().unwrap();
+        config.save(temp_file.path().to_str().unwrap()).unwrap();
+
+        // Update batch_window_ms
+        config.batch_window_ms = Some(3000);
+        config.save(temp_file.path().to_str().unwrap()).unwrap();
+
+        // Load and verify update
+        let loaded_config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert_eq!(loaded_config.batch_window_ms, Some(3000));
+    }
+
+    #[test]
+    fn test_batch_window_none_not_serialized() {
+        // When batch_window_ms is None, it should not appear in the TOML
+        let config = Config {
+            procfile: PathBuf::from("Procfile"),
+            processes: HashMap::new(),
+            filters: FilterConfig::default(),
+            batch_window_ms: None,
+            config_path: None,
+        };
+
+        let toml_string = toml::to_string_pretty(&config).unwrap();
+
+        // Verify that "batch_window_ms" does not appear in the TOML output
+        assert!(
+            !toml_string.contains("batch_window_ms"),
+            "batch_window_ms should not be serialized when None"
+        );
+    }
+
+    #[test]
+    fn test_batch_window_some_is_serialized() {
+        // When batch_window_ms is Some, it should appear in the TOML
+        let config = Config {
+            procfile: PathBuf::from("Procfile"),
+            processes: HashMap::new(),
+            filters: FilterConfig::default(),
+            batch_window_ms: Some(1500),
+            config_path: None,
+        };
+
+        let toml_string = toml::to_string_pretty(&config).unwrap();
+
+        // Verify that "batch_window_ms = 1500" appears in the TOML output
+        assert!(
+            toml_string.contains("batch_window_ms = 1500"),
+            "batch_window_ms should be serialized when Some(1500)"
+        );
+    }
+}
