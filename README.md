@@ -85,7 +85,7 @@ oit -c path/to/config.toml
 #### Modes
 - `:` - Enter command mode
 - `/` - Enter search mode
-- `Esc` - Exit current mode or close overlays
+- `Esc` - Exit current mode, close overlays, or jump to latest logs
 
 #### Search
 - `n` / `N` - Next/previous search match
