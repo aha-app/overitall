@@ -426,7 +426,9 @@ pub fn detect_batches_from_logs(logs: &[&crate::log::LogLine], window_ms: i64) -
     let mut batch_start = 0;
 
     for i in 1..logs.len() {
-        let time_diff = logs[i].arrival_time - logs[i - 1].arrival_time;
+        // Compare to the start of the current batch, not the previous log
+        // This prevents "chaining" where logs slowly drift apart over time
+        let time_diff = logs[i].arrival_time - logs[batch_start].arrival_time;
         if time_diff.num_milliseconds() > window_ms {
             batches.push((batch_start, i - 1));
             batch_start = i;

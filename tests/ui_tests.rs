@@ -737,3 +737,46 @@ fn test_batch_window_resets_batch_view_if_active() {
 
     assert_eq!(app.current_batch, Some(0), "Should reset to first batch");
 }
+
+#[test]
+fn test_batch_window_prevents_chaining() {
+    // Regression test for the "chaining" bug where logs slowly drift apart
+    // over time but each consecutive pair is within the window
+    let mut manager = ProcessManager::new();
+    manager.add_process("web".to_string(), "ruby web.rb".to_string());
+
+    let base_time = Local.with_ymd_and_hms(2024, 12, 10, 12, 0, 0).unwrap();
+
+    // Create logs with 2-second gaps between each
+    // Log 1 at 0s, Log 2 at 2s, Log 3 at 4s, Log 4 at 6s
+    for i in 0..4 {
+        let mut log = LogLine::new(
+            LogSource::ProcessStdout("web".to_string()),
+            format!("Log {}", i + 1),
+        );
+        log.timestamp = base_time;
+        log.arrival_time = base_time + chrono::Duration::seconds(i * 2);
+        manager.add_test_log(log);
+    }
+
+    let logs = manager.get_all_logs();
+
+    // With a 3000ms (3 second) window:
+    // - Log 1 at 0s (batch starts at 0s)
+    // - Log 2 at 2s (2s from batch start, < 3s window, SAME batch)
+    // - Log 3 at 4s (4s from batch start, > 3s window, NEW batch)
+    // - Log 4 at 6s (2s from new batch start at 4s, < 3s window, SAME batch)
+    //
+    // Expected: 2 batches
+    // - Batch 1: indices 0-1 (logs 1-2)
+    // - Batch 2: indices 2-3 (logs 3-4)
+    let batches = overitall::ui::detect_batches_from_logs(&logs, 3000);
+
+    assert_eq!(batches.len(), 2, "Should have 2 batches with 3s window");
+    assert_eq!(batches[0], (0, 1), "First batch should contain logs 0-1");
+    assert_eq!(batches[1], (2, 3), "Second batch should contain logs 2-3");
+
+    // With the OLD buggy algorithm (comparing to previous log):
+    // All logs would be in one batch because each consecutive pair is 2s < 3s
+    // This test ensures we're comparing to the batch START, not previous log
+}
