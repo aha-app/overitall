@@ -1,0 +1,6 @@
+2025-12-10T14:27:37-10:00 [WORKER] Processing ImageProcessingJob (job_id: 1)
+2025-12-10T14:27:38-10:00 [WORKER] Completed ImageProcessingJob (job_id: 1)
+2025-12-10T14:27:42-10:00 [WORKER] Processing EmailJob (job_id: 2)
+2025-12-10T14:27:43-10:00 [WORKER] FAILED EmailJob (job_id: 2) - Retry scheduled
+2025-12-10T14:27:48-10:00 [WORKER] Processing ImageProcessingJob (job_id: 3)
+2025-12-10T14:27:50-10:00 [WORKER] Completed ImageProcessingJob (job_id: 3)

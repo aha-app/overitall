@@ -1,0 +1,11 @@
+2025-12-10T14:19:11-10:00 [WEB] PUT /health - 304 (260ms)
+2025-12-10T14:19:11-10:00 [WEB] ERROR: Database connection timeout
+2025-12-10T14:27:36-10:00 [WEB] GET /api/users - 500 (156ms)
+2025-12-10T14:27:37-10:00 [WEB] PUT / - 304 (275ms)
+2025-12-10T14:27:39-10:00 [WEB] POST /api/posts - 200 (158ms)
+2025-12-10T14:27:41-10:00 [WEB] DELETE /api/users - 200 (317ms)
+2025-12-10T14:27:44-10:00 [WEB] GET /metrics - 404 (375ms)
+2025-12-10T14:27:45-10:00 [WEB] POST /metrics - 200 (205ms)
+2025-12-10T14:27:48-10:00 [WEB] DELETE /metrics - 404 (407ms)
+2025-12-10T14:27:48-10:00 [WEB] ERROR: Database connection timeout
+2025-12-10T14:27:51-10:00 [WEB] POST /health - 201 (340ms)

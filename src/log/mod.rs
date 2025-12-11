@@ -1,0 +1,64 @@
+use chrono::{DateTime, Utc};
+use std::path::PathBuf;
+
+pub mod buffer;
+pub mod file;
+
+// Re-export commonly used types
+pub use buffer::LogBuffer;
+pub use file::FileReader;
+
+/// A log line with enhanced metadata
+#[derive(Debug, Clone)]
+pub struct LogLine {
+    pub timestamp: DateTime<Utc>,
+    pub source: LogSource,
+    pub line: String,
+}
+
+impl LogLine {
+    pub fn new(source: LogSource, line: String) -> Self {
+        Self {
+            timestamp: Utc::now(),
+            source,
+            line,
+        }
+    }
+}
+
+/// Source of a log line
+#[derive(Debug, Clone)]
+pub enum LogSource {
+    ProcessStdout(String),  // process name
+    ProcessStderr(String),  // process name
+    File {
+        process_name: String,
+        path: PathBuf,
+    },
+}
+
+impl LogSource {
+    /// Get the process name associated with this log source
+    pub fn process_name(&self) -> &str {
+        match self {
+            LogSource::ProcessStdout(name) => name,
+            LogSource::ProcessStderr(name) => name,
+            LogSource::File { process_name, .. } => process_name,
+        }
+    }
+
+    /// Check if this is from stdout
+    pub fn is_stdout(&self) -> bool {
+        matches!(self, LogSource::ProcessStdout(_))
+    }
+
+    /// Check if this is from stderr
+    pub fn is_stderr(&self) -> bool {
+        matches!(self, LogSource::ProcessStderr(_))
+    }
+
+    /// Check if this is from a file
+    pub fn is_file(&self) -> bool {
+        matches!(self, LogSource::File { .. })
+    }
+}

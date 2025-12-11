@@ -1,0 +1,3 @@
+web: ruby example/web_server.rb
+worker: ruby example/worker.rb
+monitor: ruby example/monitor.rb

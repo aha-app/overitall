@@ -1,0 +1,18 @@
+# Overitall Configuration Example
+
+# Path to the Procfile
+procfile = "example/Procfile"
+
+# Process-specific configuration
+[processes.web]
+log_file = "web.log"
+
+[processes.worker]
+log_file = "worker.log"
+
+# monitor process writes to stdout only, no log file needed
+
+# Saved filters
+[filters]
+include = ["ERROR", "INFO"]
+exclude = ["DEBUG"]
