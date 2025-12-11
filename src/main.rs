@@ -106,6 +106,7 @@ enum Command {
     PrevBatch,
     ShowBatch,
     SetBatchWindow(i64),
+    ShowBatchWindow,
     Unknown(String),
 }
 
@@ -165,12 +166,22 @@ fn parse_command(input: &str) -> Command {
         "sb" => Command::ShowBatch,
         "bw" => {
             if parts.len() < 2 {
-                Command::Unknown("Usage: :bw <milliseconds>".to_string())
+                // No argument - show current batch window
+                Command::ShowBatchWindow
             } else {
-                match parts[1].parse::<i64>() {
-                    Ok(ms) if ms > 0 => Command::SetBatchWindow(ms),
-                    Ok(_) => Command::Unknown("Batch window must be positive".to_string()),
-                    Err(_) => Command::Unknown("Batch window must be a valid number".to_string()),
+                // Check for presets first
+                match parts[1] {
+                    "fast" => Command::SetBatchWindow(100),
+                    "medium" => Command::SetBatchWindow(1000),
+                    "slow" => Command::SetBatchWindow(5000),
+                    _ => {
+                        // Try to parse as number
+                        match parts[1].parse::<i64>() {
+                            Ok(ms) if ms > 0 => Command::SetBatchWindow(ms),
+                            Ok(_) => Command::Unknown("Batch window must be positive".to_string()),
+                            Err(_) => Command::Unknown("Batch window must be a valid number or preset (fast/medium/slow)".to_string()),
+                        }
+                    }
                 }
             }
         }
@@ -404,6 +415,9 @@ async fn run_app(
                                     }
                                 }
                             }
+                            Command::ShowBatchWindow => {
+                                app.set_status_info(format!("Current batch window: {}ms", app.batch_window_ms));
+                            }
                             Command::Unknown(msg) => {
                                 app.set_status_error(format!("Error: {}", msg));
                             }
@@ -491,6 +505,43 @@ async fn run_app(
                     }
                     KeyCode::Char(']') if !app.command_mode && !app.search_mode => {
                         app.next_batch();
+                    }
+                    // Batch window adjustment with + and - keys
+                    KeyCode::Char('+') if !app.command_mode && !app.search_mode => {
+                        let new_window = app.batch_window_ms + 100;
+                        app.set_batch_window(new_window);
+                        // Count batches with the new window to show in status
+                        let logs = manager.get_all_logs();
+                        let filtered_logs = apply_filters(logs, &app.filters);
+                        let filtered_refs: Vec<&log::LogLine> = filtered_logs.iter().collect();
+                        let batches = ui::detect_batches_from_logs(&filtered_refs, new_window);
+                        app.set_status_success(format!("Batch window increased to {}ms ({} batches)", new_window, batches.len()));
+
+                        // Save to config
+                        config.batch_window_ms = Some(new_window);
+                        if let Some(config_path) = &config.config_path {
+                            if let Err(e) = config.save_to_file(config_path) {
+                                eprintln!("Warning: Failed to save config: {}", e);
+                            }
+                        }
+                    }
+                    KeyCode::Char('-') if !app.command_mode && !app.search_mode => {
+                        let new_window = (app.batch_window_ms - 100).max(1);
+                        app.set_batch_window(new_window);
+                        // Count batches with the new window to show in status
+                        let logs = manager.get_all_logs();
+                        let filtered_logs = apply_filters(logs, &app.filters);
+                        let filtered_refs: Vec<&log::LogLine> = filtered_logs.iter().collect();
+                        let batches = ui::detect_batches_from_logs(&filtered_refs, new_window);
+                        app.set_status_success(format!("Batch window decreased to {}ms ({} batches)", new_window, batches.len()));
+
+                        // Save to config
+                        config.batch_window_ms = Some(new_window);
+                        if let Some(config_path) = &config.config_path {
+                            if let Err(e) = config.save_to_file(config_path) {
+                                eprintln!("Warning: Failed to save config: {}", e);
+                            }
+                        }
                     }
                     // Reset to latest logs with Esc (when not in command/search mode)
                     KeyCode::Esc if !app.command_mode && !app.search_mode => {
@@ -735,30 +786,28 @@ mod tests {
 
     #[test]
     fn test_parse_bw_command_non_numeric() {
-        // Test that non-numeric values are rejected
+        // Test that invalid non-numeric values are rejected
         match parse_command("bw abc") {
             Command::Unknown(msg) => {
-                assert!(msg.contains("valid number"), "Expected error about valid number, got: {}", msg);
+                assert!(msg.contains("valid number") || msg.contains("preset"), "Expected error about valid number or preset, got: {}", msg);
             },
             _ => panic!("Expected Unknown command for non-numeric value"),
         }
 
-        match parse_command("bw fast") {
+        match parse_command("bw invalid") {
             Command::Unknown(msg) => {
-                assert!(msg.contains("valid number"), "Expected error about valid number, got: {}", msg);
+                assert!(msg.contains("valid number") || msg.contains("preset"), "Expected error about valid number or preset, got: {}", msg);
             },
-            _ => panic!("Expected Unknown command for 'fast'"),
+            _ => panic!("Expected Unknown command for invalid preset"),
         }
     }
 
     #[test]
     fn test_parse_bw_command_missing_argument() {
-        // Test that missing argument shows usage
+        // Test that missing argument returns ShowBatchWindow
         match parse_command("bw") {
-            Command::Unknown(msg) => {
-                assert!(msg.contains("Usage"), "Expected usage message, got: {}", msg);
-            },
-            _ => panic!("Expected Unknown command for missing argument"),
+            Command::ShowBatchWindow => {},
+            _ => panic!("Expected ShowBatchWindow for missing argument"),
         }
     }
 
@@ -773,6 +822,34 @@ mod tests {
         match parse_command("  bw 500  ") {
             Command::SetBatchWindow(500) => {},
             _ => panic!("Expected SetBatchWindow(500) with surrounding whitespace"),
+        }
+    }
+
+    #[test]
+    fn test_parse_bw_command_presets() {
+        // Test preset values: fast, medium, slow
+        match parse_command("bw fast") {
+            Command::SetBatchWindow(100) => {},
+            _ => panic!("Expected SetBatchWindow(100) for 'fast' preset"),
+        }
+
+        match parse_command("bw medium") {
+            Command::SetBatchWindow(1000) => {},
+            _ => panic!("Expected SetBatchWindow(1000) for 'medium' preset"),
+        }
+
+        match parse_command("bw slow") {
+            Command::SetBatchWindow(5000) => {},
+            _ => panic!("Expected SetBatchWindow(5000) for 'slow' preset"),
+        }
+    }
+
+    #[test]
+    fn test_parse_bw_command_show_current() {
+        // Test showing current batch window value
+        match parse_command("bw") {
+            Command::ShowBatchWindow => {},
+            _ => panic!("Expected ShowBatchWindow"),
         }
     }
 }

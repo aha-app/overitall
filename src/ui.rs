@@ -1022,8 +1022,20 @@ fn draw_help_overlay(f: &mut Frame) {
             Span::raw("      Toggle batch view mode"),
         ]),
         Line::from(vec![
+            Span::styled("  :bw", Style::default().fg(Color::Yellow)),
+            Span::raw("       Show current batch window"),
+        ]),
+        Line::from(vec![
             Span::styled("  :bw <ms>", Style::default().fg(Color::Yellow)),
-            Span::raw("  Set batch window (milliseconds, default: 100)"),
+            Span::raw("  Set batch window (milliseconds)"),
+        ]),
+        Line::from(vec![
+            Span::styled("  :bw fast/medium/slow", Style::default().fg(Color::Yellow)),
+            Span::raw("  Presets: 100ms/1000ms/5000ms"),
+        ]),
+        Line::from(vec![
+            Span::styled("  +/-", Style::default().fg(Color::Yellow)),
+            Span::raw("     Increase/decrease batch window by 100ms"),
         ]),
         Line::from(""),
         Line::from(vec![
