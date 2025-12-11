@@ -577,3 +577,72 @@ fn test_snapshot_all_features_active() {
     let output = render_app_to_string(&app, &manager, 120, 40);
     assert_snapshot!(output);
 }
+
+#[test]
+fn test_wraparound_top_to_bottom() {
+    let mut app = create_test_app();
+    let manager = create_manager_with_logs();
+
+    // Select first line (index 0)
+    app.select_next_line(8); // 8 logs total
+
+    // Now at index 0, press "Up" to wrap to bottom (index 7)
+    app.select_prev_line(8);
+
+    let output = render_app_to_string(&app, &manager, 120, 40);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_wraparound_bottom_to_top() {
+    let mut app = create_test_app();
+    let manager = create_manager_with_logs();
+
+    // Navigate to last line by selecting down multiple times
+    for _ in 0..7 {
+        app.select_next_line(8);
+    }
+
+    // Now at index 7 (bottom), press "Down" to wrap to top (index 0)
+    app.select_next_line(8);
+
+    let output = render_app_to_string(&app, &manager, 120, 40);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_wraparound_in_batch_view() {
+    let mut app = create_test_app();
+    let manager = create_manager_with_batched_logs();
+
+    // Enable batch view mode
+    app.toggle_batch_view();
+
+    // Select first line in batch
+    app.select_next_line(3); // Batch has 3 logs
+
+    // Wrap from top to bottom within batch
+    app.select_prev_line(3);
+
+    let output = render_app_to_string(&app, &manager, 120, 40);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_wraparound_with_filters() {
+    let mut app = create_test_app();
+    let manager = create_manager_with_logs();
+
+    // Apply a filter to reduce visible logs
+    app.add_include_filter("ERROR".to_string());
+    // This should leave 2 logs visible
+
+    // Select first filtered line
+    app.select_next_line(2);
+
+    // Wrap from top to bottom
+    app.select_prev_line(2);
+
+    let output = render_app_to_string(&app, &manager, 120, 40);
+    assert_snapshot!(output);
+}
