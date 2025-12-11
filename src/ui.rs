@@ -5,6 +5,7 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph},
     Frame,
 };
+use unicode_width::UnicodeWidthStr;
 
 use crate::process::{ProcessManager, ProcessStatus};
 
@@ -756,7 +757,7 @@ fn draw_log_viewer(
         // Calculate max width for the message part
         // Format: [HH:MM:SS] process_name: message
         // Reserve space for timestamp [HH:MM:SS] (11 chars) + process name + ": " + some margin
-        let prefix_len = 11 + process_name.len() + 2;
+        let prefix_len = 11 + process_name.width() + 2;
         let available_width = (area.width as usize).saturating_sub(prefix_len + 4); // 4 for borders and margin
 
         // Choose style based on whether this is selected, a match, etc.
@@ -777,14 +778,22 @@ fn draw_log_viewer(
         let message_span = if current_batch_validated.is_some() {
             // In batch view mode: show full content (no truncation)
             Span::styled(log.line.clone(), line_style)
-        } else if log.line.chars().count() > available_width {
+        } else if log.line.width() > available_width {
             // Not in batch view mode: truncate long lines
-            // Use chars().take() to get exactly available_width - 3 characters
-            let max_chars = available_width.saturating_sub(3);
-            let truncate_at = log.line.char_indices()
-                .nth(max_chars)
-                .map(|(idx, _)| idx)
-                .unwrap_or(log.line.len());
+            // Use unicode display width for accurate truncation
+            let max_width = available_width.saturating_sub(3);
+            let mut current_width = 0;
+            let mut truncate_at = 0;
+
+            for (idx, ch) in log.line.char_indices() {
+                let char_width = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0);
+                if current_width + char_width > max_width {
+                    break;
+                }
+                current_width += char_width;
+                truncate_at = idx + ch.len_utf8();
+            }
+
             let truncated = format!("{}...", &log.line[..truncate_at]);
             Span::styled(truncated, line_style)
         } else {
