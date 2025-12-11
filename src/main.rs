@@ -492,9 +492,12 @@ async fn run_app(
                     KeyCode::Char(']') if !app.command_mode && !app.search_mode => {
                         app.next_batch();
                     }
-                    // Clear search with Esc (when not in command/search mode)
+                    // Reset to latest logs with Esc (when not in command/search mode)
                     KeyCode::Esc if !app.command_mode && !app.search_mode => {
                         app.clear_search();
+                        app.scroll_to_bottom();
+                        app.selected_line_index = None; // Clear line selection
+                        app.set_status_info("Jumped to latest logs".to_string());
                     }
                     // Copy selected line to clipboard
                     KeyCode::Char('c') if !app.command_mode && !app.search_mode && !app.expanded_line_view => {

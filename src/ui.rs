@@ -925,6 +925,10 @@ fn draw_help_overlay(f: &mut Frame) {
             Span::raw("   Expand selected line (show full content)"),
         ]),
         Line::from(vec![
+            Span::styled("  Esc", Style::default().fg(Color::Yellow)),
+            Span::raw("     Jump to latest logs (reset view)"),
+        ]),
+        Line::from(vec![
             Span::styled("  q", Style::default().fg(Color::Yellow)),
             Span::raw("       Quit"),
         ]),
