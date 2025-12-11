@@ -779,7 +779,14 @@ fn draw_log_viewer(
             Span::styled(log.line.clone(), line_style)
         } else if log.line.len() > available_width {
             // Not in batch view mode: truncate long lines
-            let truncated = format!("{}...", &log.line[..available_width.saturating_sub(3)]);
+            // Use char_indices to find a safe truncation point (at char boundary)
+            let max_len = available_width.saturating_sub(3);
+            let truncate_at = log.line.char_indices()
+                .take_while(|(idx, _)| *idx < max_len)
+                .last()
+                .map(|(idx, ch)| idx + ch.len_utf8())
+                .unwrap_or(0);
+            let truncated = format!("{}...", &log.line[..truncate_at]);
             Span::styled(truncated, line_style)
         } else {
             Span::styled(log.line.clone(), line_style)
