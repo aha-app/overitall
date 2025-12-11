@@ -1,0 +1,413 @@
+use crate::config::Config;
+use crate::log;
+use crate::process::ProcessManager;
+use crate::ui::{self, App};
+use anyhow::Result;
+
+/// Command parsed from user input
+#[derive(Debug, PartialEq)]
+pub enum Command {
+    Quit,
+    Start(String),
+    Restart(String),
+    Kill(String),
+    FilterInclude(String),
+    FilterExclude(String),
+    FilterClear,
+    FilterList,
+    NextBatch,
+    PrevBatch,
+    ShowBatch,
+    SetBatchWindow(i64),
+    ShowBatchWindow,
+    Unknown(String),
+}
+
+/// Parse a command from user input (without the leading ':')
+pub fn parse_command(input: &str) -> Command {
+    let input = input.trim();
+
+    if input == "q" {
+        return Command::Quit;
+    }
+
+    let parts: Vec<&str> = input.split_whitespace().collect();
+    if parts.is_empty() {
+        return Command::Unknown("Empty command".to_string());
+    }
+
+    match parts[0] {
+        "s" => {
+            if parts.len() < 2 {
+                Command::Unknown("Usage: :s <process>".to_string())
+            } else {
+                Command::Start(parts[1].to_string())
+            }
+        }
+        "r" => {
+            if parts.len() < 2 {
+                Command::Unknown("Usage: :r <process>".to_string())
+            } else {
+                Command::Restart(parts[1].to_string())
+            }
+        }
+        "k" => {
+            if parts.len() < 2 {
+                Command::Unknown("Usage: :k <process>".to_string())
+            } else {
+                Command::Kill(parts[1].to_string())
+            }
+        }
+        "f" => {
+            if parts.len() < 2 {
+                Command::Unknown("Usage: :f <text_or_regex>".to_string())
+            } else {
+                Command::FilterInclude(parts[1..].join(" "))
+            }
+        }
+        "fn" => {
+            if parts.len() < 2 {
+                Command::Unknown("Usage: :fn <text_or_regex>".to_string())
+            } else {
+                Command::FilterExclude(parts[1..].join(" "))
+            }
+        }
+        "fc" => Command::FilterClear,
+        "fl" => Command::FilterList,
+        "nb" => Command::NextBatch,
+        "pb" => Command::PrevBatch,
+        "sb" => Command::ShowBatch,
+        "bw" => {
+            if parts.len() < 2 {
+                // No argument - show current batch window
+                Command::ShowBatchWindow
+            } else {
+                // Check for presets first
+                match parts[1] {
+                    "fast" => Command::SetBatchWindow(100),
+                    "medium" => Command::SetBatchWindow(1000),
+                    "slow" => Command::SetBatchWindow(5000),
+                    _ => {
+                        // Try to parse as number
+                        match parts[1].parse::<i64>() {
+                            Ok(ms) if ms > 0 => Command::SetBatchWindow(ms),
+                            Ok(_) => Command::Unknown("Batch window must be positive".to_string()),
+                            Err(_) => Command::Unknown("Batch window must be a valid number or preset (fast/medium/slow)".to_string()),
+                        }
+                    }
+                }
+            }
+        }
+        _ => Command::Unknown(format!("Unknown command: {}", parts[0])),
+    }
+}
+
+/// Helper to apply filters to logs - delegates to main.rs apply_filters function
+/// This is a placeholder that will be refactored in Step 3
+fn apply_filters_internal(logs: Vec<&log::LogLine>, filters: &[ui::Filter]) -> Vec<log::LogLine> {
+    // This will call the main.rs apply_filters function
+    // For now, we'll need to expose this functionality differently
+    // The actual implementation is in main.rs and will be refactored later
+    crate::apply_filters(logs, filters)
+}
+
+/// Command executor that handles command execution
+pub struct CommandExecutor<'a> {
+    app: &'a mut App,
+    manager: &'a mut ProcessManager,
+    config: &'a mut Config,
+}
+
+impl<'a> CommandExecutor<'a> {
+    pub fn new(app: &'a mut App, manager: &'a mut ProcessManager, config: &'a mut Config) -> Self {
+        Self { app, manager, config }
+    }
+
+    pub async fn execute(&mut self, command: Command) -> Result<()> {
+        match command {
+            Command::Quit => {
+                self.app.quit();
+            }
+            Command::Start(name) => {
+                self.execute_start(&name).await?;
+            }
+            Command::Restart(name) => {
+                self.execute_restart(&name).await?;
+            }
+            Command::Kill(name) => {
+                self.execute_kill(&name).await?;
+            }
+            Command::FilterInclude(pattern) => {
+                self.execute_filter_include(pattern);
+            }
+            Command::FilterExclude(pattern) => {
+                self.execute_filter_exclude(pattern);
+            }
+            Command::FilterClear => {
+                self.execute_filter_clear();
+            }
+            Command::FilterList => {
+                self.execute_filter_list();
+            }
+            Command::NextBatch => {
+                self.execute_next_batch();
+            }
+            Command::PrevBatch => {
+                self.execute_prev_batch();
+            }
+            Command::ShowBatch => {
+                self.execute_show_batch();
+            }
+            Command::SetBatchWindow(ms) => {
+                self.execute_set_batch_window(ms);
+            }
+            Command::ShowBatchWindow => {
+                self.execute_show_batch_window();
+            }
+            Command::Unknown(msg) => {
+                self.app.set_status_error(format!("Error: {}", msg));
+            }
+        }
+        Ok(())
+    }
+
+    async fn execute_start(&mut self, name: &str) -> Result<()> {
+        match self.manager.start_process(name).await {
+            Ok(_) => {
+                self.app.set_status_success(format!("Started process: {}", name));
+            }
+            Err(e) => {
+                self.app.set_status_error(format!("Failed to start {}: {}", name, e));
+            }
+        }
+        Ok(())
+    }
+
+    async fn execute_restart(&mut self, name: &str) -> Result<()> {
+        match self.manager.restart_process(name).await {
+            Ok(_) => {
+                self.app.set_status_success(format!("Restarted process: {}", name));
+            }
+            Err(e) => {
+                self.app.set_status_error(format!("Failed to restart {}: {}", name, e));
+            }
+        }
+        Ok(())
+    }
+
+    async fn execute_kill(&mut self, name: &str) -> Result<()> {
+        match self.manager.kill_process(name).await {
+            Ok(_) => {
+                self.app.set_status_success(format!("Killed process: {}", name));
+            }
+            Err(e) => {
+                self.app.set_status_error(format!("Failed to kill {}: {}", name, e));
+            }
+        }
+        Ok(())
+    }
+
+    fn execute_filter_include(&mut self, pattern: String) {
+        self.app.add_include_filter(pattern.clone());
+        self.app.set_status_success(format!("Added include filter: {}", pattern));
+        self.save_config();
+    }
+
+    fn execute_filter_exclude(&mut self, pattern: String) {
+        self.app.add_exclude_filter(pattern.clone());
+        self.app.set_status_success(format!("Added exclude filter: {}", pattern));
+        self.save_config();
+    }
+
+    fn execute_filter_clear(&mut self) {
+        let count = self.app.filter_count();
+        self.app.clear_filters();
+        self.app.set_status_success(format!("Cleared {} filter(s)", count));
+        self.save_config();
+    }
+
+    fn execute_filter_list(&mut self) {
+        if self.app.filters.is_empty() {
+            self.app.set_status_info("No active filters".to_string());
+        } else {
+            let filter_strs: Vec<String> = self.app.filters.iter().map(|f| {
+                let type_str = match f.filter_type {
+                    ui::FilterType::Include => "include",
+                    ui::FilterType::Exclude => "exclude",
+                };
+                format!("{}: {}", type_str, f.pattern)
+            }).collect();
+            self.app.set_status_info(format!("Filters: {}", filter_strs.join(", ")));
+        }
+    }
+
+    fn execute_next_batch(&mut self) {
+        self.app.next_batch();
+        self.app.set_status_info("Next batch".to_string());
+    }
+
+    fn execute_prev_batch(&mut self) {
+        self.app.prev_batch();
+        self.app.set_status_info("Previous batch".to_string());
+    }
+
+    fn execute_show_batch(&mut self) {
+        self.app.toggle_batch_view();
+        if self.app.batch_view_mode {
+            self.app.set_status_info("Batch view mode enabled".to_string());
+        } else {
+            self.app.set_status_info("Batch view mode disabled".to_string());
+        }
+    }
+
+    fn execute_set_batch_window(&mut self, ms: i64) {
+        self.app.set_batch_window(ms);
+        // Count batches with the new window to show in status
+        let logs = self.manager.get_all_logs();
+        let filtered_logs = apply_filters_internal(logs, &self.app.filters);
+        let filtered_refs: Vec<&log::LogLine> = filtered_logs.iter().collect();
+        let batches = ui::detect_batches_from_logs(&filtered_refs, ms);
+        self.app.set_status_success(format!("Batch window set to {}ms ({} batches detected)", ms, batches.len()));
+
+        // Save to config
+        self.config.batch_window_ms = Some(ms);
+        if let Some(config_path) = &self.config.config_path {
+            if let Err(e) = self.config.save_to_file(config_path) {
+                eprintln!("Warning: Failed to save config: {}", e);
+            }
+        }
+    }
+
+    fn execute_show_batch_window(&mut self) {
+        self.app.set_status_info(format!("Current batch window: {}ms", self.app.batch_window_ms));
+    }
+
+    fn save_config(&mut self) {
+        self.config.update_filters(&self.app.filters);
+        if let Some(path) = &self.config.config_path {
+            if let Err(e) = self.config.save(path.to_str().unwrap()) {
+                eprintln!("Warning: failed to save filters: {}", e);
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_bw_command_valid_values() {
+        // Test valid batch window values
+        match parse_command("bw 1000") {
+            Command::SetBatchWindow(1000) => {},
+            _ => panic!("Expected SetBatchWindow(1000)"),
+        }
+
+        match parse_command("bw 50") {
+            Command::SetBatchWindow(50) => {},
+            _ => panic!("Expected SetBatchWindow(50)"),
+        }
+
+        match parse_command("bw 5000") {
+            Command::SetBatchWindow(5000) => {},
+            _ => panic!("Expected SetBatchWindow(5000)"),
+        }
+
+        match parse_command("bw 1") {
+            Command::SetBatchWindow(1) => {},
+            _ => panic!("Expected SetBatchWindow(1)"),
+        }
+    }
+
+    #[test]
+    fn test_parse_bw_command_negative_value() {
+        // Test that negative values are rejected
+        match parse_command("bw -100") {
+            Command::Unknown(msg) => {
+                assert!(msg.contains("positive"), "Expected error about positive value, got: {}", msg);
+            },
+            _ => panic!("Expected Unknown command for negative value"),
+        }
+    }
+
+    #[test]
+    fn test_parse_bw_command_zero_value() {
+        // Test that zero is rejected
+        match parse_command("bw 0") {
+            Command::Unknown(msg) => {
+                assert!(msg.contains("positive"), "Expected error about positive value, got: {}", msg);
+            },
+            _ => panic!("Expected Unknown command for zero value"),
+        }
+    }
+
+    #[test]
+    fn test_parse_bw_command_non_numeric() {
+        // Test that invalid non-numeric values are rejected
+        match parse_command("bw abc") {
+            Command::Unknown(msg) => {
+                assert!(msg.contains("valid number") || msg.contains("preset"), "Expected error about valid number or preset, got: {}", msg);
+            },
+            _ => panic!("Expected Unknown command for non-numeric value"),
+        }
+
+        match parse_command("bw invalid") {
+            Command::Unknown(msg) => {
+                assert!(msg.contains("valid number") || msg.contains("preset"), "Expected error about valid number or preset, got: {}", msg);
+            },
+            _ => panic!("Expected Unknown command for invalid preset"),
+        }
+    }
+
+    #[test]
+    fn test_parse_bw_command_missing_argument() {
+        // Test that missing argument returns ShowBatchWindow
+        match parse_command("bw") {
+            Command::ShowBatchWindow => {},
+            _ => panic!("Expected ShowBatchWindow for missing argument"),
+        }
+    }
+
+    #[test]
+    fn test_parse_bw_command_extra_whitespace() {
+        // Test that extra whitespace doesn't break parsing
+        match parse_command("bw  1000") {
+            Command::SetBatchWindow(1000) => {},
+            _ => panic!("Expected SetBatchWindow(1000) with extra whitespace"),
+        }
+
+        match parse_command("  bw 500  ") {
+            Command::SetBatchWindow(500) => {},
+            _ => panic!("Expected SetBatchWindow(500) with surrounding whitespace"),
+        }
+    }
+
+    #[test]
+    fn test_parse_bw_command_presets() {
+        // Test preset values: fast, medium, slow
+        match parse_command("bw fast") {
+            Command::SetBatchWindow(100) => {},
+            _ => panic!("Expected SetBatchWindow(100) for 'fast' preset"),
+        }
+
+        match parse_command("bw medium") {
+            Command::SetBatchWindow(1000) => {},
+            _ => panic!("Expected SetBatchWindow(1000) for 'medium' preset"),
+        }
+
+        match parse_command("bw slow") {
+            Command::SetBatchWindow(5000) => {},
+            _ => panic!("Expected SetBatchWindow(5000) for 'slow' preset"),
+        }
+    }
+
+    #[test]
+    fn test_parse_bw_command_show_current() {
+        // Test showing current batch window value
+        match parse_command("bw") {
+            Command::ShowBatchWindow => {},
+            _ => panic!("Expected ShowBatchWindow"),
+        }
+    }
+}
