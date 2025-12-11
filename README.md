@@ -136,8 +136,11 @@ Log lines that arrive within a short time window are grouped into "batches". Thi
 - `:nb` - Next batch
 - `:pb` - Previous batch
 - `:sb` - Toggle batch view mode (show only current batch)
+- `:bw <milliseconds>` - Set batch window (default: 100ms)
 
 You can also use `[` and `]` keys for quick batch navigation.
+
+The batch window determines how close in time log lines must be to be grouped together. Adjust it based on your application's logging patterns (e.g., `:bw 1000` for 1 second window).
 
 #### Search
 
@@ -250,12 +253,12 @@ Overitall is under active development. Current features:
 - Line selection and expanded view (view full content of long log lines)
 - Clipboard operations (copy lines and batches to system clipboard)
 - Batch focus from selected line
+- Dynamic batch window configuration (adjust batch grouping on-the-fly)
 - Persistent configuration
 - Help system
 
 Planned features:
 
-- Dynamic batch window configuration
 - Rails-specific log format parsing
 - Additional log sources (syslog, HTTP endpoints)
 - Performance optimizations for large log volumes
