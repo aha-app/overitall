@@ -79,6 +79,12 @@ pub struct App {
     pub search_pattern: String,
     /// Index of current search match
     pub current_match: Option<usize>,
+    /// Time window for batch detection in milliseconds
+    pub batch_window_ms: i64,
+    /// If true, show only the current batch
+    pub batch_view_mode: bool,
+    /// Index of currently viewed batch
+    pub current_batch: Option<usize>,
 }
 
 impl App {
@@ -96,6 +102,9 @@ impl App {
             search_mode: false,
             search_pattern: String::new(),
             current_match: None,
+            batch_window_ms: 100,
+            batch_view_mode: false,
+            current_batch: None,
         }
     }
 
@@ -300,6 +309,40 @@ impl App {
             }
         }
     }
+
+    /// Navigate to next batch
+    pub fn next_batch(&mut self) {
+        if let Some(current) = self.current_batch {
+            self.current_batch = Some(current + 1);
+        } else {
+            self.current_batch = Some(0);
+        }
+        self.batch_view_mode = true;
+        self.scroll_offset = 0;  // Reset scroll to top of batch
+        self.auto_scroll = false; // Disable auto-scroll
+    }
+
+    /// Navigate to previous batch
+    pub fn prev_batch(&mut self) {
+        if let Some(current) = self.current_batch {
+            if current > 0 {
+                self.current_batch = Some(current - 1);
+            }
+        }
+        self.batch_view_mode = true;
+        self.scroll_offset = 0;  // Reset scroll to top of batch
+        self.auto_scroll = false; // Disable auto-scroll
+    }
+
+    /// Toggle batch view mode
+    pub fn toggle_batch_view(&mut self) {
+        self.batch_view_mode = !self.batch_view_mode;
+        if !self.batch_view_mode {
+            self.current_batch = None;
+        } else if self.current_batch.is_none() {
+            self.current_batch = Some(0);
+        }
+    }
 }
 
 /// Draw the UI to the terminal
@@ -309,8 +352,8 @@ pub fn draw(f: &mut Frame, app: &App, manager: &ProcessManager) {
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Percentage(10), // Process list
-            Constraint::Percentage(85), // Log viewer
-            Constraint::Percentage(5),  // Command input
+            Constraint::Min(0),         // Log viewer (takes remaining space)
+            Constraint::Length(3),      // Command input (exactly 3 lines)
         ])
         .split(f.area());
 
@@ -322,6 +365,32 @@ pub fn draw(f: &mut Frame, app: &App, manager: &ProcessManager) {
 
     // Draw command input
     draw_command_input(f, chunks[2], app);
+}
+
+/// Detect batches from a slice of LogLine references
+/// Returns a vector of (start_index, end_index) tuples for each batch
+fn detect_batches_from_logs(logs: &[&crate::log::LogLine], window_ms: i64) -> Vec<(usize, usize)> {
+    if logs.is_empty() {
+        return vec![];
+    }
+
+    if logs.len() == 1 {
+        return vec![(0, 0)];
+    }
+
+    let mut batches = Vec::new();
+    let mut batch_start = 0;
+
+    for i in 1..logs.len() {
+        let time_diff = logs[i].arrival_time - logs[i - 1].arrival_time;
+        if time_diff.num_milliseconds() > window_ms {
+            batches.push((batch_start, i - 1));
+            batch_start = i;
+        }
+    }
+
+    batches.push((batch_start, logs.len() - 1));
+    batches
 }
 
 /// Draw the process list at the top of the screen
@@ -403,13 +472,53 @@ fn draw_log_viewer(
             .collect()
     };
 
+    // Detect batches from filtered logs
+    let batches = detect_batches_from_logs(&filtered_logs, app.batch_window_ms);
+
+    // Validate and adjust current_batch if needed
+    let current_batch_validated = if app.batch_view_mode {
+        if let Some(batch_idx) = app.current_batch {
+            if batch_idx < batches.len() {
+                Some(batch_idx)
+            } else {
+                // current_batch is out of bounds, reset to last batch
+                if batches.is_empty() {
+                    None
+                } else {
+                    Some(batches.len() - 1)
+                }
+            }
+        } else {
+            // batch_view_mode is on but no batch selected, default to first
+            if batches.is_empty() {
+                None
+            } else {
+                Some(0)
+            }
+        }
+    } else {
+        None
+    };
+
+    // Apply batch view mode filtering if enabled
+    let display_logs_source: Vec<&crate::log::LogLine> = if let Some(batch_idx) = current_batch_validated {
+        if !batches.is_empty() && batch_idx < batches.len() {
+            let (start, end) = batches[batch_idx];
+            filtered_logs[start..=end].to_vec()
+        } else {
+            filtered_logs
+        }
+    } else {
+        filtered_logs
+    };
+
     // Calculate visible lines (area height minus 2 for borders)
     let visible_lines = area.height.saturating_sub(2) as usize;
-    let total_logs = filtered_logs.len();
+    let total_logs = display_logs_source.len();
 
     // Find search matches
     let search_matches: Vec<usize> = if !app.search_pattern.is_empty() {
-        filtered_logs
+        display_logs_source
             .iter()
             .enumerate()
             .filter(|(_, log)| {
@@ -429,7 +538,7 @@ fn draw_log_viewer(
     let (display_logs, scroll_indicator, display_start) = if app.auto_scroll && app.current_match.is_none() {
         // Auto-scroll mode: show the last N logs (only when not navigating search)
         let start = total_logs.saturating_sub(visible_lines);
-        let display = &filtered_logs[start..];
+        let display = &display_logs_source[start..];
         (display, String::new(), start)
     } else if let Some(match_idx) = app.current_match {
         // Search mode: scroll to show the current match
@@ -442,20 +551,20 @@ fn draw_log_viewer(
                 (log_idx - visible_lines / 2).min(total_logs.saturating_sub(visible_lines))
             };
             let end = (start + visible_lines).min(total_logs);
-            let display = &filtered_logs[start..end];
+            let display = &display_logs_source[start..end];
             (display, String::new(), start)
         } else {
             // Invalid match index, fall back to manual scroll
             let start = app.scroll_offset.min(total_logs.saturating_sub(visible_lines));
             let end = (start + visible_lines).min(total_logs);
-            let display = &filtered_logs[start..end];
+            let display = &display_logs_source[start..end];
             (display, String::new(), start)
         }
     } else {
         // Manual scroll mode: show logs from scroll_offset
         let start = app.scroll_offset.min(total_logs.saturating_sub(visible_lines));
         let end = (start + visible_lines).min(total_logs);
-        let display = &filtered_logs[start..end];
+        let display = &display_logs_source[start..end];
 
         // Calculate scroll position indicator
         let position_pct = if total_logs > 0 {
@@ -511,8 +620,17 @@ fn draw_log_viewer(
         })
         .collect();
 
-    // Build title with filters and search info
+    // Build title with batch count, filters and search info
     let mut title_parts = vec![" Logs ".to_string()];
+
+    // Add batch count if batches exist
+    if let Some(batch_idx) = current_batch_validated {
+        // In batch view mode with a valid batch selected
+        title_parts.push(format!("(Batch {}/{})", batch_idx + 1, batches.len()));
+    } else if !batches.is_empty() {
+        // Not in batch view mode, show total batch count
+        title_parts.push(format!("({} batches)", batches.len()));
+    }
 
     if app.filter_count() > 0 {
         title_parts.push(format!("({} filters)", app.filter_count()));

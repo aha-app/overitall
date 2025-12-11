@@ -96,6 +96,9 @@ enum Command {
     FilterExclude(String),
     FilterClear,
     FilterList,
+    NextBatch,
+    PrevBatch,
+    ShowBatch,
     Unknown(String),
 }
 
@@ -143,6 +146,9 @@ fn parse_command(input: &str) -> Command {
         }
         "fc" => Command::FilterClear,
         "fl" => Command::FilterList,
+        "nb" => Command::NextBatch,
+        "pb" => Command::PrevBatch,
+        "sb" => Command::ShowBatch,
         _ => Command::Unknown(format!("Unknown command: {}", parts[0])),
     }
 }
@@ -281,6 +287,22 @@ async fn run_app(
                                         format!("{}: {}", type_str, f.pattern)
                                     }).collect();
                                     app.set_status_info(format!("Filters: {}", filter_strs.join(", ")));
+                                }
+                            }
+                            Command::NextBatch => {
+                                app.next_batch();
+                                app.set_status_info("Next batch".to_string());
+                            }
+                            Command::PrevBatch => {
+                                app.prev_batch();
+                                app.set_status_info("Previous batch".to_string());
+                            }
+                            Command::ShowBatch => {
+                                app.toggle_batch_view();
+                                if app.batch_view_mode {
+                                    app.set_status_info("Batch view mode enabled".to_string());
+                                } else {
+                                    app.set_status_info("Batch view mode disabled".to_string());
                                 }
                             }
                             Command::Unknown(msg) => {
