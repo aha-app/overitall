@@ -110,12 +110,25 @@ async fn run_app(
             ui::draw(f, app, manager);
         })?;
 
+        // Check if we're shutting down and all processes have terminated
+        if app.shutting_down {
+            if manager.check_termination_status().await {
+                // All processes terminated, we can exit now
+                app.quit();
+                break;
+            }
+        }
+
         // Handle input with short timeout
         tokio::select! {
             result = tokio::signal::ctrl_c() => {
-                // Ctrl+C received
+                // Ctrl+C received - initiate graceful shutdown
                 result?;
-                break;
+                if !app.shutting_down {
+                    app.start_shutdown();
+                    manager.kill_all().await?;
+                }
+                // Don't break immediately - let the loop check for termination
             }
             _ = tokio::time::sleep(tokio::time::Duration::from_millis(100)) => {
                 // Check for keyboard input
@@ -123,7 +136,7 @@ async fn run_app(
                     if let Event::Key(key) = event::read()? {
                         let mut event_handler = EventHandler::new(app, manager, config);
                         if event_handler.handle_key_event(key).await? {
-                            break; // Quit was requested
+                            break; // Quit was requested (shouldn't happen now)
                         }
                     }
                 }

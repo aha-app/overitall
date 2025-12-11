@@ -16,6 +16,7 @@ use crate::log::{LogBuffer, FileReader};
 pub enum ProcessStatus {
     Running,
     Stopped,
+    Terminating,
     Failed(String),
 }
 
@@ -100,7 +101,11 @@ impl ProcessHandle {
     }
 
     pub async fn kill(&mut self) -> Result<()> {
-        if let Some(mut child) = self.child.take() {
+        if let Some(child) = &mut self.child {
+            // Set to Terminating status first
+            self.status = ProcessStatus::Terminating;
+
+            // Send kill signal
             child.kill().await.context("Failed to kill process")?;
 
             // Cancel the output capture tasks
@@ -111,9 +116,37 @@ impl ProcessHandle {
                 task.abort();
             }
 
-            self.status = ProcessStatus::Stopped;
+            // Don't set to Stopped immediately - let check_status do that
+            // This allows the UI to show "Terminating" status
         }
         Ok(())
+    }
+
+    /// Check if the process has actually exited after being killed
+    pub async fn is_terminated(&mut self) -> bool {
+        if let Some(child) = &mut self.child {
+            match child.try_wait() {
+                Ok(Some(_)) => {
+                    // Process has exited
+                    self.status = ProcessStatus::Stopped;
+                    self.child = None;
+                    true
+                }
+                Ok(None) => {
+                    // Still terminating
+                    false
+                }
+                Err(_) => {
+                    // Error checking status, assume terminated
+                    self.status = ProcessStatus::Stopped;
+                    self.child = None;
+                    true
+                }
+            }
+        } else {
+            // No child process, already terminated
+            true
+        }
     }
 
     /// Check if process has exited
@@ -205,6 +238,17 @@ impl ProcessManager {
             let _ = process.kill().await; // Ignore errors during shutdown
         }
         Ok(())
+    }
+
+    /// Check if all processes have finished terminating
+    pub async fn check_termination_status(&mut self) -> bool {
+        let mut all_terminated = true;
+        for process in self.processes.values_mut() {
+            if !process.is_terminated().await {
+                all_terminated = false;
+            }
+        }
+        all_terminated
     }
 
     pub async fn check_all_status(&mut self) {

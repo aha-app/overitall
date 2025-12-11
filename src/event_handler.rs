@@ -171,10 +171,11 @@ impl<'a> EventHandler<'a> {
                 self.handle_reset_to_latest();
                 Ok(false)
             }
-            // Quit
-            KeyCode::Char('q') if !self.app.command_mode && !self.app.search_mode => {
-                self.app.quit();
-                Ok(true)
+            // Quit - initiate graceful shutdown
+            KeyCode::Char('q') if !self.app.command_mode && !self.app.search_mode && !self.app.shutting_down => {
+                self.app.start_shutdown();
+                self.manager.kill_all().await?;
+                Ok(false) // Don't quit immediately - let the loop check for termination
             }
             _ => Ok(false),
         }

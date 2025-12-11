@@ -122,6 +122,8 @@ pub struct App {
     pub selected_line_index: Option<usize>,
     /// Whether to show expanded line view
     pub expanded_line_view: bool,
+    /// Whether we're in the process of shutting down
+    pub shutting_down: bool,
 }
 
 impl App {
@@ -145,11 +147,17 @@ impl App {
             show_help: false,
             selected_line_index: None,
             expanded_line_view: false,
+            shutting_down: false,
         }
     }
 
     pub fn quit(&mut self) {
         self.should_quit = true;
+    }
+
+    pub fn start_shutdown(&mut self) {
+        self.shutting_down = true;
+        self.set_status_info("Shutting down processes...".to_string());
     }
 
     pub fn scroll_up(&mut self, lines: usize) {
@@ -490,6 +498,7 @@ fn draw_process_list(f: &mut Frame, area: ratatui::layout::Rect, manager: &Proce
         let (status_text, color) = match status {
             ProcessStatus::Running => ("Running", Color::Green),
             ProcessStatus::Stopped => ("Stopped", Color::Yellow),
+            ProcessStatus::Terminating => ("Terminating", Color::Magenta),
             ProcessStatus::Failed(_) => ("Failed", Color::Red),
         };
 
