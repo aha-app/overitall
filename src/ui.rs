@@ -329,6 +329,15 @@ impl App {
         }
     }
 
+    pub fn set_batch_window(&mut self, window_ms: i64) {
+        self.batch_window_ms = window_ms;
+        // Reset batch view to avoid invalid batch indices
+        if self.batch_view_mode {
+            self.current_batch = Some(0);
+            self.scroll_offset = 0;
+        }
+    }
+
     pub fn toggle_help(&mut self) {
         self.show_help = !self.show_help;
     }
@@ -1002,6 +1011,10 @@ fn draw_help_overlay(f: &mut Frame) {
         Line::from(vec![
             Span::styled("  :sb", Style::default().fg(Color::Yellow)),
             Span::raw("      Toggle batch view mode"),
+        ]),
+        Line::from(vec![
+            Span::styled("  :bw <ms>", Style::default().fg(Color::Yellow)),
+            Span::raw("  Set batch window (milliseconds, default: 100)"),
         ]),
         Line::from(""),
         Line::from(vec![

@@ -68,6 +68,11 @@ async fn main() -> anyhow::Result<()> {
     // Create app state
     let mut app = App::new();
 
+    // Load batch window from config if specified
+    if let Some(batch_window_ms) = config.batch_window_ms {
+        app.set_batch_window(batch_window_ms);
+    }
+
     // Load filters from config
     for pattern in &config.filters.include {
         app.add_include_filter(pattern.clone());
@@ -100,6 +105,7 @@ enum Command {
     NextBatch,
     PrevBatch,
     ShowBatch,
+    SetBatchWindow(i64),
     Unknown(String),
 }
 
@@ -157,6 +163,17 @@ fn parse_command(input: &str) -> Command {
         "nb" => Command::NextBatch,
         "pb" => Command::PrevBatch,
         "sb" => Command::ShowBatch,
+        "bw" => {
+            if parts.len() < 2 {
+                Command::Unknown("Usage: :bw <milliseconds>".to_string())
+            } else {
+                match parts[1].parse::<i64>() {
+                    Ok(ms) if ms > 0 => Command::SetBatchWindow(ms),
+                    Ok(_) => Command::Unknown("Batch window must be positive".to_string()),
+                    Err(_) => Command::Unknown("Batch window must be a valid number".to_string()),
+                }
+            }
+        }
         _ => Command::Unknown(format!("Unknown command: {}", parts[0])),
     }
 }
@@ -337,6 +354,43 @@ async fn run_app(
                                     app.set_status_info("Batch view mode enabled".to_string());
                                 } else {
                                     app.set_status_info("Batch view mode disabled".to_string());
+                                }
+                            }
+                            Command::SetBatchWindow(ms) => {
+                                app.set_batch_window(ms);
+                                // Count batches with the new window to show in status
+                                let logs = manager.get_all_logs();
+                                let filtered_logs: Vec<_> = logs.iter()
+                                    .filter(|log| {
+                                        let line_text = &log.line;
+                                        for filter in &app.filters {
+                                            if matches!(filter.filter_type, ui::FilterType::Exclude) {
+                                                if filter.matches(line_text) {
+                                                    return false;
+                                                }
+                                            }
+                                        }
+                                        let include_filters: Vec<_> = app
+                                            .filters
+                                            .iter()
+                                            .filter(|f| matches!(f.filter_type, ui::FilterType::Include))
+                                            .collect();
+                                        if include_filters.is_empty() {
+                                            return true;
+                                        }
+                                        include_filters.iter().any(|filter| filter.matches(line_text))
+                                    })
+                                    .map(|log| *log)
+                                    .collect();
+                                let batches = ui::detect_batches_from_logs(&filtered_logs, ms);
+                                app.set_status_success(format!("Batch window set to {}ms ({} batches detected)", ms, batches.len()));
+
+                                // Save to config
+                                config.batch_window_ms = Some(ms);
+                                if let Some(config_path) = &config.config_path {
+                                    if let Err(e) = config.save_to_file(config_path) {
+                                        eprintln!("Warning: Failed to save config: {}", e);
+                                    }
                                 }
                             }
                             Command::Unknown(msg) => {

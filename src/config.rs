@@ -9,6 +9,8 @@ pub struct Config {
     pub processes: HashMap<String, ProcessConfig>,
     #[serde(default)]
     pub filters: FilterConfig,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub batch_window_ms: Option<i64>,
 
     // This field is not serialized, just used at runtime
     #[serde(skip)]
@@ -37,6 +39,12 @@ impl Config {
     }
 
     pub fn save(&self, path: &str) -> anyhow::Result<()> {
+        let content = toml::to_string_pretty(self)?;
+        std::fs::write(path, content)?;
+        Ok(())
+    }
+
+    pub fn save_to_file(&self, path: &PathBuf) -> anyhow::Result<()> {
         let content = toml::to_string_pretty(self)?;
         std::fs::write(path, content)?;
         Ok(())
