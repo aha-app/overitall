@@ -646,3 +646,94 @@ fn test_wraparound_with_filters() {
     let output = render_app_to_string(&app, &manager, 120, 40);
     assert_snapshot!(output);
 }
+
+// ============================================================================
+// Batch Window Configuration Tests
+// ============================================================================
+
+#[test]
+fn test_batch_window_default_value() {
+    let app = create_test_app();
+
+    // Default batch window should be 100ms
+    assert_eq!(app.batch_window_ms, 100);
+}
+
+#[test]
+fn test_batch_window_set_value() {
+    let mut app = create_test_app();
+
+    // Change batch window to 500ms
+    app.set_batch_window(500);
+
+    assert_eq!(app.batch_window_ms, 500);
+}
+
+#[test]
+fn test_batch_window_affects_batch_detection() {
+    let mut manager = ProcessManager::new();
+    manager.add_process("web".to_string(), "ruby web.rb".to_string());
+
+    // Create logs with 200ms gap between them
+    let base_time = Local.with_ymd_and_hms(2024, 12, 10, 12, 0, 0).unwrap();
+
+    let mut log1 = LogLine::new(LogSource::ProcessStdout("web".to_string()), "Log 1".to_string());
+    log1.timestamp = base_time;
+    log1.arrival_time = base_time;
+    manager.add_test_log(log1);
+
+    let mut log2 = LogLine::new(LogSource::ProcessStdout("web".to_string()), "Log 2".to_string());
+    log2.timestamp = base_time;
+    log2.arrival_time = base_time + chrono::Duration::milliseconds(200);
+    manager.add_test_log(log2);
+
+    // With 100ms window, should be 2 batches
+    let logs = manager.get_all_logs();
+    let batches_100ms = overitall::ui::detect_batches_from_logs(&logs, 100);
+    assert_eq!(batches_100ms.len(), 2, "With 100ms window, should have 2 batches");
+
+    // With 300ms window, should be 1 batch
+    let batches_300ms = overitall::ui::detect_batches_from_logs(&logs, 300);
+    assert_eq!(batches_300ms.len(), 1, "With 300ms window, should have 1 batch");
+}
+
+#[test]
+fn test_batch_window_snapshot_with_small_window() {
+    let mut app = create_test_app();
+    let manager = create_manager_with_batched_logs();
+
+    // Set very small batch window (50ms)
+    // This should create more batches from the test data
+    app.set_batch_window(50);
+
+    let output = render_app_to_string(&app, &manager, 120, 40);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_batch_window_snapshot_with_large_window() {
+    let mut app = create_test_app();
+    let manager = create_manager_with_batched_logs();
+
+    // Set large batch window (5000ms = 5 seconds)
+    // This should group all test logs into a single batch
+    app.set_batch_window(5000);
+
+    let output = render_app_to_string(&app, &manager, 120, 40);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_batch_window_resets_batch_view_if_active() {
+    let mut app = create_test_app();
+
+    // Enable batch view and select batch 2
+    app.toggle_batch_view();
+    app.next_batch();
+    app.current_batch = Some(1); // Manually set to batch 2
+
+    // Changing batch window should reset to batch 0
+    app.set_batch_window(500);
+
+    assert_eq!(app.current_batch, Some(0), "Should reset to first batch");
+}
