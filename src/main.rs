@@ -192,6 +192,9 @@ async fn run_app(
                     KeyCode::Esc if app.show_help => {
                         app.toggle_help();
                     }
+                    KeyCode::Esc if app.expanded_line_view => {
+                        app.close_expanded_view();
+                    }
                     KeyCode::Esc if app.command_mode => {
                         app.exit_command_mode();
                     }
@@ -202,12 +205,22 @@ async fn run_app(
                     KeyCode::Esc if app.search_mode => {
                         app.exit_search_mode();
                     }
+                    KeyCode::Enter if app.expanded_line_view => {
+                        // Close expanded view with Enter
+                        app.close_expanded_view();
+                    }
                     KeyCode::Enter if app.search_mode => {
                         let search_text = app.input.clone();
                         if !search_text.is_empty() {
                             app.perform_search(search_text);
                         }
                         app.exit_search_mode();
+                    }
+                    KeyCode::Enter if !app.command_mode && !app.search_mode && !app.expanded_line_view => {
+                        // Toggle expanded view for selected line
+                        if app.selected_line_index.is_some() {
+                            app.toggle_expanded_view();
+                        }
                     }
                     KeyCode::Backspace if app.search_mode => {
                         app.delete_char();
