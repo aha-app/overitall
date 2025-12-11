@@ -52,6 +52,37 @@ impl Filter {
     }
 }
 
+/// Apply filters to a vector of log references, returning owned logs that pass all filters
+pub fn apply_filters(logs: Vec<&crate::log::LogLine>, filters: &[Filter]) -> Vec<crate::log::LogLine> {
+    if filters.is_empty() {
+        return logs.into_iter().map(|log| (*log).clone()).collect();
+    }
+
+    logs.into_iter()
+        .filter(|log| {
+            let line_text = &log.line;
+            // First, check exclude filters - if any match, exclude the log
+            for filter in filters {
+                if matches!(filter.filter_type, FilterType::Exclude) {
+                    if filter.matches(line_text) {
+                        return false;
+                    }
+                }
+            }
+            // Then, check include filters - if there are any, at least one must match
+            let include_filters: Vec<_> = filters
+                .iter()
+                .filter(|f| matches!(f.filter_type, FilterType::Include))
+                .collect();
+            if include_filters.is_empty() {
+                return true;
+            }
+            include_filters.iter().any(|filter| filter.matches(line_text))
+        })
+        .map(|log| (*log).clone())
+        .collect()
+}
+
 /// Application state for the TUI
 pub struct App {
     /// Current command input text

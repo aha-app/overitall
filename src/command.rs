@@ -102,13 +102,9 @@ pub fn parse_command(input: &str) -> Command {
     }
 }
 
-/// Helper to apply filters to logs - delegates to main.rs apply_filters function
-/// This is a placeholder that will be refactored in Step 3
+/// Helper to apply filters to logs - delegates to ui::apply_filters function
 fn apply_filters_internal(logs: Vec<&log::LogLine>, filters: &[ui::Filter]) -> Vec<log::LogLine> {
-    // This will call the main.rs apply_filters function
-    // For now, we'll need to expose this functionality differently
-    // The actual implementation is in main.rs and will be refactored later
-    crate::apply_filters(logs, filters)
+    ui::apply_filters(logs, filters)
 }
 
 /// Command executor that handles command execution

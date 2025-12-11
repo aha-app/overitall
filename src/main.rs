@@ -11,7 +11,7 @@ use command::{Command, parse_command, CommandExecutor};
 use config::Config;
 use procfile::Procfile;
 use process::ProcessManager;
-use ui::App;
+use ui::{App, apply_filters};
 
 use clap::Parser;
 use crossterm::{
@@ -89,38 +89,6 @@ async fn main() -> anyhow::Result<()> {
 
     // Return result
     result
-}
-
-/// Apply filters to a vector of log references, returning owned logs that pass all filters
-/// This function is public for use by the command module
-pub fn apply_filters(logs: Vec<&log::LogLine>, filters: &[ui::Filter]) -> Vec<log::LogLine> {
-    if filters.is_empty() {
-        return logs.into_iter().map(|log| (*log).clone()).collect();
-    }
-
-    logs.into_iter()
-        .filter(|log| {
-            let line_text = &log.line;
-            // First, check exclude filters - if any match, exclude the log
-            for filter in filters {
-                if matches!(filter.filter_type, ui::FilterType::Exclude) {
-                    if filter.matches(line_text) {
-                        return false;
-                    }
-                }
-            }
-            // Then, check include filters - if there are any, at least one must match
-            let include_filters: Vec<_> = filters
-                .iter()
-                .filter(|f| matches!(f.filter_type, ui::FilterType::Include))
-                .collect();
-            if include_filters.is_empty() {
-                return true;
-            }
-            include_filters.iter().any(|filter| filter.matches(line_text))
-        })
-        .map(|log| (*log).clone())
-        .collect()
 }
 
 async fn run_app(
