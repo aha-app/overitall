@@ -101,6 +101,8 @@ async fn run_app(
     manager: &mut ProcessManager,
     config: &mut Config,
 ) -> anyhow::Result<()> {
+    let mut shutdown_ui_shown = false;
+
     loop {
         // Process logs from all sources
         manager.process_logs();
@@ -111,11 +113,17 @@ async fn run_app(
         })?;
 
         // Check if we're shutting down and all processes have terminated
+        // Only check after we've shown at least one frame of shutdown UI
         if app.shutting_down {
-            if manager.check_termination_status().await {
-                // All processes terminated, we can exit now
-                app.quit();
-                break;
+            if shutdown_ui_shown {
+                if manager.check_termination_status().await {
+                    // All processes terminated, we can exit now
+                    app.quit();
+                    break;
+                }
+            } else {
+                // Mark that we've shown the shutdown UI at least once
+                shutdown_ui_shown = true;
             }
         }
 

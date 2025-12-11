@@ -157,6 +157,11 @@ impl App {
 
     pub fn start_shutdown(&mut self) {
         self.shutting_down = true;
+        // Clear any active modes
+        self.command_mode = false;
+        self.search_mode = false;
+        self.show_help = false;
+        self.expanded_line_view = false;
         self.set_status_info("Shutting down processes...".to_string());
     }
 
