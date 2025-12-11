@@ -14,5 +14,5 @@ log_file = "worker.log"
 
 # Saved filters
 [filters]
-include = ["ERROR", "INFO"]
-exclude = ["DEBUG"]
+include = []
+exclude = []

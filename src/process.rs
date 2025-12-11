@@ -268,6 +268,11 @@ impl ProcessManager {
     pub async fn recv_log(&mut self) -> Option<LogLine> {
         self.log_rx.recv().await
     }
+
+    /// Add a log line directly to the buffer (for testing)
+    pub fn add_test_log(&mut self, log: LogLine) {
+        self.log_buffer.push(log);
+    }
 }
 
 impl Drop for ProcessManager {

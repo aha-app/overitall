@@ -9,6 +9,10 @@ pub struct Config {
     pub processes: HashMap<String, ProcessConfig>,
     #[serde(default)]
     pub filters: FilterConfig,
+
+    // This field is not serialized, just used at runtime
+    #[serde(skip)]
+    pub config_path: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -36,5 +40,20 @@ impl Config {
         let content = toml::to_string_pretty(self)?;
         std::fs::write(path, content)?;
         Ok(())
+    }
+
+    pub fn update_filters(&mut self, app_filters: &[crate::ui::Filter]) {
+        let mut include_filters = Vec::new();
+        let mut exclude_filters = Vec::new();
+
+        for filter in app_filters {
+            match filter.filter_type {
+                crate::ui::FilterType::Include => include_filters.push(filter.pattern.clone()),
+                crate::ui::FilterType::Exclude => exclude_filters.push(filter.pattern.clone()),
+            }
+        }
+
+        self.filters.include = include_filters;
+        self.filters.exclude = exclude_filters;
     }
 }

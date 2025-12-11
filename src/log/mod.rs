@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Local};
 use std::path::PathBuf;
 
 pub mod buffer;
@@ -11,15 +11,18 @@ pub use file::FileReader;
 /// A log line with enhanced metadata
 #[derive(Debug, Clone)]
 pub struct LogLine {
-    pub timestamp: DateTime<Utc>,
+    pub timestamp: DateTime<Local>,
+    pub arrival_time: DateTime<Local>,  // When log was received
     pub source: LogSource,
     pub line: String,
 }
 
 impl LogLine {
     pub fn new(source: LogSource, line: String) -> Self {
+        let now = Local::now();
         Self {
-            timestamp: Utc::now(),
+            timestamp: now,  // Will be updated by parser if found
+            arrival_time: now,  // Capture arrival time
             source,
             line,
         }

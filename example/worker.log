@@ -4,3 +4,22 @@
 2025-12-10T14:27:43-10:00 [WORKER] FAILED EmailJob (job_id: 2) - Retry scheduled
 2025-12-10T14:27:48-10:00 [WORKER] Processing ImageProcessingJob (job_id: 3)
 2025-12-10T14:27:50-10:00 [WORKER] Completed ImageProcessingJob (job_id: 3)
+2025-12-10T14:30:48-10:00 [WORKER] Processing DataSyncJob (job_id: 1)
+2025-12-10T14:30:49-10:00 [WORKER] Completed DataSyncJob (job_id: 1)
+2025-12-10T14:30:53-10:00 [WORKER] Processing ReportGenerationJob (job_id: 2)
+2025-12-10T14:30:54-10:00 [WORKER] Completed ReportGenerationJob (job_id: 2)
+2025-12-10T14:30:57-10:00 [WORKER] Processing ReportGenerationJob (job_id: 3)
+2025-12-10T14:30:59-10:00 [WORKER] FAILED ReportGenerationJob (job_id: 3) - Retry scheduled
+2025-12-10T14:31:03-10:00 [WORKER] Processing ReportGenerationJob (job_id: 4)
+2025-12-10T14:31:04-10:00 [WORKER] Completed ReportGenerationJob (job_id: 4)
+2025-12-10T14:31:08-10:00 [WORKER] Processing EmailJob (job_id: 5)
+2025-12-10T14:31:09-10:00 [WORKER] Completed EmailJob (job_id: 5)
+2025-12-10T14:31:12-10:00 [WORKER] Processing EmailJob (job_id: 6)
+2025-12-10T14:31:14-10:00 [WORKER] FAILED EmailJob (job_id: 6) - Retry scheduled
+2025-12-10T14:31:19-10:00 [WORKER] Processing ReportGenerationJob (job_id: 7)
+2025-12-10T14:31:20-10:00 [WORKER] Completed ReportGenerationJob (job_id: 7)
+2025-12-10T14:31:23-10:00 [WORKER] Processing DataSyncJob (job_id: 8)
+2025-12-10T14:31:25-10:00 [WORKER] Completed DataSyncJob (job_id: 8)
+2025-12-10T15:14:49-10:00 [WORKER] Processing EmailJob (job_id: 1)
+2025-12-10T15:14:50-10:00 [WORKER] Completed EmailJob (job_id: 1)
+2025-12-10T15:14:54-10:00 [WORKER] Processing EmailJob (job_id: 2)
