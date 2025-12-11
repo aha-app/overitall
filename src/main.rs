@@ -128,16 +128,9 @@ async fn run_app(
         }
 
         // Handle input with short timeout
+        // Note: In raw mode, Ctrl+C is captured as a keyboard event, not a signal,
+        // so we handle it in the event handler instead of using tokio::signal::ctrl_c()
         tokio::select! {
-            result = tokio::signal::ctrl_c() => {
-                // Ctrl+C received - initiate graceful shutdown
-                result?;
-                if !app.shutting_down {
-                    app.start_shutdown();
-                    manager.kill_all().await?;
-                }
-                // Don't break immediately - let the loop check for termination
-            }
             _ = tokio::time::sleep(tokio::time::Duration::from_millis(100)) => {
                 // Check for keyboard input
                 if event::poll(std::time::Duration::from_millis(0))? {

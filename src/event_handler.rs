@@ -24,8 +24,13 @@ impl<'a> EventHandler<'a> {
     pub async fn handle_key_event(&mut self, key: KeyEvent) -> Result<bool> {
         // Returns true if the app should quit, false otherwise
         match key.code {
-            // Ctrl-C is handled in main loop via tokio::signal::ctrl_c()
-            // Don't handle it here to avoid immediate quit
+            // Ctrl-C triggers graceful shutdown
+            // In raw mode, Ctrl+C is captured as a keyboard event, not a signal
+            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) && !self.app.shutting_down => {
+                self.app.start_shutdown();
+                self.manager.kill_all().await?;
+                Ok(false) // Don't quit immediately - let the loop check for termination
+            }
             // Help mode
             KeyCode::Char('?') if !self.app.command_mode && !self.app.search_mode => {
                 self.handle_help_toggle();
