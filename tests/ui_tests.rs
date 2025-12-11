@@ -321,3 +321,259 @@ fn test_exclude_filter_with_logs() {
     // Should show filter count
     assert!(output.contains("1"));
 }
+
+// ============================================================================
+// Phase 6.7: Comprehensive Snapshot Tests for Filtering and Batching
+// ============================================================================
+
+// --- Filtering Snapshot Tests ---
+
+#[test]
+fn test_snapshot_include_filter_active() {
+    let mut app = create_test_app();
+    let manager = create_manager_with_logs();
+
+    // Apply include filter for "ERROR"
+    app.add_include_filter("ERROR".to_string());
+
+    let output = render_app_to_string(&app, &manager, 120, 40);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_snapshot_exclude_filter_active() {
+    let mut app = create_test_app();
+    let manager = create_manager_with_logs();
+
+    // Apply exclude filter for "ERROR"
+    app.add_exclude_filter("ERROR".to_string());
+
+    let output = render_app_to_string(&app, &manager, 120, 40);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_snapshot_multiple_filters_active() {
+    let mut app = create_test_app();
+    let manager = create_manager_with_logs();
+
+    // Apply both include and exclude filters
+    app.add_include_filter("job".to_string());
+    app.add_exclude_filter("ERROR".to_string());
+
+    let output = render_app_to_string(&app, &manager, 120, 40);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_snapshot_filter_list_display() {
+    let mut app = create_test_app();
+    let manager = create_manager_with_logs();
+
+    // Add multiple filters
+    app.add_include_filter("ERROR".to_string());
+    app.add_include_filter("web".to_string());
+    app.add_exclude_filter("DEBUG".to_string());
+
+    // Enter command mode to show filter list command
+    app.enter_command_mode();
+    app.add_char('f');
+    app.add_char('l');
+
+    let output = render_app_to_string(&app, &manager, 120, 40);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_snapshot_empty_results_after_filtering() {
+    let mut app = create_test_app();
+    let manager = create_manager_with_logs();
+
+    // Apply filter that matches nothing
+    app.add_include_filter("NONEXISTENT_PATTERN_XYZ".to_string());
+
+    let output = render_app_to_string(&app, &manager, 120, 40);
+    assert_snapshot!(output);
+}
+
+// --- Batching Snapshot Tests ---
+
+/// Helper to create logs with specific arrival times for batch testing
+fn create_manager_with_batched_logs() -> ProcessManager {
+    let mut manager = ProcessManager::new();
+
+    manager.add_process("web".to_string(), "ruby web.rb".to_string());
+    manager.add_process("worker".to_string(), "ruby worker.rb".to_string());
+
+    // Batch 1: Three logs arriving within 100ms (at 12:00:00.000)
+    let batch1_time = Local.with_ymd_and_hms(2024, 12, 10, 12, 0, 0).unwrap();
+    let mut log1 = LogLine::new(LogSource::ProcessStdout("web".to_string()), "Starting web server on port 3000".to_string());
+    log1.timestamp = batch1_time;
+    log1.arrival_time = batch1_time;
+    manager.add_test_log(log1);
+
+    let mut log2 = LogLine::new(LogSource::ProcessStdout("web".to_string()), "Loading configuration".to_string());
+    log2.timestamp = batch1_time;
+    log2.arrival_time = batch1_time + chrono::Duration::milliseconds(50);
+    manager.add_test_log(log2);
+
+    let mut log3 = LogLine::new(LogSource::ProcessStdout("web".to_string()), "Database connected".to_string());
+    log3.timestamp = batch1_time;
+    log3.arrival_time = batch1_time + chrono::Duration::milliseconds(90);
+    manager.add_test_log(log3);
+
+    // Batch 2: Two logs arriving 500ms later (at 12:00:00.500)
+    let batch2_time = batch1_time + chrono::Duration::milliseconds(500);
+    let mut log4 = LogLine::new(LogSource::ProcessStdout("worker".to_string()), "Processing job #1234".to_string());
+    log4.timestamp = batch2_time;
+    log4.arrival_time = batch2_time;
+    manager.add_test_log(log4);
+
+    let mut log5 = LogLine::new(LogSource::ProcessStdout("worker".to_string()), "Job #1234 completed".to_string());
+    log5.timestamp = batch2_time;
+    log5.arrival_time = batch2_time + chrono::Duration::milliseconds(80);
+    manager.add_test_log(log5);
+
+    // Batch 3: Single log 1 second later (at 12:00:01.500)
+    let batch3_time = batch2_time + chrono::Duration::milliseconds(1000);
+    let mut log6 = LogLine::new(LogSource::ProcessStdout("web".to_string()), "GET /api/users 200 OK".to_string());
+    log6.timestamp = batch3_time;
+    log6.arrival_time = batch3_time;
+    manager.add_test_log(log6);
+
+    manager
+}
+
+#[test]
+fn test_snapshot_batch_view_mode() {
+    let mut app = create_test_app();
+    let manager = create_manager_with_batched_logs();
+
+    // Enable batch view mode and select first batch
+    app.toggle_batch_view();
+
+    let output = render_app_to_string(&app, &manager, 120, 40);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_snapshot_batch_separators_visible() {
+    let app = create_test_app();
+    let manager = create_manager_with_batched_logs();
+
+    // Normal mode should show batch separators
+    let output = render_app_to_string(&app, &manager, 120, 40);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_snapshot_batch_navigation_second_batch() {
+    let mut app = create_test_app();
+    let manager = create_manager_with_batched_logs();
+
+    // Enable batch view and navigate to second batch
+    app.toggle_batch_view();
+    app.next_batch();
+
+    let output = render_app_to_string(&app, &manager, 120, 40);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_snapshot_batch_info_in_status() {
+    let mut app = create_test_app();
+    let manager = create_manager_with_batched_logs();
+
+    // Enable batch view mode
+    app.toggle_batch_view();
+
+    let output = render_app_to_string(&app, &manager, 120, 40);
+    // Should show "Batch N/M, X lines" in output
+    assert!(output.contains("Batch") || output.contains("batch"));
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_snapshot_single_batch_no_separators() {
+    let mut manager = ProcessManager::new();
+    manager.add_process("web".to_string(), "ruby web.rb".to_string());
+
+    // Add logs all in one batch (within 100ms)
+    let batch_time = Local.with_ymd_and_hms(2024, 12, 10, 12, 0, 0).unwrap();
+    for i in 0..3 {
+        let mut log = LogLine::new(
+            LogSource::ProcessStdout("web".to_string()),
+            format!("Log message {}", i + 1),
+        );
+        log.timestamp = batch_time;
+        log.arrival_time = batch_time + chrono::Duration::milliseconds(i * 30);
+        manager.add_test_log(log);
+    }
+
+    let app = create_test_app();
+    let output = render_app_to_string(&app, &manager, 120, 40);
+    assert_snapshot!(output);
+}
+
+// --- Combined Feature Tests ---
+
+#[test]
+fn test_snapshot_filtering_and_batching_combined() {
+    let mut app = create_test_app();
+    let manager = create_manager_with_batched_logs();
+
+    // Apply filter and enable batch view
+    app.add_include_filter("web".to_string());
+    app.toggle_batch_view();
+
+    let output = render_app_to_string(&app, &manager, 120, 40);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_snapshot_search_and_filtering_combined() {
+    let mut app = create_test_app();
+    let manager = create_manager_with_logs();
+
+    // Add filter
+    app.add_include_filter("ERROR".to_string());
+
+    // Perform search
+    app.perform_search("Database".to_string());
+
+    let output = render_app_to_string(&app, &manager, 120, 40);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_snapshot_search_and_batching_combined() {
+    let mut app = create_test_app();
+    let manager = create_manager_with_batched_logs();
+
+    // Enable batch view
+    app.toggle_batch_view();
+
+    // Perform search
+    app.perform_search("job".to_string());
+
+    let output = render_app_to_string(&app, &manager, 120, 40);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_snapshot_all_features_active() {
+    let mut app = create_test_app();
+    let manager = create_manager_with_batched_logs();
+
+    // Apply filter
+    app.add_include_filter("web".to_string());
+
+    // Enable batch view
+    app.toggle_batch_view();
+
+    // Perform search
+    app.perform_search("server".to_string());
+
+    let output = render_app_to_string(&app, &manager, 120, 40);
+    assert_snapshot!(output);
+}
