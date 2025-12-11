@@ -93,6 +93,11 @@ oit -c path/to/config.toml
 #### Batch Navigation
 - `[` / `]` - Previous/next batch
 
+#### Clipboard & Batch Operations
+- `c` - Copy selected line to clipboard (with timestamp and process)
+- `C` - Copy entire batch to clipboard (all lines in batch)
+- `b` - Focus on batch containing the selected line
+
 ### Commands
 
 All commands are entered by pressing `:` followed by the command.
@@ -243,13 +248,14 @@ Overitall is under active development. Current features:
 - Search with highlighting
 - Batch detection and navigation
 - Line selection and expanded view (view full content of long log lines)
+- Clipboard operations (copy lines and batches to system clipboard)
+- Batch focus from selected line
 - Persistent configuration
 - Help system
 
 Planned features:
 
-- Clipboard operations (copy lines and batches)
-- Batch focus from selected line
+- Dynamic batch window configuration
 - Rails-specific log format parsing
 - Additional log sources (syslog, HTTP endpoints)
 - Performance optimizations for large log volumes
