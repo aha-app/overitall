@@ -74,15 +74,24 @@ oit -c path/to/config.toml
 
 ### Keyboard Shortcuts
 
-- `?` - Show help overlay
-- `:` - Enter command mode
-- `/` - Enter search mode
-- `n` / `N` - Next/previous search match
-- `[` / `]` - Previous/next batch
+#### Navigation
+- `↑` / `↓` - Select previous/next log line
+- `Enter` - Expand selected line (show full content in overlay)
 - `j` / `k` - Scroll down/up
 - `g` / `G` - Jump to top/bottom
-- `Esc` - Exit current mode or close help
+- `?` - Show help overlay
 - `q` - Quit application
+
+#### Modes
+- `:` - Enter command mode
+- `/` - Enter search mode
+- `Esc` - Exit current mode or close overlays
+
+#### Search
+- `n` / `N` - Next/previous search match
+
+#### Batch Navigation
+- `[` / `]` - Previous/next batch
 
 ### Commands
 
@@ -233,11 +242,14 @@ Overitall is under active development. Current features:
 - Filtering (include/exclude patterns)
 - Search with highlighting
 - Batch detection and navigation
+- Line selection and expanded view (view full content of long log lines)
 - Persistent configuration
 - Help system
 
 Planned features:
 
+- Clipboard operations (copy lines and batches)
+- Batch focus from selected line
 - Rails-specific log format parsing
 - Additional log sources (syslog, HTTP endpoints)
 - Performance optimizations for large log volumes
