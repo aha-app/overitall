@@ -178,6 +178,37 @@ fn parse_command(input: &str) -> Command {
     }
 }
 
+/// Apply filters to a vector of log references, returning owned logs that pass all filters
+fn apply_filters(logs: Vec<&log::LogLine>, filters: &[ui::Filter]) -> Vec<log::LogLine> {
+    if filters.is_empty() {
+        return logs.into_iter().map(|log| (*log).clone()).collect();
+    }
+
+    logs.into_iter()
+        .filter(|log| {
+            let line_text = &log.line;
+            // First, check exclude filters - if any match, exclude the log
+            for filter in filters {
+                if matches!(filter.filter_type, ui::FilterType::Exclude) {
+                    if filter.matches(line_text) {
+                        return false;
+                    }
+                }
+            }
+            // Then, check include filters - if there are any, at least one must match
+            let include_filters: Vec<_> = filters
+                .iter()
+                .filter(|f| matches!(f.filter_type, ui::FilterType::Include))
+                .collect();
+            if include_filters.is_empty() {
+                return true;
+            }
+            include_filters.iter().any(|filter| filter.matches(line_text))
+        })
+        .map(|log| (*log).clone())
+        .collect()
+}
+
 async fn run_app(
     terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>,
     app: &mut App,
@@ -360,29 +391,9 @@ async fn run_app(
                                 app.set_batch_window(ms);
                                 // Count batches with the new window to show in status
                                 let logs = manager.get_all_logs();
-                                let filtered_logs: Vec<_> = logs.iter()
-                                    .filter(|log| {
-                                        let line_text = &log.line;
-                                        for filter in &app.filters {
-                                            if matches!(filter.filter_type, ui::FilterType::Exclude) {
-                                                if filter.matches(line_text) {
-                                                    return false;
-                                                }
-                                            }
-                                        }
-                                        let include_filters: Vec<_> = app
-                                            .filters
-                                            .iter()
-                                            .filter(|f| matches!(f.filter_type, ui::FilterType::Include))
-                                            .collect();
-                                        if include_filters.is_empty() {
-                                            return true;
-                                        }
-                                        include_filters.iter().any(|filter| filter.matches(line_text))
-                                    })
-                                    .map(|log| *log)
-                                    .collect();
-                                let batches = ui::detect_batches_from_logs(&filtered_logs, ms);
+                                let filtered_logs = apply_filters(logs, &app.filters);
+                                let filtered_refs: Vec<&log::LogLine> = filtered_logs.iter().collect();
+                                let batches = ui::detect_batches_from_logs(&filtered_refs, ms);
                                 app.set_status_success(format!("Batch window set to {}ms ({} batches detected)", ms, batches.len()));
 
                                 // Save to config
@@ -423,31 +434,7 @@ async fn run_app(
                     KeyCode::Char('n') if !app.command_mode && !app.search_mode => {
                         // Get total matches from filtered logs
                         let logs = manager.get_all_logs();
-                        let filtered_logs: Vec<_> = if app.filters.is_empty() {
-                            logs
-                        } else {
-                            logs.into_iter()
-                                .filter(|log| {
-                                    let line_text = &log.line;
-                                    for filter in &app.filters {
-                                        if matches!(filter.filter_type, ui::FilterType::Exclude) {
-                                            if filter.matches(line_text) {
-                                                return false;
-                                            }
-                                        }
-                                    }
-                                    let include_filters: Vec<_> = app
-                                        .filters
-                                        .iter()
-                                        .filter(|f| matches!(f.filter_type, ui::FilterType::Include))
-                                        .collect();
-                                    if include_filters.is_empty() {
-                                        return true;
-                                    }
-                                    include_filters.iter().any(|filter| filter.matches(line_text))
-                                })
-                                .collect()
-                        };
+                        let filtered_logs = apply_filters(logs, &app.filters);
 
                         // Build search matches vector
                         let search_matches: Vec<usize> = filtered_logs
@@ -474,31 +461,7 @@ async fn run_app(
                     KeyCode::Char('N') if !app.command_mode && !app.search_mode => {
                         // Get total matches from filtered logs
                         let logs = manager.get_all_logs();
-                        let filtered_logs: Vec<_> = if app.filters.is_empty() {
-                            logs
-                        } else {
-                            logs.into_iter()
-                                .filter(|log| {
-                                    let line_text = &log.line;
-                                    for filter in &app.filters {
-                                        if matches!(filter.filter_type, ui::FilterType::Exclude) {
-                                            if filter.matches(line_text) {
-                                                return false;
-                                            }
-                                        }
-                                    }
-                                    let include_filters: Vec<_> = app
-                                        .filters
-                                        .iter()
-                                        .filter(|f| matches!(f.filter_type, ui::FilterType::Include))
-                                        .collect();
-                                    if include_filters.is_empty() {
-                                        return true;
-                                    }
-                                    include_filters.iter().any(|filter| filter.matches(line_text))
-                                })
-                                .collect()
-                        };
+                        let filtered_logs = apply_filters(logs, &app.filters);
 
                         // Build search matches vector
                         let search_matches: Vec<usize> = filtered_logs
@@ -538,41 +501,11 @@ async fn run_app(
                         if let Some(line_idx) = app.selected_line_index {
                             // Get all logs and apply filters (same logic as in draw_expanded_line_overlay)
                             let logs = manager.get_all_logs();
-
-                            let filtered_logs: Vec<_> = if app.filters.is_empty() {
-                                logs
-                            } else {
-                                logs.into_iter()
-                                    .filter(|log| {
-                                        let line_text = &log.line;
-
-                                        // Check exclude filters first
-                                        for filter in &app.filters {
-                                            if matches!(filter.filter_type, ui::FilterType::Exclude) {
-                                                if filter.matches(line_text) {
-                                                    return false;
-                                                }
-                                            }
-                                        }
-
-                                        // Check include filters
-                                        let include_filters: Vec<_> = app
-                                            .filters
-                                            .iter()
-                                            .filter(|f| matches!(f.filter_type, ui::FilterType::Include))
-                                            .collect();
-
-                                        if include_filters.is_empty() {
-                                            return true;
-                                        }
-
-                                        include_filters.iter().any(|filter| filter.matches(line_text))
-                                    })
-                                    .collect()
-                            };
+                            let filtered_logs = apply_filters(logs, &app.filters);
 
                             // Apply batch view mode filtering if enabled
-                            let batches = ui::detect_batches_from_logs(&filtered_logs, app.batch_window_ms);
+                            let filtered_refs: Vec<&log::LogLine> = filtered_logs.iter().collect();
+                            let batches = ui::detect_batches_from_logs(&filtered_refs, app.batch_window_ms);
                             let display_logs: Vec<_> = if app.batch_view_mode {
                                 if let Some(batch_idx) = app.current_batch {
                                     if !batches.is_empty() && batch_idx < batches.len() {
@@ -589,7 +522,7 @@ async fn run_app(
                             };
 
                             if line_idx < display_logs.len() {
-                                let log = display_logs[line_idx];
+                                let log = &display_logs[line_idx];
                                 let formatted = format!(
                                     "[{}] {}: {}",
                                     log.timestamp.format("%Y-%m-%d %H:%M:%S"),
@@ -609,41 +542,11 @@ async fn run_app(
                         if let Some(line_idx) = app.selected_line_index {
                             // Get all logs and apply filters
                             let logs = manager.get_all_logs();
-
-                            let filtered_logs: Vec<_> = if app.filters.is_empty() {
-                                logs
-                            } else {
-                                logs.into_iter()
-                                    .filter(|log| {
-                                        let line_text = &log.line;
-
-                                        // Check exclude filters first
-                                        for filter in &app.filters {
-                                            if matches!(filter.filter_type, ui::FilterType::Exclude) {
-                                                if filter.matches(line_text) {
-                                                    return false;
-                                                }
-                                            }
-                                        }
-
-                                        // Check include filters
-                                        let include_filters: Vec<_> = app
-                                            .filters
-                                            .iter()
-                                            .filter(|f| matches!(f.filter_type, ui::FilterType::Include))
-                                            .collect();
-
-                                        if include_filters.is_empty() {
-                                            return true;
-                                        }
-
-                                        include_filters.iter().any(|filter| filter.matches(line_text))
-                                    })
-                                    .collect()
-                            };
+                            let filtered_logs = apply_filters(logs, &app.filters);
 
                             // Detect batches
-                            let batches = ui::detect_batches_from_logs(&filtered_logs, app.batch_window_ms);
+                            let filtered_refs: Vec<&log::LogLine> = filtered_logs.iter().collect();
+                            let batches = ui::detect_batches_from_logs(&filtered_refs, app.batch_window_ms);
 
                             // Find which batch contains the selected line
                             if let Some((batch_idx, (start, end))) = batches.iter().enumerate().find(|(_, (start, end))| {
@@ -675,41 +578,11 @@ async fn run_app(
                         if let Some(line_idx) = app.selected_line_index {
                             // Get all logs and apply filters
                             let logs = manager.get_all_logs();
-
-                            let filtered_logs: Vec<_> = if app.filters.is_empty() {
-                                logs
-                            } else {
-                                logs.into_iter()
-                                    .filter(|log| {
-                                        let line_text = &log.line;
-
-                                        // Check exclude filters first
-                                        for filter in &app.filters {
-                                            if matches!(filter.filter_type, ui::FilterType::Exclude) {
-                                                if filter.matches(line_text) {
-                                                    return false;
-                                                }
-                                            }
-                                        }
-
-                                        // Check include filters
-                                        let include_filters: Vec<_> = app
-                                            .filters
-                                            .iter()
-                                            .filter(|f| matches!(f.filter_type, ui::FilterType::Include))
-                                            .collect();
-
-                                        if include_filters.is_empty() {
-                                            return true;
-                                        }
-
-                                        include_filters.iter().any(|filter| filter.matches(line_text))
-                                    })
-                                    .collect()
-                            };
+                            let filtered_logs = apply_filters(logs, &app.filters);
 
                             // Detect batches
-                            let batches = ui::detect_batches_from_logs(&filtered_logs, app.batch_window_ms);
+                            let filtered_refs: Vec<&log::LogLine> = filtered_logs.iter().collect();
+                            let batches = ui::detect_batches_from_logs(&filtered_refs, app.batch_window_ms);
 
                             // Find which batch contains the selected line
                             if let Some((batch_idx, _)) = batches.iter().enumerate().find(|(_, (start, end))| {
@@ -732,36 +605,13 @@ async fn run_app(
                         // Line selection: select next line
                         // Calculate the correct max based on filtered logs and batch view mode
                         let logs = manager.get_all_logs();
-                        let filtered_logs: Vec<_> = if app.filters.is_empty() {
-                            logs
-                        } else {
-                            logs.into_iter()
-                                .filter(|log| {
-                                    let line_text = &log.line;
-                                    for filter in &app.filters {
-                                        if matches!(filter.filter_type, ui::FilterType::Exclude) {
-                                            if filter.matches(line_text) {
-                                                return false;
-                                            }
-                                        }
-                                    }
-                                    let include_filters: Vec<_> = app
-                                        .filters
-                                        .iter()
-                                        .filter(|f| matches!(f.filter_type, ui::FilterType::Include))
-                                        .collect();
-                                    if include_filters.is_empty() {
-                                        return true;
-                                    }
-                                    include_filters.iter().any(|filter| filter.matches(line_text))
-                                })
-                                .collect()
-                        };
+                        let filtered_logs = apply_filters(logs, &app.filters);
 
                         // If in batch view mode, limit to current batch
+                        let filtered_refs: Vec<&log::LogLine> = filtered_logs.iter().collect();
                         let total_logs = if app.batch_view_mode {
                             if let Some(batch_idx) = app.current_batch {
-                                let batches = ui::detect_batches_from_logs(&filtered_logs, app.batch_window_ms);
+                                let batches = ui::detect_batches_from_logs(&filtered_refs, app.batch_window_ms);
                                 if !batches.is_empty() && batch_idx < batches.len() {
                                     let (start, end) = batches[batch_idx];
                                     end - start + 1
