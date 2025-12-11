@@ -90,6 +90,7 @@ async fn main() -> anyhow::Result<()> {
 /// Command parsed from user input
 enum Command {
     Quit,
+    Start(String),
     Restart(String),
     Kill(String),
     FilterInclude(String),
@@ -116,6 +117,13 @@ fn parse_command(input: &str) -> Command {
     }
 
     match parts[0] {
+        "s" => {
+            if parts.len() < 2 {
+                Command::Unknown("Usage: :s <process>".to_string())
+            } else {
+                Command::Start(parts[1].to_string())
+            }
+        }
         "r" => {
             if parts.len() < 2 {
                 Command::Unknown("Usage: :r <process>".to_string())
@@ -178,14 +186,17 @@ async fn run_app(
                         break;
                     }
                     // Command mode specific keys
-                    KeyCode::Char(':') if !app.command_mode && !app.search_mode => {
+                    KeyCode::Char(':') if !app.command_mode && !app.search_mode && !app.show_help => {
                         app.enter_command_mode();
+                    }
+                    KeyCode::Esc if app.show_help => {
+                        app.toggle_help();
                     }
                     KeyCode::Esc if app.command_mode => {
                         app.exit_command_mode();
                     }
                     // Search mode specific keys
-                    KeyCode::Char('/') if !app.command_mode && !app.search_mode => {
+                    KeyCode::Char('/') if !app.command_mode && !app.search_mode && !app.show_help => {
                         app.enter_search_mode();
                     }
                     KeyCode::Esc if app.search_mode => {
@@ -217,6 +228,16 @@ async fn run_app(
                             Command::Quit => {
                                 app.quit();
                                 break;
+                            }
+                            Command::Start(process) => {
+                                match manager.start_process(&process).await {
+                                    Ok(_) => {
+                                        app.set_status_success(format!("Started process: {}", process));
+                                    }
+                                    Err(e) => {
+                                        app.set_status_error(format!("Failed to start {}: {}", process, e));
+                                    }
+                                }
                             }
                             Command::Restart(process) => {
                                 match manager.restart_process(&process).await {
@@ -327,6 +348,9 @@ async fn run_app(
                     KeyCode::Char('q') if !app.command_mode && !app.search_mode => {
                         app.quit();
                         break;
+                    }
+                    KeyCode::Char('?') if !app.command_mode && !app.search_mode => {
+                        app.toggle_help();
                     }
                     // Search navigation (n/N for next/previous match)
                     KeyCode::Char('n') if !app.command_mode && !app.search_mode => {

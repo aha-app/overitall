@@ -9,4 +9,3 @@ log_file = "web.log"
 [filters]
 include = []
 exclude = []
-

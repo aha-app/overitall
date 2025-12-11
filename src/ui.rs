@@ -85,6 +85,8 @@ pub struct App {
     pub batch_view_mode: bool,
     /// Index of currently viewed batch
     pub current_batch: Option<usize>,
+    /// Whether to show the help overlay
+    pub show_help: bool,
 }
 
 impl App {
@@ -105,6 +107,7 @@ impl App {
             batch_window_ms: 100,
             batch_view_mode: false,
             current_batch: None,
+            show_help: false,
         }
     }
 
@@ -343,6 +346,11 @@ impl App {
             self.current_batch = Some(0);
         }
     }
+
+    /// Toggle help overlay
+    pub fn toggle_help(&mut self) {
+        self.show_help = !self.show_help;
+    }
 }
 
 /// Draw the UI to the terminal
@@ -365,6 +373,11 @@ pub fn draw(f: &mut Frame, app: &App, manager: &ProcessManager) {
 
     // Draw command input
     draw_command_input(f, chunks[2], app);
+
+    // Draw help overlay if show_help is true (must be last so it's on top)
+    if app.show_help {
+        draw_help_overlay(f);
+    }
 }
 
 /// Detect batches from a slice of LogLine references
@@ -475,6 +488,21 @@ fn draw_log_viewer(
     // Detect batches from filtered logs
     let batches = detect_batches_from_logs(&filtered_logs, app.batch_window_ms);
 
+    // Build a map from each log index to its batch number (before consuming filtered_logs)
+    let filtered_log_to_batch: Vec<Option<usize>> = if !batches.is_empty() {
+        let mut map = vec![None; filtered_logs.len()];
+        for (batch_idx, (start, end)) in batches.iter().enumerate() {
+            for i in *start..=*end {
+                if i < map.len() {
+                    map[i] = Some(batch_idx);
+                }
+            }
+        }
+        map
+    } else {
+        vec![]
+    };
+
     // Validate and adjust current_batch if needed
     let current_batch_validated = if app.batch_view_mode {
         if let Some(batch_idx) = app.current_batch {
@@ -501,15 +529,15 @@ fn draw_log_viewer(
     };
 
     // Apply batch view mode filtering if enabled
-    let display_logs_source: Vec<&crate::log::LogLine> = if let Some(batch_idx) = current_batch_validated {
+    let (display_logs_source, display_start_in_filtered): (Vec<&crate::log::LogLine>, usize) = if let Some(batch_idx) = current_batch_validated {
         if !batches.is_empty() && batch_idx < batches.len() {
             let (start, end) = batches[batch_idx];
-            filtered_logs[start..=end].to_vec()
+            (filtered_logs[start..=end].to_vec(), start)
         } else {
-            filtered_logs
+            (filtered_logs, 0)
         }
     } else {
-        filtered_logs
+        (filtered_logs, 0)
     };
 
     // Calculate visible lines (area height minus 2 for borders)
@@ -577,48 +605,71 @@ fn draw_log_viewer(
     };
 
     // Format log lines: [HH:MM:SS] process_name: message
-    let log_lines: Vec<Line> = display_logs
-        .iter()
-        .enumerate()
-        .map(|(display_idx, log)| {
-            let timestamp = log.timestamp.format("%H:%M:%S").to_string();
-            let process_name = log.source.process_name();
+    // When not in batch view mode, add separators between batches
+    let mut log_lines: Vec<Line> = Vec::new();
 
-            // Check if this line is a search match and if it's the current match
-            let log_global_idx = display_start + display_idx;
-            let is_match = search_matches.contains(&log_global_idx);
-            let is_current_match = if let Some(match_idx) = app.current_match {
-                match_idx < total_matches && search_matches.get(match_idx) == Some(&log_global_idx)
-            } else {
-                false
-            };
+    for (display_idx, log) in display_logs.iter().enumerate() {
+        // Insert batch separator if we're starting a new batch
+        // Only show separators when not in batch view mode
+        if current_batch_validated.is_none() && display_idx > 0 && !filtered_log_to_batch.is_empty() {
+            // Calculate the indices in the filtered_logs array
+            // display_start is the offset within display_logs_source
+            // display_start_in_filtered is the offset of display_logs_source within filtered_logs
+            let prev_filtered_idx = display_start_in_filtered + display_start + display_idx - 1;
+            let curr_filtered_idx = display_start_in_filtered + display_start + display_idx;
 
-            // Choose style based on whether this is a match
-            let line_style = if is_current_match {
-                // Current match: yellow background
-                Style::default().bg(Color::Yellow).fg(Color::Black)
-            } else if is_match {
-                // Other matches: dark gray background
-                Style::default().bg(Color::DarkGray)
-            } else {
+            // Get batch numbers for previous and current log
+            let prev_batch = filtered_log_to_batch.get(prev_filtered_idx).and_then(|b| *b);
+            let curr_batch = filtered_log_to_batch.get(curr_filtered_idx).and_then(|b| *b);
+
+            // If we're transitioning to a new batch, insert a separator
+            if prev_batch != curr_batch && curr_batch.is_some() {
+                let separator = Line::from(Span::styled(
+                    "─".repeat(80),
+                    Style::default().fg(Color::DarkGray),
+                ));
+                log_lines.push(separator);
+            }
+        }
+
+        let timestamp = log.timestamp.format("%H:%M:%S").to_string();
+        let process_name = log.source.process_name();
+
+        // Check if this line is a search match and if it's the current match
+        let log_global_idx = display_start + display_idx;
+        let is_match = search_matches.contains(&log_global_idx);
+        let is_current_match = if let Some(match_idx) = app.current_match {
+            match_idx < total_matches && search_matches.get(match_idx) == Some(&log_global_idx)
+        } else {
+            false
+        };
+
+        // Choose style based on whether this is a match
+        let line_style = if is_current_match {
+            // Current match: yellow background
+            Style::default().bg(Color::Yellow).fg(Color::Black)
+        } else if is_match {
+            // Other matches: dark gray background
+            Style::default().bg(Color::DarkGray)
+        } else {
+            Style::default()
+        };
+
+        let line = Line::from(vec![
+            Span::styled(
+                format!("[{}] ", timestamp),
+                Style::default().fg(Color::Cyan),
+            ),
+            Span::styled(
+                format!("{}: ", process_name),
                 Style::default()
-            };
-
-            Line::from(vec![
-                Span::styled(
-                    format!("[{}] ", timestamp),
-                    Style::default().fg(Color::Cyan),
-                ),
-                Span::styled(
-                    format!("{}: ", process_name),
-                    Style::default()
-                        .fg(Color::Yellow)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(&log.line, line_style),
-            ])
-        })
-        .collect();
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(&log.line, line_style),
+        ]);
+        log_lines.push(line);
+    }
 
     // Build title with batch count, filters and search info
     let mut title_parts = vec![" Logs ".to_string()];
@@ -716,5 +767,156 @@ fn draw_command_input(f: &mut Frame, area: ratatui::layout::Rect, app: &App) {
 
     let paragraph = Paragraph::new(text).block(Block::default().borders(Borders::ALL));
 
+    f.render_widget(paragraph, area);
+}
+
+/// Helper function to create a centered rect using percentage of the available area
+fn centered_rect(percent_x: u16, percent_y: u16, r: ratatui::layout::Rect) -> ratatui::layout::Rect {
+    use ratatui::layout::{Constraint, Direction, Layout};
+
+    let popup_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Percentage((100 - percent_y) / 2),
+            Constraint::Percentage(percent_y),
+            Constraint::Percentage((100 - percent_y) / 2),
+        ])
+        .split(r);
+
+    Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage((100 - percent_x) / 2),
+            Constraint::Percentage(percent_x),
+            Constraint::Percentage((100 - percent_x) / 2),
+        ])
+        .split(popup_layout[1])[1]
+}
+
+/// Draw the help overlay
+fn draw_help_overlay(f: &mut Frame) {
+    use ratatui::widgets::{Block, Borders, Paragraph, Wrap, Clear};
+    use ratatui::text::{Line, Span};
+    use ratatui::style::{Color, Modifier, Style};
+
+    let help_text = vec![
+        Line::from(vec![
+            Span::styled("Overitall Help", Style::default().add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("Navigation:", Style::default().add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(vec![
+            Span::styled("  ↑/k", Style::default().fg(Color::Yellow)),
+            Span::raw("     Scroll up"),
+        ]),
+        Line::from(vec![
+            Span::styled("  ↓/j", Style::default().fg(Color::Yellow)),
+            Span::raw("     Scroll down"),
+        ]),
+        Line::from(vec![
+            Span::styled("  q", Style::default().fg(Color::Yellow)),
+            Span::raw("       Quit"),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("Commands:", Style::default().add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(vec![
+            Span::styled("  :", Style::default().fg(Color::Yellow)),
+            Span::raw("       Enter command mode"),
+        ]),
+        Line::from(vec![
+            Span::styled("  :s <proc>", Style::default().fg(Color::Yellow)),
+            Span::raw(" Start process"),
+        ]),
+        Line::from(vec![
+            Span::styled("  :r <proc>", Style::default().fg(Color::Yellow)),
+            Span::raw(" Restart process"),
+        ]),
+        Line::from(vec![
+            Span::styled("  :k <proc>", Style::default().fg(Color::Yellow)),
+            Span::raw(" Kill process"),
+        ]),
+        Line::from(vec![
+            Span::styled("  :q", Style::default().fg(Color::Yellow)),
+            Span::raw("       Quit"),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("Filtering:", Style::default().add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(vec![
+            Span::styled("  :f <pat>", Style::default().fg(Color::Yellow)),
+            Span::raw("  Include filter (show only matching lines)"),
+        ]),
+        Line::from(vec![
+            Span::styled("  :fn <pat>", Style::default().fg(Color::Yellow)),
+            Span::raw(" Exclude filter (hide matching lines)"),
+        ]),
+        Line::from(vec![
+            Span::styled("  :fc", Style::default().fg(Color::Yellow)),
+            Span::raw("       Clear all filters"),
+        ]),
+        Line::from(vec![
+            Span::styled("  :fl", Style::default().fg(Color::Yellow)),
+            Span::raw("       List active filters"),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("Search:", Style::default().add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(vec![
+            Span::styled("  /", Style::default().fg(Color::Yellow)),
+            Span::raw("       Enter search mode"),
+        ]),
+        Line::from(vec![
+            Span::styled("  n", Style::default().fg(Color::Yellow)),
+            Span::raw("       Next search match"),
+        ]),
+        Line::from(vec![
+            Span::styled("  N", Style::default().fg(Color::Yellow)),
+            Span::raw("       Previous search match"),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("Batch Navigation:", Style::default().add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(vec![
+            Span::styled("  :sb", Style::default().fg(Color::Yellow)),
+            Span::raw("      Toggle batch view mode"),
+        ]),
+        Line::from(vec![
+            Span::styled("  :nb", Style::default().fg(Color::Yellow)),
+            Span::raw("      Next batch"),
+        ]),
+        Line::from(vec![
+            Span::styled("  :pb", Style::default().fg(Color::Yellow)),
+            Span::raw("      Previous batch"),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("Press ", Style::default()),
+            Span::styled("ESC", Style::default().fg(Color::Yellow)),
+            Span::styled(" or ", Style::default()),
+            Span::styled("?", Style::default().fg(Color::Yellow)),
+            Span::styled(" to close this help", Style::default()),
+        ]),
+    ];
+
+    let block = Block::default()
+        .title(" Help ")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Yellow));
+
+    let paragraph = Paragraph::new(help_text)
+        .block(block)
+        .wrap(Wrap { trim: true });
+
+    let area = centered_rect(60, 80, f.area());
+
+    // Clear the area behind the popup
+    f.render_widget(Clear, area);
     f.render_widget(paragraph, area);
 }
