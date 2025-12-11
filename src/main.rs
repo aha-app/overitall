@@ -601,8 +601,30 @@ async fn run_app(
                         }
                     }
                     KeyCode::Up if !app.command_mode && !app.search_mode => {
-                        // Line selection: select previous line
-                        app.select_prev_line();
+                        // Line selection: select previous line with wrap-around
+                        // Calculate the correct max based on filtered logs and batch view mode
+                        let logs = manager.get_all_logs();
+                        let filtered_logs = apply_filters(logs, &app.filters);
+
+                        // If in batch view mode, limit to current batch
+                        let filtered_refs: Vec<&log::LogLine> = filtered_logs.iter().collect();
+                        let total_logs = if app.batch_view_mode {
+                            if let Some(batch_idx) = app.current_batch {
+                                let batches = ui::detect_batches_from_logs(&filtered_refs, app.batch_window_ms);
+                                if !batches.is_empty() && batch_idx < batches.len() {
+                                    let (start, end) = batches[batch_idx];
+                                    end - start + 1
+                                } else {
+                                    filtered_logs.len()
+                                }
+                            } else {
+                                filtered_logs.len()
+                            }
+                        } else {
+                            filtered_logs.len()
+                        };
+
+                        app.select_prev_line(total_logs);
                     }
                     KeyCode::Down if !app.command_mode && !app.search_mode => {
                         // Line selection: select next line

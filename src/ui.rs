@@ -352,17 +352,20 @@ impl App {
         }
         self.selected_line_index = Some(match self.selected_line_index {
             None => 0,
-            Some(idx) if idx >= max_lines - 1 => max_lines - 1,
+            Some(idx) if idx >= max_lines - 1 => 0, // Wrap to top when at bottom
             Some(idx) => idx + 1,
         });
         self.auto_scroll = false;
     }
 
-    pub fn select_prev_line(&mut self) {
+    pub fn select_prev_line(&mut self, max_lines: usize) {
+        if max_lines == 0 {
+            return;
+        }
         self.selected_line_index = Some(match self.selected_line_index {
             None => 0,
             Some(idx) if idx > 0 => idx - 1,
-            Some(_) => 0,
+            Some(_) => max_lines - 1, // Wrap to bottom when at top
         });
         self.auto_scroll = false;
     }
