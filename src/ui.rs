@@ -730,7 +730,7 @@ fn draw_log_viewer(
 
         // Build the message span, truncating if needed
         let message_span = if log.line.len() > available_width {
-            let truncated = format!("{}... [Enter to expand]", &log.line[..available_width.saturating_sub(22)]);
+            let truncated = format!("{}...", &log.line[..available_width.saturating_sub(3)]);
             Span::styled(truncated, line_style)
         } else {
             Span::styled(log.line.clone(), line_style)
