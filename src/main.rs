@@ -41,8 +41,11 @@ async fn main() -> anyhow::Result<()> {
     let procfile = Procfile::from_file(&config.procfile)?;
 
     // Determine working directory from Procfile path
+    // If procfile is just "Procfile" (no directory), parent() returns Some("")
+    // We need to filter out empty paths and use current_dir instead
     let procfile_dir = config.procfile
         .parent()
+        .filter(|p| !p.as_os_str().is_empty())
         .map(|p| p.to_path_buf())
         .unwrap_or_else(|| std::env::current_dir().unwrap());
 
