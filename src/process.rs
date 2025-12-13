@@ -7,10 +7,6 @@ use tokio::process::{Child, Command};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
-// TODO: Uncomment when implementing process group killing
-// #[cfg(unix)]
-// use std::os::unix::process::CommandExt;
-
 // Re-export log types for compatibility
 pub use crate::log::{LogLine, LogSource};
 use crate::log::{LogBuffer, FileReader};
@@ -31,6 +27,7 @@ pub struct ProcessHandle {
     pub working_dir: Option<PathBuf>,
     pub status: ProcessStatus,
     child: Option<Child>,
+    pgid: Option<i32>,  // Process Group ID for killing entire process tree
     stdout_task: Option<JoinHandle<()>>,
     stderr_task: Option<JoinHandle<()>>,
 }
@@ -44,6 +41,7 @@ impl ProcessHandle {
             working_dir,
             status: ProcessStatus::Stopped,
             child: None,
+            pgid: None,
             stdout_task: None,
             stderr_task: None,
         }
@@ -56,15 +54,8 @@ impl ProcessHandle {
         }
 
         // Execute command through shell (handles quotes, spaces, variables, pipes, etc.)
-        let mut cmd = if cfg!(target_os = "windows") {
-            let mut c = Command::new("cmd");
-            c.args(&["/C", &self.command]);
-            c
-        } else {
-            let mut c = Command::new("sh");
-            c.args(&["-c", &self.command]);
-            c
-        };
+        let mut cmd = Command::new("sh");
+        cmd.args(&["-c", &self.command]);
 
         // Set working directory if specified
         if let Some(ref working_dir) = self.working_dir {
@@ -75,14 +66,10 @@ impl ProcessHandle {
         // IMPORTANT: Set stdin to null so child processes don't inherit parent's stdin
         // This prevents them from interfering with crossterm's raw mode terminal input
 
-        // TODO: Implement process group killing to properly kill child processes
-        // Currently, when we spawn "sh -c 'pnpm run start:web'", only the shell is killed,
-        // leaving pnpm and the web server running as orphans.
-        // See scratch.md for the plan to fix this.
-        // #[cfg(unix)]
-        // unsafe {
-        //     cmd.process_group(0); // Create new process group with pgid = pid
-        // }
+        // Create a new process group so we can kill the entire process tree
+        // This ensures that when we kill the shell, all child processes (like
+        // pnpm and the web server) are also killed, preventing orphaned processes.
+        cmd.process_group(0); // Create new process group with pgid = pid
 
         let mut child = cmd
             .stdin(Stdio::null())
@@ -99,6 +86,10 @@ impl ProcessHandle {
                     .map(|d| format!(", working_dir='{}'", d.display()))
                     .unwrap_or_default()
             ))?;
+
+        // Store the process group ID
+        // With process_group(0), the child's PID becomes the PGID
+        self.pgid = child.id().map(|pid| pid as i32);
 
         // Capture stdout
         let stdout = child.stdout.take().unwrap();
@@ -133,24 +124,40 @@ impl ProcessHandle {
     }
 
     pub async fn kill(&mut self) -> Result<()> {
-        if let Some(child) = &mut self.child {
-            // Set to Terminating status first
-            self.status = ProcessStatus::Terminating;
-
-            // Send kill signal
-            child.kill().await.context("Failed to kill process")?;
-
-            // Cancel the output capture tasks
-            if let Some(task) = self.stdout_task.take() {
-                task.abort();
-            }
-            if let Some(task) = self.stderr_task.take() {
-                task.abort();
-            }
-
-            // Don't set to Stopped immediately - let check_status do that
-            // This allows the UI to show "Terminating" status
+        if self.child.is_none() {
+            return Ok(());
         }
+
+        // Set to Terminating status first
+        self.status = ProcessStatus::Terminating;
+
+        // Kill the entire process group to ensure all child processes are terminated
+        if let Some(pgid) = self.pgid {
+            use nix::sys::signal::{killpg, Signal};
+            use nix::unistd::Pid;
+
+            let pid = Pid::from_raw(pgid);
+
+            // Try graceful shutdown first with SIGTERM
+            let _ = killpg(pid, Signal::SIGTERM);
+
+            // Wait a bit for graceful shutdown
+            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+            // Force kill with SIGKILL if still needed
+            let _ = killpg(pid, Signal::SIGKILL);
+        }
+
+        // Cancel the output capture tasks
+        if let Some(task) = self.stdout_task.take() {
+            task.abort();
+        }
+        if let Some(task) = self.stderr_task.take() {
+            task.abort();
+        }
+
+        // Don't set to Stopped immediately - let check_status do that
+        // This allows the UI to show "Terminating" status
         Ok(())
     }
 

@@ -21,6 +21,9 @@ arboard = "3.4"
 strip-ansi-escapes = "0.2"
 unicode-width = "0.2"
 
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.29", features = ["signal", "process"] }
+
 [dev-dependencies]
 insta = "1.44.3"
 tempfile = "3.23.0"
