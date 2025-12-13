@@ -335,8 +335,7 @@ impl<'a> CommandExecutor<'a> {
         // Save to config
         self.config.batch_window_ms = Some(ms);
         if let Some(config_path) = &self.config.config_path {
-            if let Err(e) = self.config.save_to_file(config_path) {
-            }
+            let _ = self.config.save_to_file(config_path);
         }
     }
 
@@ -405,8 +404,7 @@ impl<'a> CommandExecutor<'a> {
     fn save_config(&mut self) {
         self.config.update_filters(&self.app.filters);
         if let Some(path) = &self.config.config_path {
-            if let Err(e) = self.config.save(path.to_str().unwrap()) {
-            }
+            let _ = self.config.save(path.to_str().unwrap());
         }
     }
 }
