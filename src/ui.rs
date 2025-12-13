@@ -453,7 +453,7 @@ pub fn draw(f: &mut Frame, app: &App, manager: &ProcessManager) {
         .split(f.area());
 
     // Draw process list
-    draw_process_list(f, chunks[0], manager);
+    draw_process_list(f, chunks[0], manager, app);
 
     // Draw log viewer
     draw_log_viewer(f, chunks[1], manager, app);
@@ -504,7 +504,7 @@ pub fn detect_batches_from_logs(logs: &[&crate::log::LogLine], window_ms: i64) -
 }
 
 /// Draw the process list at the top of the screen
-fn draw_process_list(f: &mut Frame, area: ratatui::layout::Rect, manager: &ProcessManager) {
+fn draw_process_list(f: &mut Frame, area: ratatui::layout::Rect, manager: &ProcessManager, app: &App) {
     let mut processes = manager.get_all_statuses();
 
     // Sort processes by name for consistent display
@@ -519,11 +519,16 @@ fn draw_process_list(f: &mut Frame, area: ratatui::layout::Rect, manager: &Proce
             spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
         }
 
-        let (status_text, color) = match status {
-            ProcessStatus::Running => ("Running", Color::Green),
-            ProcessStatus::Stopped => ("Stopped", Color::Yellow),
-            ProcessStatus::Terminating => ("Terminating", Color::Magenta),
-            ProcessStatus::Failed(_) => ("Failed", Color::Red),
+        // Check if process is hidden
+        let (status_text, color) = if app.hidden_processes.contains(name) {
+            ("Hidden", Color::DarkGray)
+        } else {
+            match status {
+                ProcessStatus::Running => ("Running", Color::Green),
+                ProcessStatus::Stopped => ("Stopped", Color::Yellow),
+                ProcessStatus::Terminating => ("Terminating", Color::Magenta),
+                ProcessStatus::Failed(_) => ("Failed", Color::Red),
+            }
         };
 
         // Add process name and status
