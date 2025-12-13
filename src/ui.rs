@@ -1212,15 +1212,19 @@ fn draw_help_overlay(f: &mut Frame) {
         ]),
         Line::from(vec![
             Span::styled("  /", Style::default().fg(Color::Yellow)),
-            Span::raw("       Enter search mode"),
+            Span::raw("       Start search (filters as you type)"),
         ]),
         Line::from(vec![
-            Span::styled("  n", Style::default().fg(Color::Yellow)),
-            Span::raw("       Next search match"),
+            Span::styled("  Enter", Style::default().fg(Color::Yellow)),
+            Span::raw("   In search mode: enter selection mode"),
         ]),
         Line::from(vec![
-            Span::styled("  N", Style::default().fg(Color::Yellow)),
-            Span::raw("       Previous search match"),
+            Span::styled("  Enter", Style::default().fg(Color::Yellow)),
+            Span::raw("   In expanded view: show context around log"),
+        ]),
+        Line::from(vec![
+            Span::styled("  Esc", Style::default().fg(Color::Yellow)),
+            Span::raw("     Step back (selection→typing→exit)"),
         ]),
         Line::from(""),
         Line::from(vec![
