@@ -129,6 +129,8 @@ pub struct App {
     pub frozen_at: Option<chrono::DateTime<chrono::Local>>,
     /// Snapshot of logs when entering frozen/batch mode (immune to eviction)
     pub snapshot: Option<Vec<crate::log::LogLine>>,
+    /// Set of process names whose output should be hidden
+    pub hidden_processes: std::collections::HashSet<String>,
 }
 
 impl App {
@@ -155,6 +157,7 @@ impl App {
             frozen: false,
             frozen_at: None,
             snapshot: None,
+            hidden_processes: std::collections::HashSet::new(),
         }
     }
 

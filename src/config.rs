@@ -13,6 +13,8 @@ pub struct Config {
     pub batch_window_ms: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_log_buffer_mb: Option<usize>,
+    #[serde(default)]
+    pub hidden_processes: Vec<String>,
 
     // This field is not serialized, just used at runtime
     #[serde(skip)]
