@@ -779,3 +779,144 @@ fn test_batch_window_prevents_chaining() {
     // All logs would be in one batch because each consecutive pair is 2s < 3s
     // This test ensures we're comparing to the batch START, not previous log
 }
+
+// ============================================================================
+// Phase 6.10: Process Visibility Toggle Tests
+// ============================================================================
+
+#[test]
+fn test_hide_command_parsing() {
+    use overitall::command::parse_command;
+
+    let cmd = parse_command("hide worker");
+    assert!(matches!(cmd, overitall::command::Command::Hide(_)));
+}
+
+#[test]
+fn test_show_command_parsing() {
+    use overitall::command::parse_command;
+
+    let cmd = parse_command("show worker");
+    assert!(matches!(cmd, overitall::command::Command::Show(_)));
+}
+
+#[test]
+fn test_hide_all_command_parsing() {
+    use overitall::command::parse_command;
+
+    let cmd = parse_command("hide all");
+    assert!(matches!(cmd, overitall::command::Command::HideAll));
+}
+
+#[test]
+fn test_show_all_command_parsing() {
+    use overitall::command::parse_command;
+
+    let cmd = parse_command("show all");
+    assert!(matches!(cmd, overitall::command::Command::ShowAll));
+}
+
+#[test]
+fn test_hide_process_filters_logs() {
+    let mut app = create_test_app();
+    let manager = create_manager_with_logs();
+
+    // Hide the worker process
+    app.hidden_processes.insert("worker".to_string());
+
+    let output = render_app_to_string(&app, &manager, 120, 40);
+
+    // Worker logs should not appear
+    assert!(!output.contains("Processing job"));
+    assert!(!output.contains("Job #1234 completed"));
+
+    // Web logs should still appear
+    assert!(output.contains("Starting web server"));
+}
+
+#[test]
+fn test_show_process_restores_logs() {
+    let mut app = create_test_app();
+    let manager = create_manager_with_logs();
+
+    // First hide worker
+    app.hidden_processes.insert("worker".to_string());
+
+    // Then show it again
+    app.hidden_processes.remove("worker");
+
+    let output = render_app_to_string(&app, &manager, 120, 40);
+
+    // Worker logs should appear again
+    assert!(output.contains("Processing job") || output.contains("worker"));
+}
+
+#[test]
+fn test_hide_all_processes() {
+    let mut app = create_test_app();
+    let manager = create_manager_with_logs();
+
+    // Hide all processes
+    app.hidden_processes.insert("web".to_string());
+    app.hidden_processes.insert("worker".to_string());
+
+    let output = render_app_to_string(&app, &manager, 120, 40);
+
+    // No process logs should appear
+    assert!(!output.contains("Starting web server"));
+    assert!(!output.contains("Processing job"));
+}
+
+#[test]
+fn test_snapshot_hidden_process_display() {
+    let mut app = create_test_app();
+    let manager = create_manager_with_logs();
+
+    // Hide worker process
+    app.hidden_processes.insert("worker".to_string());
+
+    let output = render_app_to_string(&app, &manager, 120, 40);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_snapshot_all_processes_hidden() {
+    let mut app = create_test_app();
+    let manager = create_manager_with_logs();
+
+    // Hide all processes
+    app.hidden_processes.insert("web".to_string());
+    app.hidden_processes.insert("worker".to_string());
+
+    let output = render_app_to_string(&app, &manager, 120, 40);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_hidden_process_with_filters() {
+    let mut app = create_test_app();
+    let manager = create_manager_with_logs();
+
+    // Hide worker and add include filter for ERROR
+    app.hidden_processes.insert("worker".to_string());
+    app.add_include_filter("ERROR".to_string());
+
+    let output = render_app_to_string(&app, &manager, 120, 40);
+
+    // Should only show web ERROR logs, not worker ERROR logs
+    assert!(output.contains("ERROR"));
+    assert!(!output.contains("Failed to process job"));
+}
+
+#[test]
+fn test_snapshot_hidden_with_filters_combined() {
+    let mut app = create_test_app();
+    let manager = create_manager_with_logs();
+
+    // Hide worker and apply filter
+    app.hidden_processes.insert("worker".to_string());
+    app.add_include_filter("ERROR".to_string());
+
+    let output = render_app_to_string(&app, &manager, 120, 40);
+    assert_snapshot!(output);
+}
