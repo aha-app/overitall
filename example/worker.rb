@@ -10,7 +10,8 @@ log_file = File.open("worker.log", "a")
 
 job_count = 0
 loop do
-  sleep(rand(2..5))
+  # Much faster - sleep 0.1 to 0.5 seconds (100-500ms)
+  sleep(rand(100..500) / 1000.0)
 
   job_count += 1
   timestamp = Time.now.iso8601
@@ -24,7 +25,8 @@ loop do
   log_file.puts log_line
   log_file.flush
 
-  sleep(rand(1..2))
+  # Faster processing time - 0.05 to 0.3 seconds (50-300ms)
+  sleep(rand(50..300) / 1000.0)
 
   outcome = rand(10)
   if outcome < 7

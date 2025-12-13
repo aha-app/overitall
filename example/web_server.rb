@@ -10,7 +10,8 @@ log_file = File.open("web.log", "a")
 
 request_count = 0
 loop do
-  sleep(rand(1..3))
+  # Much faster - sleep 0.05 to 0.2 seconds (50-200ms)
+  sleep(rand(50..200) / 1000.0)
 
   request_count += 1
   timestamp = Time.now.iso8601
@@ -50,6 +51,29 @@ loop do
 
   log_file.puts log_line
   log_file.flush
+
+  # Occasionally generate a burst of logs (to test batch detection)
+  if rand(20) == 0
+    burst_count = rand(3..8)
+    burst_count.times do |i|
+      burst_path = paths.sample
+      burst_status = status_codes.sample
+      burst_duration = rand(10..500)
+      burst_color = case burst_status
+      when 200..299 then "\e[32m"
+      when 300..399 then "\e[36m"
+      when 400..499 then "\e[33m"
+      when 500..599 then "\e[31m"
+      else "\e[0m"
+      end
+      burst_line = "#{Time.now.iso8601} [\e[1;34mWEB\e[0m] \e[1m#{methods.sample}\e[0m #{burst_path} - #{burst_color}#{burst_status}#{reset} (#{duration_color}#{burst_duration}ms#{reset})"
+      puts burst_line
+      STDOUT.flush
+      log_file.puts burst_line
+      log_file.flush
+      sleep(0.01) if i < burst_count - 1  # Small delay between burst logs
+    end
+  end
 
   # Occasionally log errors or long SQL queries
   rand_event = rand(10)
