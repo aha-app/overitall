@@ -20,6 +20,10 @@ pub enum Command {
     ShowBatch,
     SetBatchWindow(i64),
     ShowBatchWindow,
+    Hide(String),
+    Show(String),
+    HideAll,
+    ShowAll,
     Unknown(String),
 }
 
@@ -98,6 +102,24 @@ pub fn parse_command(input: &str) -> Command {
                 }
             }
         }
+        "hide" => {
+            if parts.len() < 2 {
+                Command::Unknown("Usage: :hide <process> or :hide all".to_string())
+            } else if parts[1] == "all" {
+                Command::HideAll
+            } else {
+                Command::Hide(parts[1].to_string())
+            }
+        }
+        "show" => {
+            if parts.len() < 2 {
+                Command::Unknown("Usage: :show <process> or :show all".to_string())
+            } else if parts[1] == "all" {
+                Command::ShowAll
+            } else {
+                Command::Show(parts[1].to_string())
+            }
+        }
         _ => Command::Unknown(format!("Unknown command: {}", parts[0])),
     }
 }
@@ -159,6 +181,18 @@ impl<'a> CommandExecutor<'a> {
             }
             Command::ShowBatchWindow => {
                 self.execute_show_batch_window();
+            }
+            Command::Hide(process) => {
+                self.execute_hide(process);
+            }
+            Command::Show(process) => {
+                self.execute_show(process);
+            }
+            Command::HideAll => {
+                self.execute_hide_all();
+            }
+            Command::ShowAll => {
+                self.execute_show_all();
             }
             Command::Unknown(msg) => {
                 self.app.set_status_error(format!("Error: {}", msg));
@@ -308,6 +342,64 @@ impl<'a> CommandExecutor<'a> {
 
     fn execute_show_batch_window(&mut self) {
         self.app.set_status_info(format!("Current batch window: {}ms", self.app.batch_window_ms));
+    }
+
+    fn execute_hide(&mut self, process: String) {
+        if self.manager.has_process(&process) {
+            self.app.hidden_processes.insert(process.clone());
+            self.app.set_status_success(format!("Hidden: {}", process));
+
+            // Save to config
+            self.sync_hidden_processes_to_config();
+            self.save_config();
+        } else {
+            self.app.set_status_error(format!("Process not found: {}", process));
+        }
+    }
+
+    fn execute_show(&mut self, process: String) {
+        if self.app.hidden_processes.remove(&process) {
+            self.app.set_status_success(format!("Shown: {}", process));
+
+            // Save to config
+            self.sync_hidden_processes_to_config();
+            self.save_config();
+        } else {
+            self.app.set_status_info(format!("Process was not hidden: {}", process));
+        }
+    }
+
+    fn execute_hide_all(&mut self) {
+        let all_processes: Vec<String> = self.manager
+            .get_processes()
+            .keys()
+            .cloned()
+            .collect();
+
+        for process in all_processes {
+            self.app.hidden_processes.insert(process);
+        }
+
+        self.app.set_status_success("Hidden all processes".to_string());
+
+        // Save to config
+        self.sync_hidden_processes_to_config();
+        self.save_config();
+    }
+
+    fn execute_show_all(&mut self) {
+        let count = self.app.hidden_processes.len();
+        self.app.hidden_processes.clear();
+
+        self.app.set_status_success(format!("Shown all processes ({} were hidden)", count));
+
+        // Save to config
+        self.sync_hidden_processes_to_config();
+        self.save_config();
+    }
+
+    fn sync_hidden_processes_to_config(&mut self) {
+        self.config.hidden_processes = self.app.hidden_processes.iter().cloned().collect();
     }
 
     fn save_config(&mut self) {

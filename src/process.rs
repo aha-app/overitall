@@ -362,6 +362,14 @@ impl ProcessManager {
             .collect()
     }
 
+    pub fn has_process(&self, name: &str) -> bool {
+        self.processes.contains_key(name)
+    }
+
+    pub fn get_processes(&self) -> &HashMap<String, ProcessHandle> {
+        &self.processes
+    }
+
     /// Add a log file to tail for a specific process
     pub async fn add_log_file(&mut self, process_name: String, path: PathBuf) -> Result<()> {
         let mut reader = FileReader::new(process_name, path);
