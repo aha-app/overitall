@@ -91,6 +91,9 @@ async fn main() -> anyhow::Result<()> {
         app.add_exclude_filter(pattern.clone());
     }
 
+    // Load hidden processes from config
+    app.hidden_processes = config.hidden_processes.iter().cloned().collect();
+
     // TUI event loop
     let result = run_app(&mut terminal, &mut app, &mut manager, &mut config).await;
 
