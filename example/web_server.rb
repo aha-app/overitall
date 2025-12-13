@@ -6,7 +6,7 @@ require 'time'
 puts "Starting web server on port 3000..."
 STDOUT.flush
 
-log_file = File.open("example/web.log", "a")
+log_file = File.open("web.log", "a")
 
 request_count = 0
 loop do

@@ -6,7 +6,7 @@ require 'time'
 puts "Starting background worker..."
 STDOUT.flush
 
-log_file = File.open("example/worker.log", "a")
+log_file = File.open("worker.log", "a")
 
 job_count = 0
 loop do

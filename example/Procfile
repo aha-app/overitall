@@ -1,3 +1,3 @@
-web: ruby example/web_server.rb
-worker: ruby example/worker.rb
-monitor: ruby example/monitor.rb
+web: ruby web_server.rb
+worker: ruby worker.rb
+monitor: ruby monitor.rb
