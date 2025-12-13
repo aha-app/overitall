@@ -1146,6 +1146,10 @@ fn draw_help_overlay(f: &mut Frame) {
             Span::raw("     Select previous/next log line"),
         ]),
         Line::from(vec![
+            Span::styled("  Ctrl+B/F", Style::default().fg(Color::Yellow)),
+            Span::raw(" Page up/down (Vim-style)"),
+        ]),
+        Line::from(vec![
             Span::styled("  Enter", Style::default().fg(Color::Yellow)),
             Span::raw("   Expand selected line (show full content)"),
         ]),

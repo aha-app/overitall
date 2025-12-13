@@ -161,6 +161,15 @@ impl<'a> EventHandler<'a> {
                 self.handle_page_down();
                 Ok(false)
             }
+            // Vim-style page navigation (Ctrl+B = page up, Ctrl+F = page down)
+            KeyCode::Char('b') if key.modifiers.contains(KeyModifiers::CONTROL) && !self.app.command_mode && !self.app.search_mode => {
+                self.handle_page_up();
+                Ok(false)
+            }
+            KeyCode::Char('f') if key.modifiers.contains(KeyModifiers::CONTROL) && !self.app.command_mode && !self.app.search_mode => {
+                self.handle_page_down();
+                Ok(false)
+            }
             KeyCode::Home if !self.app.command_mode && !self.app.search_mode => {
                 self.app.scroll_to_top();
                 Ok(false)
