@@ -50,7 +50,8 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or_else(|| std::env::current_dir().unwrap());
 
     // Create process manager
-    let mut manager = ProcessManager::new();
+    let max_buffer_mb = config.max_log_buffer_mb.unwrap_or(50);
+    let mut manager = ProcessManager::new_with_buffer_limit(max_buffer_mb);
 
     // Add processes from Procfile
     for (name, command) in &procfile.processes {

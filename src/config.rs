@@ -11,6 +11,8 @@ pub struct Config {
     pub filters: FilterConfig,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub batch_window_ms: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_log_buffer_mb: Option<usize>,
 
     // This field is not serialized, just used at runtime
     #[serde(skip)]
@@ -117,6 +119,7 @@ procfile = "Procfile"
             processes: HashMap::new(),
             filters: FilterConfig::default(),
             batch_window_ms: Some(5000),
+            max_log_buffer_mb: None,
             config_path: None,
         };
 
@@ -137,6 +140,7 @@ procfile = "Procfile"
             processes: HashMap::new(),
             filters: FilterConfig::default(),
             batch_window_ms: None,
+            max_log_buffer_mb: None,
             config_path: None,
         };
 
@@ -161,6 +165,7 @@ procfile = "Procfile"
             processes: HashMap::new(),
             filters: FilterConfig::default(),
             batch_window_ms: None,
+            max_log_buffer_mb: None,
             config_path: None,
         };
 
@@ -181,6 +186,7 @@ procfile = "Procfile"
             processes: HashMap::new(),
             filters: FilterConfig::default(),
             batch_window_ms: Some(1500),
+            max_log_buffer_mb: None,
             config_path: None,
         };
 
@@ -191,5 +197,58 @@ procfile = "Procfile"
             toml_string.contains("batch_window_ms = 1500"),
             "batch_window_ms should be serialized when Some(1500)"
         );
+    }
+
+    #[test]
+    fn test_max_log_buffer_mb_loads_from_config() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(
+            temp_file,
+            r#"
+procfile = "Procfile"
+max_log_buffer_mb = 100
+
+[processes]
+"#
+        )
+        .unwrap();
+
+        let config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert_eq!(config.max_log_buffer_mb, Some(100));
+    }
+
+    #[test]
+    fn test_max_log_buffer_mb_defaults_when_missing() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(
+            temp_file,
+            r#"
+procfile = "Procfile"
+
+[processes]
+"#
+        )
+        .unwrap();
+
+        let config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert_eq!(config.max_log_buffer_mb, None);
+    }
+
+    #[test]
+    fn test_max_log_buffer_mb_saves_to_config() {
+        let config = Config {
+            procfile: PathBuf::from("Procfile"),
+            processes: HashMap::new(),
+            filters: FilterConfig::default(),
+            batch_window_ms: None,
+            max_log_buffer_mb: Some(75),
+            config_path: None,
+        };
+
+        let temp_file = NamedTempFile::new().unwrap();
+        config.save(temp_file.path().to_str().unwrap()).unwrap();
+
+        let loaded_config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert_eq!(loaded_config.max_log_buffer_mb, Some(75));
     }
 }

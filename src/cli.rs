@@ -59,6 +59,7 @@ pub fn init_config(config_path: &str) -> anyhow::Result<()> {
             exclude: vec![],
         },
         batch_window_ms: Some(100),
+        max_log_buffer_mb: Some(50),
         config_path: None,
     };
 

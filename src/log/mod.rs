@@ -27,6 +27,23 @@ impl LogLine {
             line,
         }
     }
+
+    pub fn memory_size(&self) -> usize {
+        let mut size = std::mem::size_of::<LogLine>();
+
+        size += self.line.capacity();
+
+        match &self.source {
+            LogSource::ProcessStdout(name) => size += name.capacity(),
+            LogSource::ProcessStderr(name) => size += name.capacity(),
+            LogSource::File { process_name, path } => {
+                size += process_name.capacity();
+                size += path.as_os_str().len();
+            }
+        }
+
+        size
+    }
 }
 
 /// Source of a log line

@@ -233,11 +233,15 @@ pub struct ProcessManager {
 
 impl ProcessManager {
     pub fn new() -> Self {
+        Self::new_with_buffer_limit(50)
+    }
+
+    pub fn new_with_buffer_limit(max_log_buffer_mb: usize) -> Self {
         let (log_tx, log_rx) = mpsc::unbounded_channel();
         Self {
             processes: HashMap::new(),
             log_sources: Vec::new(),
-            log_buffer: LogBuffer::new_default(),
+            log_buffer: LogBuffer::new_with_memory_limit(max_log_buffer_mb),
             log_tx,
             log_rx,
         }
