@@ -423,4 +423,89 @@ mod tests {
 
         assert_eq!(manager.get_status("test"), Some(ProcessStatus::Stopped));
     }
+
+    #[tokio::test]
+    async fn test_set_all_terminating() {
+        let mut manager = ProcessManager::new();
+        manager.add_process("proc1".to_string(), "sleep 10".to_string(), None);
+        manager.add_process("proc2".to_string(), "sleep 10".to_string(), None);
+
+        manager.start_all().await.unwrap();
+        assert_eq!(manager.get_status("proc1"), Some(ProcessStatus::Running));
+        assert_eq!(manager.get_status("proc2"), Some(ProcessStatus::Running));
+
+        manager.set_all_terminating();
+
+        assert_eq!(
+            manager.get_status("proc1"),
+            Some(ProcessStatus::Terminating)
+        );
+        assert_eq!(
+            manager.get_status("proc2"),
+            Some(ProcessStatus::Terminating)
+        );
+
+        manager.kill_all().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_kill_all_multiple_processes() {
+        let mut manager = ProcessManager::new();
+        manager.add_process("proc1".to_string(), "sleep 10".to_string(), None);
+        manager.add_process("proc2".to_string(), "sleep 10".to_string(), None);
+        manager.add_process("proc3".to_string(), "sleep 10".to_string(), None);
+
+        manager.start_all().await.unwrap();
+
+        manager.kill_all().await.unwrap();
+
+        assert_eq!(manager.get_status("proc1"), Some(ProcessStatus::Stopped));
+        assert_eq!(manager.get_status("proc2"), Some(ProcessStatus::Stopped));
+        assert_eq!(manager.get_status("proc3"), Some(ProcessStatus::Stopped));
+    }
+
+    #[tokio::test]
+    async fn test_shutdown_flow_sets_status_before_killing() {
+        let mut manager = ProcessManager::new();
+        manager.add_process("test".to_string(), "sleep 10".to_string(), None);
+
+        manager.start_process("test").await.unwrap();
+        assert_eq!(manager.get_status("test"), Some(ProcessStatus::Running));
+
+        manager.set_all_terminating();
+
+        assert_eq!(
+            manager.get_status("test"),
+            Some(ProcessStatus::Terminating)
+        );
+
+        manager.send_kill_signals().await.unwrap();
+
+        while !manager.check_termination_status().await {
+            tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+        }
+
+        assert_eq!(manager.get_status("test"), Some(ProcessStatus::Stopped));
+    }
+
+    #[tokio::test]
+    async fn test_send_kill_signals_returns_quickly() {
+        let mut manager = ProcessManager::new();
+        manager.add_process("slow".to_string(), "sleep 10".to_string(), None);
+
+        manager.start_all().await.unwrap();
+        manager.set_all_terminating();
+
+        let start = tokio::time::Instant::now();
+        manager.send_kill_signals().await.unwrap();
+        let elapsed = start.elapsed();
+
+        assert!(
+            elapsed.as_secs() < 2,
+            "send_kill_signals took {} seconds, expected < 2",
+            elapsed.as_secs()
+        );
+
+        manager.kill_all().await.unwrap();
+    }
 }
