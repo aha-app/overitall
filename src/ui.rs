@@ -431,7 +431,7 @@ pub fn draw(f: &mut Frame, app: &App, manager: &ProcessManager) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Percentage(10), // Process list
+            Constraint::Length(3),      // Process list (fixed 3 lines)
             Constraint::Min(0),         // Log viewer (takes remaining space)
             Constraint::Length(3),      // Command input (exactly 3 lines)
         ])
@@ -533,7 +533,7 @@ fn draw_process_list(f: &mut Frame, area: ratatui::layout::Rect, manager: &Proce
     let paragraph = Paragraph::new(vec![line])
         .block(
             Block::default()
-                .borders(Borders::ALL)
+                .borders(Borders::BOTTOM)
                 .title(" Processes ")
                 .title_style(Style::default().add_modifier(Modifier::BOLD)),
         )
@@ -979,7 +979,7 @@ fn draw_log_viewer(
 
     let mut paragraph = Paragraph::new(log_lines).block(
         Block::default()
-            .borders(Borders::ALL)
+            .borders(Borders::NONE)
             .title(title)
             .title_style(Style::default().add_modifier(Modifier::BOLD)),
     );
