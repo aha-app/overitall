@@ -409,7 +409,7 @@ impl App {
             return;
         }
         self.selected_line_index = Some(match self.selected_line_index {
-            None => 0,
+            None => max_lines - 1, // When tailing, Up arrow selects the last (most recent) line
             Some(idx) if idx > 0 => idx - 1,
             Some(_) => max_lines - 1, // Wrap to bottom when at top
         });
