@@ -8,8 +8,21 @@ use crate::procfile::Procfile;
 
 /// Overitall - Process and log management TUI
 #[derive(Parser, Debug)]
-#[command(name = "overitall")]
-#[command(about = "Process and log management TUI combining overmind + lnav", long_about = None)]
+#[command(name = "oit")]
+#[command(version)]
+#[command(about = "Process and log management TUI")]
+#[command(long_about = "Overitall (oit) combines process management with log viewing.
+
+It reads a Procfile to start and manage processes, tracks their output and optional log files,
+and provides an interactive TUI for viewing interleaved logs with filtering, search, and batch navigation.
+
+Quick start:
+  1. Create a Procfile with your processes (e.g., 'web: rails server')
+  2. Run 'oit --init' to generate a config file
+  3. Edit .overitall.toml to configure log files (optional)
+  4. Run 'oit' to start the TUI
+
+For more information, see: https://github.com/jemmyw/overitall")]
 pub struct Cli {
     /// Path to config file (defaults to .overitall.toml)
     #[arg(short, long, default_value = ".overitall.toml")]
@@ -33,9 +46,25 @@ pub fn init_config(config_path: &str) -> anyhow::Result<()> {
     // Default Procfile location
     let procfile_path = "Procfile";
 
+    // Check if Procfile exists and provide helpful error if not
+    if !Path::new(procfile_path).exists() {
+        return Err(anyhow!(
+            "No Procfile found in current directory.\n\n\
+            To use --init, first create a Procfile with your processes.\n\
+            Example Procfile:\n\
+            \n\
+              web: rails server -p 3000\n\
+              worker: bundle exec sidekiq\n\
+            \n\
+            See: https://devcenter.heroku.com/articles/procfile\n\
+            \n\
+            Then run 'oit --init' again to generate the config file."
+        ));
+    }
+
     // Try to parse the Procfile
     let procfile = Procfile::from_file(procfile_path)
-        .with_context(|| format!("Failed to read Procfile at '{}'", procfile_path))?;
+        .with_context(|| format!("Failed to parse Procfile at '{}'", procfile_path))?;
 
     // Get sorted list of process names
     let process_names = procfile.process_names();
@@ -84,10 +113,18 @@ pub fn init_config(config_path: &str) -> anyhow::Result<()> {
 mod tests {
     use super::*;
     use std::fs;
+    use std::sync::Mutex;
     use tempfile::TempDir;
+
+    // Mutex to serialize tests that change the current directory
+    // This prevents race conditions when tests run in parallel
+    static CWD_MUTEX: Mutex<()> = Mutex::new(());
 
     #[test]
     fn test_init_config_creates_file() {
+        // Lock mutex to prevent parallel directory changes
+        let _guard = CWD_MUTEX.lock().unwrap();
+
         // Create a temporary directory for the test
         let temp_dir = TempDir::new().unwrap();
         let temp_path = temp_dir.path();
@@ -125,6 +162,9 @@ mod tests {
 
     #[test]
     fn test_init_config_fails_if_file_exists() {
+        // Lock mutex to prevent parallel directory changes
+        let _guard = CWD_MUTEX.lock().unwrap();
+
         // Create a temporary directory for the test
         let temp_dir = TempDir::new().unwrap();
         let temp_path = temp_dir.path();
@@ -155,6 +195,9 @@ mod tests {
 
     #[test]
     fn test_init_config_fails_if_procfile_missing() {
+        // Lock mutex to prevent parallel directory changes
+        let _guard = CWD_MUTEX.lock().unwrap();
+
         // Create a temporary directory for the test
         let temp_dir = TempDir::new().unwrap();
         let temp_path = temp_dir.path();
@@ -176,5 +219,38 @@ mod tests {
         assert!(result.is_err(), "init_config should fail when Procfile is missing");
         let err_msg = result.unwrap_err().to_string();
         assert!(err_msg.contains("Procfile"), "Error should mention Procfile: {}", err_msg);
+    }
+
+    #[test]
+    fn test_cli_parses_default_config() {
+        let cli = Cli::parse_from(["oit"]);
+        assert_eq!(cli.config, ".overitall.toml");
+        assert!(!cli.init);
+    }
+
+    #[test]
+    fn test_cli_parses_custom_config() {
+        let cli = Cli::parse_from(["oit", "-c", "custom.toml"]);
+        assert_eq!(cli.config, "custom.toml");
+        assert!(!cli.init);
+    }
+
+    #[test]
+    fn test_cli_parses_long_config_flag() {
+        let cli = Cli::parse_from(["oit", "--config", "path/to/config.toml"]);
+        assert_eq!(cli.config, "path/to/config.toml");
+    }
+
+    #[test]
+    fn test_cli_parses_init_flag() {
+        let cli = Cli::parse_from(["oit", "--init"]);
+        assert!(cli.init);
+    }
+
+    #[test]
+    fn test_cli_parses_init_with_custom_config() {
+        let cli = Cli::parse_from(["oit", "--init", "-c", "custom.toml"]);
+        assert!(cli.init);
+        assert_eq!(cli.config, "custom.toml");
     }
 }

@@ -33,6 +33,18 @@ async fn main() -> anyhow::Result<()> {
         return init_config(config_path);
     }
 
+    // Check if config file exists and provide helpful error if not
+    if !std::path::Path::new(config_path).exists() {
+        eprintln!("Error: Config file '{}' not found.\n", config_path);
+        eprintln!("To get started:");
+        eprintln!("  1. Create a Procfile with your processes (e.g., 'web: rails server')");
+        eprintln!("  2. Run 'oit --init' to generate a config file");
+        eprintln!("  3. Run 'oit' to start the TUI\n");
+        eprintln!("Or specify a config file with: oit --config <path>\n");
+        eprintln!("For more help, run: oit --help");
+        std::process::exit(1);
+    }
+
     // Load config
     let mut config = Config::from_file(config_path)?;
     config.config_path = Some(std::path::PathBuf::from(config_path));
