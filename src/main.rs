@@ -111,6 +111,7 @@ async fn run_app(
     config: &mut Config,
 ) -> anyhow::Result<()> {
     let mut shutdown_ui_shown = false;
+    let mut kill_signals_sent = false;
 
     loop {
         // Process logs from all sources
@@ -121,16 +122,24 @@ async fn run_app(
             ui::draw(f, app, manager);
         })?;
 
-        // Check if we're shutting down and all processes have terminated
-        // Only check after we've shown at least one frame of shutdown UI
+        // Check if we're shutting down
         if app.shutting_down {
             if shutdown_ui_shown {
+                // UI has been drawn with "Terminating" status
+                // Now send kill signals if we haven't already
+                if !kill_signals_sent {
+                    manager.send_kill_signals().await?;
+                    kill_signals_sent = true;
+                }
+
+                // Check if all processes have terminated
                 if manager.check_termination_status().await {
                     app.quit();
                     break;
                 }
             } else {
                 // Mark that we've shown the shutdown UI at least once
+                // Next iteration will send kill signals
                 shutdown_ui_shown = true;
             }
         }

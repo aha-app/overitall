@@ -274,18 +274,31 @@ impl ProcessManager {
         process.restart(self.log_tx.clone()).await
     }
 
-    pub async fn kill_all(&mut self) -> Result<()> {
-        // FIRST: Set all processes to Terminating status (fast - UI will show this immediately)
+    /// Set all running processes to Terminating status (fast, non-blocking)
+    /// This should be called before sending kill signals to provide immediate UI feedback
+    pub fn set_all_terminating(&mut self) {
         for (_name, process) in self.processes.iter_mut() {
             if process.status == ProcessStatus::Running {
                 process.status = ProcessStatus::Terminating;
             }
         }
+    }
 
-        // THEN: Send kill signal to all processes
+    /// Send kill signals to all processes without waiting
+    /// This is non-blocking and returns immediately
+    pub async fn send_kill_signals(&mut self) -> Result<()> {
         for (_name, process) in self.processes.iter_mut() {
             let _ = process.kill().await; // Ignore errors during shutdown
         }
+        Ok(())
+    }
+
+    pub async fn kill_all(&mut self) -> Result<()> {
+        // FIRST: Set all processes to Terminating status (fast - UI will show this immediately)
+        self.set_all_terminating();
+
+        // THEN: Send kill signal to all processes
+        self.send_kill_signals().await?;
 
         // Wait for all processes to terminate with a timeout
         let timeout_duration = tokio::time::Duration::from_secs(5);

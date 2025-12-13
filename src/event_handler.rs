@@ -28,8 +28,9 @@ impl<'a> EventHandler<'a> {
             // In raw mode, Ctrl+C is captured as a keyboard event, not a signal
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) && !self.app.shutting_down => {
                 self.app.start_shutdown();
-                self.manager.kill_all().await?;
-                Ok(false) // Don't quit immediately - let the loop check for termination
+                // Set all processes to Terminating status immediately (UI will show this on next draw)
+                self.manager.set_all_terminating();
+                Ok(false) // Don't quit immediately - let the loop handle killing
             }
             // Help mode
             KeyCode::Char('?') if !self.app.command_mode && !self.app.search_mode => {
@@ -177,14 +178,16 @@ impl<'a> EventHandler<'a> {
             // Use Ctrl+Q to quit from any mode (including command/search mode)
             KeyCode::Char('q') if key.modifiers.contains(KeyModifiers::CONTROL) && !self.app.shutting_down => {
                 self.app.start_shutdown();
-                self.manager.kill_all().await?;
-                Ok(false) // Don't quit immediately - let the loop check for termination
+                // Set all processes to Terminating status immediately (UI will show this on next draw)
+                self.manager.set_all_terminating();
+                Ok(false) // Don't quit immediately - let the loop handle killing
             }
             // Regular 'q' only works when not in command/search mode
             KeyCode::Char('q') if !self.app.command_mode && !self.app.search_mode && !self.app.shutting_down => {
                 self.app.start_shutdown();
-                self.manager.kill_all().await?;
-                Ok(false) // Don't quit immediately - let the loop check for termination
+                // Set all processes to Terminating status immediately (UI will show this on next draw)
+                self.manager.set_all_terminating();
+                Ok(false) // Don't quit immediately - let the loop handle killing
             }
             _ => Ok(false),
         }
