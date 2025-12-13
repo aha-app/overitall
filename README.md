@@ -197,6 +197,20 @@ exclude = ["DEBUG"]
 - `processes.<name>.log_file` - Path to the log file for a specific process (optional)
 - `filters.include` - Array of regex patterns to include
 - `filters.exclude` - Array of regex patterns to exclude
+- `max_log_buffer_mb` - Maximum memory for log buffer in megabytes (default: 50)
+- `batch_window_ms` - Batch grouping window in milliseconds (default: 100)
+
+### Memory Management
+
+By default, Overitall limits the log buffer to 50 MB. When this limit is reached, the oldest logs are automatically evicted (First-In-First-Out).
+
+Configure the buffer size in your `.overitall.toml`:
+
+```toml
+max_log_buffer_mb = 100  # Allow up to 100 MB of logs
+```
+
+The status bar shows current buffer usage and warns when eviction occurs. This prevents memory issues with long-running processes and high-volume logs.
 
 ## Example Setup
 

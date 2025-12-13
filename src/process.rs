@@ -20,6 +20,15 @@ pub enum ProcessStatus {
     Failed(String),
 }
 
+/// Buffer statistics for UI display
+#[derive(Debug, Clone)]
+pub struct BufferStats {
+    pub memory_mb: f64,
+    pub limit_mb: usize,
+    pub percent: f64,
+    pub line_count: usize,
+}
+
 /// Handle for a single managed process
 pub struct ProcessHandle {
     pub name: String,
@@ -374,6 +383,16 @@ impl ProcessManager {
 
     pub fn get_all_logs(&self) -> Vec<&LogLine> {
         self.log_buffer.get_all()
+    }
+
+    /// Get buffer statistics for UI display
+    pub fn get_buffer_stats(&self) -> BufferStats {
+        BufferStats {
+            memory_mb: self.log_buffer.get_memory_usage_mb(),
+            limit_mb: self.log_buffer.get_memory_limit_mb(),
+            percent: self.log_buffer.get_memory_usage_percent(),
+            line_count: self.log_buffer.len(),
+        }
     }
 
     /// Try to receive a log line (non-blocking)

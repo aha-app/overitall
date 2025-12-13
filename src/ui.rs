@@ -931,6 +931,16 @@ fn draw_log_viewer(
     // Build title with batch count, filters and search info
     let mut title_parts = vec![" Logs ".to_string()];
 
+    // Add buffer stats
+    let buffer_stats = manager.get_buffer_stats();
+    title_parts.push(format!(
+        "Buffer: {:.1}/{} MB ({:.0}%) | {} lines",
+        buffer_stats.memory_mb,
+        buffer_stats.limit_mb,
+        buffer_stats.percent,
+        buffer_stats.line_count
+    ));
+
     // Add batch count if batches exist
     if let Some(batch_idx) = current_batch_validated {
         // In batch view mode with a valid batch selected
