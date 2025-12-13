@@ -738,17 +738,15 @@ fn draw_log_viewer(
     } else if let Some(selected_idx) = app.selected_line_index {
         // Line selection mode: scroll to show the selected line
         if selected_idx < total_logs {
-            // Position selected line in viewport, accounting for batch separators
-            // Separators are added during rendering and consume screen lines
-            // We position selected line at 75% down the viewport to leave room for separators
-            let target_position = (visible_lines * 3) / 4; // 75% down
+            // Center the selected line in the viewport for better visibility
+            // This gives context both above and below the selection
+            let target_position = visible_lines / 3; // Position at 1/3 down (gives more context below)
 
             let start = if selected_idx < target_position {
                 // Selected line is near top - show from beginning
                 0
             } else {
                 // Position selected line at target_position from top
-                // This leaves room above for batch separators without pushing line off-screen
                 selected_idx.saturating_sub(target_position)
             };
             let end = (start + visible_lines).min(total_logs);
