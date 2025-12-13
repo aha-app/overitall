@@ -681,6 +681,11 @@ fn draw_log_viewer(
             .collect();
     }
 
+    // Apply process visibility filter
+    filtered_logs.retain(|log| {
+        !app.hidden_processes.contains(log.source.process_name())
+    });
+
     let match_count = if !active_search_pattern.is_empty() {
         filtered_logs.len()
     } else {
