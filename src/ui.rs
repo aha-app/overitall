@@ -1297,6 +1297,26 @@ fn draw_help_overlay(f: &mut Frame) {
         ]),
         Line::from(""),
         Line::from(vec![
+            Span::styled("Process Visibility:", Style::default().add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(vec![
+            Span::styled("  :hide <proc>", Style::default().fg(Color::Yellow)),
+            Span::raw(" Hide logs from a specific process"),
+        ]),
+        Line::from(vec![
+            Span::styled("  :show <proc>", Style::default().fg(Color::Yellow)),
+            Span::raw(" Show logs from a specific process"),
+        ]),
+        Line::from(vec![
+            Span::styled("  :hide all", Style::default().fg(Color::Yellow)),
+            Span::raw("    Hide all process logs"),
+        ]),
+        Line::from(vec![
+            Span::styled("  :show all", Style::default().fg(Color::Yellow)),
+            Span::raw("    Show all process logs"),
+        ]),
+        Line::from(""),
+        Line::from(vec![
             Span::styled("Press ", Style::default()),
             Span::styled("ESC", Style::default().fg(Color::Yellow)),
             Span::styled(" or ", Style::default()),
