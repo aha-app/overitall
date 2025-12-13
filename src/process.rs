@@ -128,8 +128,10 @@ impl ProcessHandle {
             return Ok(());
         }
 
-        // Set to Terminating status first
-        self.status = ProcessStatus::Terminating;
+        // Set to Terminating status first (if not already set)
+        if self.status != ProcessStatus::Terminating {
+            self.status = ProcessStatus::Terminating;
+        }
 
         // Kill the entire process group to ensure all child processes are terminated
         if let Some(pgid) = self.pgid {
@@ -273,7 +275,14 @@ impl ProcessManager {
     }
 
     pub async fn kill_all(&mut self) -> Result<()> {
-        // Send kill signal to all processes
+        // FIRST: Set all processes to Terminating status (fast - UI will show this immediately)
+        for (_name, process) in self.processes.iter_mut() {
+            if process.status == ProcessStatus::Running {
+                process.status = ProcessStatus::Terminating;
+            }
+        }
+
+        // THEN: Send kill signal to all processes
         for (_name, process) in self.processes.iter_mut() {
             let _ = process.kill().await; // Ignore errors during shutdown
         }
