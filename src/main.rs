@@ -126,7 +126,6 @@ async fn run_app(
         if app.shutting_down {
             if shutdown_ui_shown {
                 if manager.check_termination_status().await {
-                    // All processes terminated, we can exit now
                     app.quit();
                     break;
                 }
@@ -136,19 +135,22 @@ async fn run_app(
             }
         }
 
+        // Check if quit was called directly (shouldn't happen with graceful shutdown)
+        if app.should_quit {
+            break;
+        }
+
         // Handle input with short timeout
         // Note: In raw mode, Ctrl+C is captured as a keyboard event, not a signal,
         // so we handle it in the event handler instead of using tokio::signal::ctrl_c()
-        tokio::select! {
-            _ = tokio::time::sleep(tokio::time::Duration::from_millis(100)) => {
-                // Check for keyboard input
-                if event::poll(std::time::Duration::from_millis(0))? {
-                    if let Event::Key(key) = event::read()? {
-                        let mut event_handler = EventHandler::new(app, manager, config);
-                        if event_handler.handle_key_event(key).await? {
-                            break; // Quit was requested (shouldn't happen now)
-                        }
-                    }
+
+        // Don't use tokio::select - check for input directly
+        // This avoids potential issues with the tokio runtime
+        if event::poll(std::time::Duration::from_millis(100))? {
+            if let Event::Key(key) = event::read()? {
+                let mut event_handler = EventHandler::new(app, manager, config);
+                if event_handler.handle_key_event(key).await? {
+                    break; // Quit was requested (shouldn't happen now)
                 }
             }
         }

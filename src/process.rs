@@ -7,6 +7,10 @@ use tokio::process::{Child, Command};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
+// TODO: Uncomment when implementing process group killing
+// #[cfg(unix)]
+// use std::os::unix::process::CommandExt;
+
 // Re-export log types for compatibility
 pub use crate::log::{LogLine, LogSource};
 use crate::log::{LogBuffer, FileReader};
@@ -67,8 +71,21 @@ impl ProcessHandle {
             cmd.current_dir(working_dir);
         }
 
-        // Spawn with piped stdout/stderr
+        // Spawn with piped stdout/stderr and null stdin
+        // IMPORTANT: Set stdin to null so child processes don't inherit parent's stdin
+        // This prevents them from interfering with crossterm's raw mode terminal input
+
+        // TODO: Implement process group killing to properly kill child processes
+        // Currently, when we spawn "sh -c 'pnpm run start:web'", only the shell is killed,
+        // leaving pnpm and the web server running as orphans.
+        // See scratch.md for the plan to fix this.
+        // #[cfg(unix)]
+        // unsafe {
+        //     cmd.process_group(0); // Create new process group with pgid = pid
+        // }
+
         let mut child = cmd
+            .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true)
@@ -249,16 +266,36 @@ impl ProcessManager {
     }
 
     pub async fn kill_all(&mut self) -> Result<()> {
-        for process in self.processes.values_mut() {
+        // Send kill signal to all processes
+        for (_name, process) in self.processes.iter_mut() {
             let _ = process.kill().await; // Ignore errors during shutdown
         }
+
+        // Wait for all processes to terminate with a timeout
+        let timeout_duration = tokio::time::Duration::from_secs(5);
+        let start_time = tokio::time::Instant::now();
+
+        loop {
+            let all_terminated = self.check_termination_status().await;
+            if all_terminated {
+                break;
+            }
+
+            if start_time.elapsed() > timeout_duration {
+                break;
+            }
+
+            // Small delay before checking again
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        }
+
         Ok(())
     }
 
     /// Check if all processes have finished terminating
     pub async fn check_termination_status(&mut self) -> bool {
         let mut all_terminated = true;
-        for process in self.processes.values_mut() {
+        for (_name, process) in self.processes.iter_mut() {
             if !process.is_terminated().await {
                 all_terminated = false;
             }

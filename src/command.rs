@@ -269,7 +269,6 @@ impl<'a> CommandExecutor<'a> {
         self.config.batch_window_ms = Some(ms);
         if let Some(config_path) = &self.config.config_path {
             if let Err(e) = self.config.save_to_file(config_path) {
-                eprintln!("Warning: Failed to save config: {}", e);
             }
         }
     }
@@ -282,7 +281,6 @@ impl<'a> CommandExecutor<'a> {
         self.config.update_filters(&self.app.filters);
         if let Some(path) = &self.config.config_path {
             if let Err(e) = self.config.save(path.to_str().unwrap()) {
-                eprintln!("Warning: failed to save filters: {}", e);
             }
         }
     }

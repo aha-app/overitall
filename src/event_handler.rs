@@ -302,7 +302,6 @@ impl<'a> EventHandler<'a> {
         self.config.batch_window_ms = Some(new_window);
         if let Some(config_path) = &self.config.config_path {
             if let Err(e) = self.config.save_to_file(config_path) {
-                eprintln!("Warning: Failed to save config: {}", e);
             }
         }
     }
@@ -321,7 +320,6 @@ impl<'a> EventHandler<'a> {
         self.config.batch_window_ms = Some(new_window);
         if let Some(config_path) = &self.config.config_path {
             if let Err(e) = self.config.save_to_file(config_path) {
-                eprintln!("Warning: Failed to save config: {}", e);
             }
         }
     }
