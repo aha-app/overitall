@@ -657,16 +657,31 @@ fn draw_log_viewer(
     };
 
     // Apply search filter if active (temporary filter)
-    if !app.search_pattern.is_empty() {
+    // Use app.input if actively typing, otherwise use saved search_pattern
+    let active_search_pattern = if app.search_mode && !app.input.is_empty() {
+        &app.input
+    } else if !app.search_pattern.is_empty() {
+        &app.search_pattern
+    } else {
+        ""
+    };
+
+    if !active_search_pattern.is_empty() {
         filtered_logs = filtered_logs
             .into_iter()
             .filter(|log| {
                 log.line
                     .to_lowercase()
-                    .contains(&app.search_pattern.to_lowercase())
+                    .contains(&active_search_pattern.to_lowercase())
             })
             .collect();
     }
+
+    let match_count = if !active_search_pattern.is_empty() {
+        filtered_logs.len()
+    } else {
+        0
+    };
 
     // Detect batches from filtered logs
     let batches = detect_batches_from_logs(&filtered_logs, app.batch_window_ms);
@@ -829,9 +844,9 @@ fn draw_log_viewer(
         let log_global_idx = display_start + display_idx;
         let is_selected = app.selected_line_index == Some(log_global_idx);
 
-        // Check if this line is a search match (for highlighting)
-        let is_match = !app.search_pattern.is_empty() &&
-            log.line.to_lowercase().contains(&app.search_pattern.to_lowercase());
+        // Don't highlight search matches - we're already filtering to show only matches
+        // Highlighting would make all visible lines gray, which looks bad
+        let is_match = false;
 
         // Format timestamp and process name parts (no ANSI codes)
         let timestamp_part = format!("[{}] ", timestamp);
@@ -919,8 +934,12 @@ fn draw_log_viewer(
         title_parts.push(format!("({} filters)", app.filter_count()));
     }
 
-    if !app.search_pattern.is_empty() {
-        title_parts.push(format!("[Search: {}]", app.search_pattern));
+    if !active_search_pattern.is_empty() {
+        if match_count == 0 {
+            title_parts.push(format!("[Search: {}] no matches", active_search_pattern));
+        } else {
+            title_parts.push(format!("[Search: {}] {} matches", active_search_pattern, match_count));
+        }
     }
 
     if !scroll_indicator.is_empty() {

@@ -5,7 +5,7 @@ expression: output
 web [Stopped] | worker [Stopped]                                                                                        
                                                                                                                         
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-[Search: job]                                                                                                           
+[Search: job] 2 matches                                                                                                 
 [12:00:00] worker: Processing job #1234                                                                                 
 [12:00:00] worker: Job #1234 completed                                                                                  
                                                                                                                         
