@@ -708,8 +708,8 @@ fn draw_log_viewer(
     let total_matches = search_matches.len();
 
     // Determine which logs to display based on scroll state
-    let (display_logs, scroll_indicator, display_start) = if app.auto_scroll && app.current_match.is_none() {
-        // Auto-scroll mode: show the last N logs (only when not navigating search)
+    let (display_logs, scroll_indicator, display_start) = if app.auto_scroll && app.current_match.is_none() && app.selected_line_index.is_none() {
+        // Auto-scroll mode: show the last N logs (only when not navigating search or selecting lines)
         let start = total_logs.saturating_sub(visible_lines);
         let display = &display_logs_source[start..];
         (display, String::new(), start)
@@ -728,6 +728,25 @@ fn draw_log_viewer(
             (display, String::new(), start)
         } else {
             // Invalid match index, fall back to manual scroll
+            let start = app.scroll_offset.min(total_logs.saturating_sub(visible_lines));
+            let end = (start + visible_lines).min(total_logs);
+            let display = &display_logs_source[start..end];
+            (display, String::new(), start)
+        }
+    } else if let Some(selected_idx) = app.selected_line_index {
+        // Line selection mode: scroll to show the selected line
+        if selected_idx < total_logs {
+            // Center the selected line in the viewport (similar to search mode)
+            let start = if selected_idx < visible_lines / 2 {
+                0
+            } else {
+                (selected_idx - visible_lines / 2).min(total_logs.saturating_sub(visible_lines))
+            };
+            let end = (start + visible_lines).min(total_logs);
+            let display = &display_logs_source[start..end];
+            (display, String::new(), start)
+        } else {
+            // Invalid selected index, fall back to manual scroll
             let start = app.scroll_offset.min(total_logs.saturating_sub(visible_lines));
             let end = (start + visible_lines).min(total_logs);
             let display = &display_logs_source[start..end];
