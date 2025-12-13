@@ -2,7 +2,7 @@ use super::{LogLine, LogSource};
 use anyhow::Result;
 use std::path::PathBuf;
 use tokio::fs::File;
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncSeekExt, BufReader};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
@@ -33,7 +33,7 @@ impl FileReader {
 
         let task = tokio::spawn(async move {
             // Try to open the file, if it doesn't exist yet, wait for it
-            let file = loop {
+            let mut file = loop {
                 match File::open(&path).await {
                     Ok(f) => break f,
                     Err(_) => {
@@ -42,6 +42,9 @@ impl FileReader {
                     }
                 }
             };
+
+            // Seek to end of file to only read new content (tail behavior)
+            let _ = file.seek(std::io::SeekFrom::End(0)).await;
 
             let reader = BufReader::new(file);
             let mut lines = reader.lines();
@@ -86,32 +89,38 @@ mod tests {
     use tempfile::NamedTempFile;
 
     #[tokio::test]
-    async fn test_file_reader() {
-        // Create a temporary file
+    async fn test_file_reader_skips_existing_content() {
+        // Create a temporary file with existing content
         let mut temp_file = NamedTempFile::new().unwrap();
-        writeln!(temp_file, "line 1").unwrap();
-        writeln!(temp_file, "line 2").unwrap();
+        writeln!(temp_file, "old line 1").unwrap();
+        writeln!(temp_file, "old line 2").unwrap();
+        writeln!(temp_file, "old line 3").unwrap();
         temp_file.flush().unwrap();
 
         let path = temp_file.path().to_path_buf();
 
         let (log_tx, mut log_rx) = mpsc::unbounded_channel();
-        let mut reader = FileReader::new("test".to_string(), path);
+        let mut reader = FileReader::new("test".to_string(), path.clone());
 
         reader.start(log_tx).await.unwrap();
 
-        // Give it a moment to read
+        // Give it time to start and process
+        // If it were reading from the beginning, it would read the old lines
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
-        // Should receive the lines
+        // Should NOT receive old lines (file was seeked to end before reading)
         let mut logs = Vec::new();
         while let Ok(log) = log_rx.try_recv() {
             logs.push(log);
         }
 
-        assert!(!logs.is_empty());
-        assert_eq!(logs[0].line, "line 1");
-        assert_eq!(logs[1].line, "line 2");
+        // The key test: no old content should be read
+        assert!(
+            logs.is_empty(),
+            "Should not read existing content, but got {} lines: {:?}",
+            logs.len(),
+            logs.iter().map(|l| &l.line).collect::<Vec<_>>()
+        );
 
         reader.stop();
     }

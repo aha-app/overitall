@@ -122,6 +122,7 @@ procfile = "Procfile"
             filters: FilterConfig::default(),
             batch_window_ms: Some(5000),
             max_log_buffer_mb: None,
+            hidden_processes: Vec::new(),
             config_path: None,
         };
 
@@ -143,6 +144,7 @@ procfile = "Procfile"
             filters: FilterConfig::default(),
             batch_window_ms: None,
             max_log_buffer_mb: None,
+            hidden_processes: Vec::new(),
             config_path: None,
         };
 
@@ -168,6 +170,7 @@ procfile = "Procfile"
             filters: FilterConfig::default(),
             batch_window_ms: None,
             max_log_buffer_mb: None,
+            hidden_processes: Vec::new(),
             config_path: None,
         };
 
@@ -189,6 +192,7 @@ procfile = "Procfile"
             filters: FilterConfig::default(),
             batch_window_ms: Some(1500),
             max_log_buffer_mb: None,
+            hidden_processes: Vec::new(),
             config_path: None,
         };
 
@@ -244,6 +248,7 @@ procfile = "Procfile"
             filters: FilterConfig::default(),
             batch_window_ms: None,
             max_log_buffer_mb: Some(75),
+            hidden_processes: Vec::new(),
             config_path: None,
         };
 
