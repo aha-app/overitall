@@ -316,6 +316,7 @@ impl App {
     pub fn exit_search_mode(&mut self) {
         self.search_mode = false;
         self.input.clear();
+        self.search_pattern.clear();
     }
 
     pub fn perform_search(&mut self, pattern: String) {
@@ -1043,11 +1044,16 @@ fn draw_status_bar(
 /// Draw the command input at the bottom of the screen
 fn draw_command_input(f: &mut Frame, area: ratatui::layout::Rect, app: &App) {
     let text = if app.search_mode {
-        // Show search input with a cursor
+        // Show search input with a cursor and help text
         Line::from(vec![
             Span::styled("/", Style::default().fg(Color::Cyan)),
             Span::raw(&app.input),
             Span::styled("_", Style::default().fg(Color::Cyan)),
+            Span::styled("  (", Style::default().fg(Color::Gray)),
+            Span::styled("Enter", Style::default().fg(Color::Yellow)),
+            Span::styled(" to select | ", Style::default().fg(Color::Gray)),
+            Span::styled("Esc", Style::default().fg(Color::Yellow)),
+            Span::styled(" to cancel)", Style::default().fg(Color::Gray)),
         ])
     } else if app.command_mode {
         // Show the input with a cursor
@@ -1439,9 +1445,9 @@ fn draw_expanded_line_overlay(f: &mut Frame, manager: &ProcessManager, app: &App
     content.push(Line::from(vec![
         Span::styled("Press ", Style::default()),
         Span::styled("ESC", Style::default().fg(Color::Yellow)),
-        Span::styled(" or ", Style::default()),
+        Span::styled(" to close | ", Style::default()),
         Span::styled("Enter", Style::default().fg(Color::Yellow)),
-        Span::styled(" to close", Style::default()),
+        Span::styled(" to show context", Style::default()),
     ]));
 
     let block = Block::default()

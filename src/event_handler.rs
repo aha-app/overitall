@@ -47,7 +47,7 @@ impl<'a> EventHandler<'a> {
                 Ok(false)
             }
             KeyCode::Enter if self.app.expanded_line_view => {
-                self.app.close_expanded_view();
+                self.handle_show_context();
                 Ok(false)
             }
             KeyCode::Enter if !self.app.command_mode && !self.app.search_mode && !self.app.expanded_line_view => {
@@ -87,6 +87,18 @@ impl<'a> EventHandler<'a> {
                 self.app.enter_search_mode();
                 Ok(false)
             }
+            // Esc in selection mode with active search pattern - return to search typing
+            KeyCode::Esc if !self.app.search_mode && !self.app.search_pattern.is_empty() && self.app.selected_line_index.is_some() => {
+                // Return to search typing mode
+                self.app.selected_line_index = None;
+                self.app.unfreeze_display();
+                self.app.discard_snapshot();
+                // Re-enter search mode with the saved pattern
+                self.app.search_mode = true;
+                self.app.input = self.app.search_pattern.clone();
+                Ok(false)
+            }
+            // Esc in search typing mode - exit search completely
             KeyCode::Esc if self.app.search_mode => {
                 self.app.exit_search_mode();
                 Ok(false)
@@ -230,12 +242,95 @@ impl<'a> EventHandler<'a> {
 
     fn handle_search_execute(&mut self) {
         let search_text = self.app.input.clone();
-        if !search_text.is_empty() {
-            self.app.perform_search(search_text);
+        if search_text.is_empty() {
+            return;
         }
-        self.app.exit_search_mode();
+
+        // Save the search pattern
+        self.app.perform_search(search_text.clone());
+
+        // Get filtered logs (after persistent filters AND search filter)
+        let logs = self.manager.get_all_logs();
+        let filtered_logs = apply_filters(logs, &self.app.filters);
+
+        // Apply search filter
+        let search_filtered: Vec<_> = filtered_logs
+            .into_iter()
+            .filter(|log| {
+                log.line
+                    .to_lowercase()
+                    .contains(&search_text.to_lowercase())
+            })
+            .collect();
+
+        if search_filtered.is_empty() {
+            self.app.set_status_error("No matches found".to_string());
+            return;
+        }
+
+        // Create snapshot
+        self.app.create_snapshot(search_filtered.clone());
+
+        // Freeze display
+        self.app.freeze_display();
+
+        // Select the last (bottom) entry
+        let last_index = search_filtered.len().saturating_sub(1);
+        self.app.selected_line_index = Some(last_index);
+
+        // Exit search_mode so user can't type (but keep search_pattern)
+        self.app.search_mode = false;
+        self.app.input.clear();
     }
 
+
+    fn handle_show_context(&mut self) {
+        // Close expanded view
+        self.app.close_expanded_view();
+
+        // Get the currently selected log line (before we change anything)
+        let selected_log = if let Some(idx) = self.app.selected_line_index {
+            if let Some(snapshot) = &self.app.snapshot {
+                snapshot.get(idx).cloned()
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        if selected_log.is_none() {
+            return;
+        }
+        let selected_log = selected_log.unwrap();
+
+        // Clear search pattern to show all logs
+        self.app.search_pattern.clear();
+
+        // Get ALL filtered logs (persistent filters only, no search)
+        let logs = self.manager.get_all_logs();
+        let filtered_logs = apply_filters(logs, &self.app.filters);
+
+        // Find the index of the selected log in the full filtered set
+        // Match by timestamp and line content for uniqueness
+        let new_index = filtered_logs.iter().position(|log| {
+            log.timestamp == selected_log.timestamp && log.line == selected_log.line
+        });
+
+        if new_index.is_none() {
+            self.app.set_status_error("Could not find log in context".to_string());
+            return;
+        }
+
+        // Create new snapshot with all logs
+        self.app.create_snapshot(filtered_logs);
+
+        // Update selection to point to the same log in the full context
+        self.app.selected_line_index = new_index;
+
+        // Display is already frozen, keep it that way
+        self.app.set_status_info("Showing context around selected log".to_string());
+    }
 
     fn handle_increase_batch_window(&mut self) {
         let new_window = self.app.batch_window_ms + 100;
