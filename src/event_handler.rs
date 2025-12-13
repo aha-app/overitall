@@ -548,9 +548,28 @@ impl<'a> EventHandler<'a> {
     }
 
     fn handle_reset_to_latest(&mut self) {
-        self.app.clear_search();
-        self.app.scroll_to_bottom();
-        self.app.selected_line_index = None; // Clear line selection
-        self.app.set_status_info("Jumped to latest logs".to_string());
+        // Two-stage Esc behavior when frozen:
+        // 1. First Esc: clear selection, stay frozen at current position
+        // 2. Second Esc: unfreeze and resume tailing
+
+        if self.app.frozen {
+            if self.app.selected_line_index.is_some() {
+                // First Esc: clear selection but stay frozen
+                self.app.selected_line_index = None;
+                self.app.set_status_info("Selection cleared. Press Esc again to resume tailing.".to_string());
+            } else {
+                // Second Esc: unfreeze and resume tailing
+                self.app.unfreeze_display();
+                self.app.clear_search();
+                self.app.scroll_to_bottom();
+                self.app.set_status_info("Resumed tailing".to_string());
+            }
+        } else {
+            // Not frozen, just jump to latest
+            self.app.clear_search();
+            self.app.scroll_to_bottom();
+            self.app.selected_line_index = None;
+            self.app.set_status_info("Jumped to latest logs".to_string());
+        }
     }
 }

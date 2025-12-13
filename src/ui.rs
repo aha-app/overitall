@@ -125,6 +125,10 @@ pub struct App {
     pub expanded_line_view: bool,
     /// Whether we're in the process of shutting down
     pub shutting_down: bool,
+    /// Whether log display is frozen (paused during selection/review)
+    pub frozen: bool,
+    /// Timestamp when display was frozen (used to filter out newer logs)
+    pub frozen_at: Option<chrono::DateTime<chrono::Local>>,
 }
 
 impl App {
@@ -149,6 +153,8 @@ impl App {
             selected_line_index: None,
             expanded_line_view: false,
             shutting_down: false,
+            frozen: false,
+            frozen_at: None,
         }
     }
 
@@ -396,24 +402,32 @@ impl App {
         if max_lines == 0 {
             return;
         }
+        let was_none = self.selected_line_index.is_none();
         self.selected_line_index = Some(match self.selected_line_index {
             None => 0,
             Some(idx) if idx >= max_lines - 1 => 0, // Wrap to top when at bottom
             Some(idx) => idx + 1,
         });
         self.auto_scroll = false;
+        if was_none {
+            self.freeze_display();
+        }
     }
 
     pub fn select_prev_line(&mut self, max_lines: usize) {
         if max_lines == 0 {
             return;
         }
+        let was_none = self.selected_line_index.is_none();
         self.selected_line_index = Some(match self.selected_line_index {
             None => max_lines - 1, // When tailing, Up arrow selects the last (most recent) line
             Some(idx) if idx > 0 => idx - 1,
             Some(_) => max_lines - 1, // Wrap to bottom when at top
         });
         self.auto_scroll = false;
+        if was_none {
+            self.freeze_display();
+        }
     }
 
     pub fn toggle_expanded_view(&mut self) {
@@ -422,6 +436,18 @@ impl App {
 
     pub fn close_expanded_view(&mut self) {
         self.expanded_line_view = false;
+    }
+
+    pub fn freeze_display(&mut self) {
+        if !self.frozen {
+            self.frozen = true;
+            self.frozen_at = Some(chrono::Local::now());
+        }
+    }
+
+    pub fn unfreeze_display(&mut self) {
+        self.frozen = false;
+        self.frozen_at = None;
     }
 }
 
@@ -595,7 +621,14 @@ fn draw_log_viewer(
     manager: &ProcessManager,
     app: &App,
 ) {
-    let logs = manager.get_all_logs();
+    let mut logs = manager.get_all_logs();
+
+    // If display is frozen, only show logs up to the frozen timestamp
+    if app.frozen {
+        if let Some(frozen_at) = app.frozen_at {
+            logs.retain(|log| log.timestamp <= frozen_at);
+        }
+    }
 
     // Apply filters to logs
     let filtered_logs: Vec<&crate::log::LogLine> = if app.filters.is_empty() {
