@@ -24,7 +24,26 @@ loop do
   status = status_codes.sample
   duration = rand(10..500)
 
-  log_line = "#{timestamp} [WEB] #{method} #{path} - #{status} (#{duration}ms)"
+  # Color code based on status
+  status_color = case status
+  when 200..299 then "\e[32m"  # Green for success
+  when 300..399 then "\e[36m"  # Cyan for redirects
+  when 400..499 then "\e[33m"  # Yellow for client errors
+  when 500..599 then "\e[31m"  # Red for server errors
+  else "\e[0m"
+  end
+  reset = "\e[0m"
+
+  # Color code duration based on speed
+  duration_color = if duration < 100
+    "\e[32m"  # Green for fast
+  elsif duration < 300
+    "\e[33m"  # Yellow for medium
+  else
+    "\e[31m"  # Red for slow
+  end
+
+  log_line = "#{timestamp} [\e[1;34mWEB\e[0m] \e[1m#{method}\e[0m #{path} - #{status_color}#{status}#{reset} (#{duration_color}#{duration}ms#{reset})"
 
   puts log_line
   STDOUT.flush
@@ -35,7 +54,7 @@ loop do
   # Occasionally log errors or long SQL queries
   rand_event = rand(10)
   if rand_event == 0
-    error_line = "#{Time.now.iso8601} [WEB] ERROR: Database connection timeout"
+    error_line = "#{Time.now.iso8601} [\e[1;34mWEB\e[0m] \e[1;31mERROR\e[0m: Database connection timeout"
     puts error_line
     STDOUT.flush
     log_file.puts error_line

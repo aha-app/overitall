@@ -18,7 +18,7 @@ loop do
   job_types = ["EmailJob", "ImageProcessingJob", "ReportGenerationJob", "DataSyncJob"]
   job_type = job_types.sample
 
-  log_line = "#{timestamp} [WORKER] Processing #{job_type} (job_id: #{job_count})"
+  log_line = "#{timestamp} [\e[1;35mWORKER\e[0m] \e[36mProcessing\e[0m #{job_type} (job_id: #{job_count})"
   puts log_line
   STDOUT.flush
   log_file.puts log_line
@@ -28,13 +28,13 @@ loop do
 
   outcome = rand(10)
   if outcome < 7
-    complete_line = "#{Time.now.iso8601} [WORKER] Completed #{job_type} (job_id: #{job_count})"
+    complete_line = "#{Time.now.iso8601} [\e[1;35mWORKER\e[0m] \e[1;32mCompleted\e[0m #{job_type} (job_id: #{job_count})"
     puts complete_line
     STDOUT.flush
     log_file.puts complete_line
     log_file.flush
   elsif outcome < 9
-    error_line = "#{Time.now.iso8601} [WORKER] FAILED #{job_type} (job_id: #{job_count}) - Retry scheduled"
+    error_line = "#{Time.now.iso8601} [\e[1;35mWORKER\e[0m] \e[1;33mFAILED\e[0m #{job_type} (job_id: #{job_count}) - Retry scheduled"
     puts error_line
     STDOUT.flush
     log_file.puts error_line
@@ -42,7 +42,7 @@ loop do
   else
     # Long stack trace to test line truncation
     stack_trace = "RuntimeError: Failed to process image - ImageMagick error: convert: unable to open image `/tmp/upload_12345.jpg': No such file or directory @ error/blob.c/OpenBlob/2924. at /usr/local/lib/ruby/gems/3.2.0/gems/mini_magick-4.12.0/lib/mini_magick/tool.rb:88:in `run' at /usr/local/lib/ruby/gems/3.2.0/gems/mini_magick-4.12.0/lib/mini_magick/image.rb:234:in `combine_options' at /app/lib/image_processor.rb:45:in `resize_and_optimize' at /app/jobs/image_processing_job.rb:12:in `perform'"
-    trace_line = "#{Time.now.iso8601} [WORKER] EXCEPTION in #{job_type}: #{stack_trace}"
+    trace_line = "#{Time.now.iso8601} [\e[1;35mWORKER\e[0m] \e[1;31mEXCEPTION\e[0m in #{job_type}: #{stack_trace}"
     puts trace_line
     STDOUT.flush
     log_file.puts trace_line

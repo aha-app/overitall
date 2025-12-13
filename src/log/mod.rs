@@ -20,13 +20,11 @@ pub struct LogLine {
 impl LogLine {
     pub fn new(source: LogSource, line: String) -> Self {
         let now = Local::now();
-        // Strip ANSI escape codes for clean display
-        let clean_line = strip_ansi_escapes::strip_str(&line);
         Self {
             timestamp: now,  // Will be updated by parser if found
             arrival_time: now,  // Capture arrival time
             source,
-            line: clean_line,
+            line,
         }
     }
 }

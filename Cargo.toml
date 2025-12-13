@@ -20,6 +20,7 @@ clap = { version = "4.5", features = ["derive"] }
 arboard = "3.4"
 strip-ansi-escapes = "0.2"
 unicode-width = "0.2"
+ansi-to-tui = "7.0"
 
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.29", features = ["signal", "process"] }

@@ -6,6 +6,7 @@ use ratatui::{
     Frame,
 };
 use unicode_width::UnicodeWidthStr;
+use ansi_to_tui::IntoText;
 
 use crate::process::{ProcessManager, ProcessStatus};
 
@@ -541,6 +542,50 @@ fn draw_process_list(f: &mut Frame, area: ratatui::layout::Rect, manager: &Proce
     f.render_widget(paragraph, area);
 }
 
+/// Parse ANSI codes from text and optionally apply a background color override
+fn parse_ansi_with_background(text: String, bg_color: Option<Color>, fg_override: Option<Color>) -> Line<'static> {
+    // Try to parse ANSI codes
+    match text.as_bytes().into_text() {
+        Ok(parsed_text) => {
+            // If we need to apply background or foreground override, modify all spans
+            if bg_color.is_some() || fg_override.is_some() {
+                let mut spans = Vec::new();
+                for line in parsed_text.lines {
+                    for span in line.spans {
+                        let mut new_style = span.style;
+                        if let Some(bg) = bg_color {
+                            new_style = new_style.bg(bg);
+                        }
+                        if let Some(fg) = fg_override {
+                            new_style = new_style.fg(fg);
+                        }
+                        spans.push(Span::styled(span.content, new_style));
+                    }
+                }
+                Line::from(spans)
+            } else {
+                // No background override needed, use parsed text as-is
+                // Convert Text to Line by taking the first line or combining all lines
+                let mut spans = Vec::new();
+                for line in parsed_text.lines {
+                    spans.extend(line.spans);
+                }
+                Line::from(spans)
+            }
+        }
+        Err(_) => {
+            // Failed to parse ANSI, fall back to plain text
+            let style = match (bg_color, fg_override) {
+                (Some(bg), Some(fg)) => Style::default().bg(bg).fg(fg),
+                (Some(bg), None) => Style::default().bg(bg),
+                (None, Some(fg)) => Style::default().fg(fg),
+                (None, None) => Style::default(),
+            };
+            Line::from(Span::styled(text.to_string(), style))
+        }
+    }
+}
+
 /// Draw the log viewer in the middle of the screen
 fn draw_log_viewer(
     f: &mut Frame,
@@ -768,27 +813,49 @@ fn draw_log_viewer(
         // Check if this line is selected
         let is_selected = app.selected_line_index == Some(log_global_idx);
 
-        // Format the complete line first, then truncate the ENTIRE line to fit
-        // This prevents issues with multi-span lines exceeding width
+        // Format timestamp and process name parts (no ANSI codes)
         let timestamp_part = format!("[{}] ", timestamp);
         let process_part = format!("{}: ", process_name);
-        let full_line = format!("{}{}{}", timestamp_part, process_part, log.line);
+
+        // Build the full line with ANSI codes preserved
+        let full_line_with_ansi = format!("{}{}{}", timestamp_part, process_part, log.line);
+
+        // For width calculations, strip ANSI codes
+        let full_line_clean = strip_ansi_escapes::strip_str(&full_line_with_ansi);
 
         // Calculate max width (account for borders: 2 chars)
         let max_line_width = (area.width as usize).saturating_sub(3); // -2 for borders, -1 for safety
 
-        // Truncate the entire line if needed (except in batch view mode)
-        let display_line = if current_batch_validated.is_some() {
-            // In batch view mode: show full content
-            full_line
-        } else if full_line.width() > max_line_width {
-            // Truncate based on display width
+        // Determine if we need to truncate and render accordingly
+        let line = if current_batch_validated.is_some() {
+            // In batch view mode: show full content with ANSI parsing
+            let bg_color = if is_selected {
+                Some(Color::Blue)
+            } else if is_current_match {
+                Some(Color::Yellow)
+            } else if is_match {
+                Some(Color::DarkGray)
+            } else {
+                None
+            };
+
+            let fg_override = if is_selected {
+                Some(Color::White)
+            } else if is_current_match {
+                Some(Color::Black)
+            } else {
+                None
+            };
+
+            parse_ansi_with_background(full_line_with_ansi.clone(), bg_color, fg_override)
+        } else if full_line_clean.width() > max_line_width {
+            // Truncate based on display width (using clean text for measurement)
             let mut current_width = 0;
             let mut truncate_at = 0;
             let ellipsis_width = 3; // "..." = 3 chars
             let target_width = max_line_width.saturating_sub(ellipsis_width);
 
-            for (idx, ch) in full_line.char_indices() {
+            for (idx, ch) in full_line_clean.char_indices() {
                 let char_width = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0);
                 if current_width + char_width > target_width {
                     break;
@@ -797,24 +864,41 @@ fn draw_log_viewer(
                 truncate_at = idx + ch.len_utf8();
             }
 
-            format!("{}...", &full_line[..truncate_at])
+            // For truncated lines, use simple styling (ANSI codes likely cut off anyway)
+            let truncated = format!("{}...", &full_line_clean[..truncate_at]);
+            let style = if is_selected {
+                Style::default().bg(Color::Blue).fg(Color::White)
+            } else if is_current_match {
+                Style::default().bg(Color::Yellow).fg(Color::Black)
+            } else if is_match {
+                Style::default().bg(Color::DarkGray)
+            } else {
+                Style::default()
+            };
+            Line::from(Span::styled(truncated, style))
         } else {
-            full_line
+            // Full line fits, parse ANSI codes
+            let bg_color = if is_selected {
+                Some(Color::Blue)
+            } else if is_current_match {
+                Some(Color::Yellow)
+            } else if is_match {
+                Some(Color::DarkGray)
+            } else {
+                None
+            };
+
+            let fg_override = if is_selected {
+                Some(Color::White)
+            } else if is_current_match {
+                Some(Color::Black)
+            } else {
+                None
+            };
+
+            parse_ansi_with_background(full_line_with_ansi.clone(), bg_color, fg_override)
         };
 
-        // Choose style based on whether this is selected, a match, etc.
-        let line_style = if is_selected {
-            Style::default().bg(Color::Blue).fg(Color::White)
-        } else if is_current_match {
-            Style::default().bg(Color::Yellow).fg(Color::Black)
-        } else if is_match {
-            Style::default().bg(Color::DarkGray)
-        } else {
-            Style::default()
-        };
-
-        // Create a single-span line to avoid multi-span rendering issues
-        let line = Line::from(Span::styled(display_line, line_style));
         log_lines.push(line);
     }
 
