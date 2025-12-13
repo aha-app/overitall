@@ -65,6 +65,6 @@ gh release create ${VERSION} \
 echo ""
 echo "✓ Release ${VERSION} created!"
 echo ""
-echo "Your colleagues can install with:"
+echo "You can install with:"
 echo "  curl -L https://github.com/$(gh repo view --json nameWithOwner -q .nameWithOwner)/releases/download/${VERSION}/${BINARY_NAME}.tar.gz | tar xz"
 echo "  mv oit /usr/local/bin/"
