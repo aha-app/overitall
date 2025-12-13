@@ -11,6 +11,7 @@ Overitall (`oit`) is a Rust-based TUI that helps you manage multiple processes a
 - **Process Management**: Start, stop, and restart processes defined in a Procfile
 - **Unified Log Viewing**: View logs from multiple sources in a single, interleaved stream
 - **Advanced Filtering**: Include or exclude log lines with regex patterns
+- **Process Visibility Toggle**: Hide/show logs from specific processes on demand
 - **Search**: Full-text search with highlighting across all logs
 - **Batch Navigation**: Navigate through groups of related log lines that arrived together
 - **Persistent Configuration**: Filters and settings are automatically saved
@@ -114,8 +115,6 @@ oit -c path/to/config.toml
 - `/` - Enter search mode
 - `Esc` - Exit current mode, close overlays, or jump to latest logs
 
-#### Search
-- `n` / `N` - Next/previous search match
 
 #### Batch Navigation
 - `[` / `]` - Previous/next batch
@@ -156,6 +155,25 @@ Filters support regex patterns:
 :f \[Worker\]              # Show only lines from Worker (escaped brackets)
 ```
 
+#### Process Visibility
+
+Hide or show logs from specific processes temporarily. This is useful when you want to focus on certain processes without permanently filtering their logs.
+
+- `:hide <name>` - Hide logs from a specific process
+- `:show <name>` - Show logs from a specific process
+- `:hide all` - Hide all process logs
+- `:show all` - Show all process logs
+
+Examples:
+```
+:hide worker        # Hide logs from the worker process
+:show worker        # Show logs from the worker process again
+:hide all           # Hide all process logs
+:show all           # Show all process logs
+```
+
+When a process is hidden, it will be marked as `[Hidden]` in the process list, and its logs will not appear in the log viewer. Hidden processes are saved to the configuration file and persist across restarts.
+
 #### Batch Navigation
 
 Log lines that arrive within a short time window are grouped into "batches". This helps you see related log output together.
@@ -171,13 +189,13 @@ The batch window determines how close in time log lines must be to be grouped to
 
 #### Search
 
-- `/` - Enter search mode
-- Type your search term and press Enter
-- `n` - Jump to next match
-- `N` - Jump to previous match
-- `Esc` - Exit search mode
+- `/` - Start search (filters logs as you type)
+- `Enter` - In search mode: enter selection mode (selects the last match)
+- `↑` / `↓` - Navigate between matches in selection mode
+- `Enter` - In expanded view: show context around the selected log
+- `Esc` - Step back through modes (selection → typing → exit)
 
-Search results are highlighted in the log view, with the current match shown in yellow.
+The search filters logs in real-time as you type. Press Enter to enter selection mode where you can navigate through the filtered results with arrow keys. Press Esc to step back: from selection mode back to typing, or from typing mode to exit search completely.
 
 ## Configuration
 
@@ -201,6 +219,9 @@ log_file = "log/scheduler.log"
 [filters]
 include = ["INFO", "ERROR"]
 exclude = ["DEBUG"]
+
+# Hidden processes (automatically saved when you hide/show processes)
+hidden_processes = ["worker"]
 ```
 
 ### Configuration Options
@@ -209,6 +230,7 @@ exclude = ["DEBUG"]
 - `processes.<name>.log_file` - Path to the log file for a specific process (optional)
 - `filters.include` - Array of regex patterns to include
 - `filters.exclude` - Array of regex patterns to exclude
+- `hidden_processes` - Array of process names to hide from log viewer (automatically saved)
 - `max_log_buffer_mb` - Maximum memory for log buffer in megabytes (default: 50)
 - `batch_window_ms` - Batch grouping window in milliseconds (default: 100)
 
@@ -290,6 +312,7 @@ Overitall is under active development. Current features:
 - Process management (start/stop/restart)
 - Log file tailing and interleaved viewing
 - Filtering (include/exclude patterns)
+- Process visibility toggle (hide/show logs from specific processes)
 - Search with highlighting
 - Batch detection and navigation
 - Line selection and expanded view (view full content of long log lines)
