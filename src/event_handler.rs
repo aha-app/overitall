@@ -139,6 +139,16 @@ impl<'a> EventHandler<'a> {
                 self.handle_copy_batch();
                 Ok(false)
             }
+            // Vim-style page navigation (Ctrl+B = page up, Ctrl+F = page down)
+            // IMPORTANT: These must come BEFORE plain 'b' handler to match correctly
+            KeyCode::Char('b') if key.modifiers.contains(KeyModifiers::CONTROL) && !self.app.command_mode && !self.app.search_mode => {
+                self.handle_page_up();
+                Ok(false)
+            }
+            KeyCode::Char('f') if key.modifiers.contains(KeyModifiers::CONTROL) && !self.app.command_mode && !self.app.search_mode => {
+                self.handle_page_down();
+                Ok(false)
+            }
             // Batch focus
             KeyCode::Char('b') if !self.app.command_mode && !self.app.search_mode && !self.app.expanded_line_view => {
                 self.handle_focus_batch();
@@ -158,15 +168,6 @@ impl<'a> EventHandler<'a> {
                 Ok(false)
             }
             KeyCode::PageDown if !self.app.command_mode && !self.app.search_mode => {
-                self.handle_page_down();
-                Ok(false)
-            }
-            // Vim-style page navigation (Ctrl+B = page up, Ctrl+F = page down)
-            KeyCode::Char('b') if key.modifiers.contains(KeyModifiers::CONTROL) && !self.app.command_mode && !self.app.search_mode => {
-                self.handle_page_up();
-                Ok(false)
-            }
-            KeyCode::Char('f') if key.modifiers.contains(KeyModifiers::CONTROL) && !self.app.command_mode && !self.app.search_mode => {
                 self.handle_page_down();
                 Ok(false)
             }
