@@ -427,13 +427,14 @@ impl App {
 
 /// Draw the UI to the terminal
 pub fn draw(f: &mut Frame, app: &App, manager: &ProcessManager) {
-    // Create the main layout: process list, log viewer, command input
+    // Create the main layout: process list, log viewer, status bar, command input
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),      // Process list (fixed 3 lines)
+            Constraint::Length(2),      // Process list (1 content + 1 separator)
             Constraint::Min(0),         // Log viewer (takes remaining space)
-            Constraint::Length(3),      // Command input (exactly 3 lines)
+            Constraint::Length(1),      // Status bar
+            Constraint::Length(1),      // Command input (exactly 1 line)
         ])
         .split(f.area());
 
@@ -443,8 +444,11 @@ pub fn draw(f: &mut Frame, app: &App, manager: &ProcessManager) {
     // Draw log viewer
     draw_log_viewer(f, chunks[1], manager, app);
 
+    // Draw status bar
+    draw_status_bar(f, chunks[2], manager, app);
+
     // Draw command input
-    draw_command_input(f, chunks[2], app);
+    draw_command_input(f, chunks[3], app);
 
     // Draw help overlay if show_help is true (must be last so it's on top)
     if app.show_help {
@@ -534,8 +538,6 @@ fn draw_process_list(f: &mut Frame, area: ratatui::layout::Rect, manager: &Proce
         .block(
             Block::default()
                 .borders(Borders::BOTTOM)
-                .title(" Processes ")
-                .title_style(Style::default().add_modifier(Modifier::BOLD)),
         )
         .wrap(ratatui::widgets::Wrap { trim: false });
 
@@ -928,34 +930,8 @@ fn draw_log_viewer(
         log_lines.push(line);
     }
 
-    // Build title with batch count, filters and search info
+    // Build title with filters and search info (buffer/batch stats now in status bar)
     let mut title_parts = vec![" Logs ".to_string()];
-
-    // Add buffer stats
-    let buffer_stats = manager.get_buffer_stats();
-    title_parts.push(format!(
-        "Buffer: {:.1}/{} MB ({:.0}%) | {} lines",
-        buffer_stats.memory_mb,
-        buffer_stats.limit_mb,
-        buffer_stats.percent,
-        buffer_stats.line_count
-    ));
-
-    // Add batch count if batches exist
-    if let Some(batch_idx) = current_batch_validated {
-        // In batch view mode with a valid batch selected
-        // Calculate the number of lines in this batch
-        if let Some(&(start, end)) = batches.get(batch_idx) {
-            let line_count = end - start + 1;
-            title_parts.push(format!("(Batch {}/{}, {} lines)", batch_idx + 1, batches.len(), line_count));
-        } else {
-            // Fallback if batch lookup fails
-            title_parts.push(format!("(Batch {}/{})", batch_idx + 1, batches.len()));
-        }
-    } else if !batches.is_empty() {
-        // Not in batch view mode, show total batch count
-        title_parts.push(format!("({} batches)", batches.len()));
-    }
 
     if app.filter_count() > 0 {
         title_parts.push(format!("({} filters)", app.filter_count()));
@@ -989,6 +965,82 @@ fn draw_log_viewer(
         use ratatui::widgets::Wrap;
         paragraph = paragraph.wrap(Wrap { trim: true });
     }
+
+    f.render_widget(paragraph, area);
+}
+
+/// Draw the status bar showing buffer stats and batch info
+fn draw_status_bar(
+    f: &mut Frame,
+    area: ratatui::layout::Rect,
+    manager: &ProcessManager,
+    app: &App,
+) {
+    let logs = manager.get_all_logs();
+
+    // Apply filters to get filtered logs
+    let filtered_logs: Vec<&crate::log::LogLine> = if app.filters.is_empty() {
+        logs
+    } else {
+        logs.into_iter()
+            .filter(|log| {
+                let line_text = &log.line;
+
+                for filter in &app.filters {
+                    if matches!(filter.filter_type, FilterType::Exclude) {
+                        if filter.matches(line_text) {
+                            return false;
+                        }
+                    }
+                }
+
+                let include_filters: Vec<_> = app
+                    .filters
+                    .iter()
+                    .filter(|f| matches!(f.filter_type, FilterType::Include))
+                    .collect();
+
+                if include_filters.is_empty() {
+                    return true;
+                }
+
+                include_filters.iter().any(|filter| filter.matches(line_text))
+            })
+            .collect()
+    };
+
+    // Detect batches from filtered logs
+    let batches = detect_batches_from_logs(&filtered_logs, app.batch_window_ms);
+
+    // Build status text with buffer stats and batch info
+    let buffer_stats = manager.get_buffer_stats();
+    let mut status_parts = vec![
+        format!(
+            "Buffer: {:.1}/{} MB ({:.0}%) | {} lines",
+            buffer_stats.memory_mb,
+            buffer_stats.limit_mb,
+            buffer_stats.percent,
+            buffer_stats.line_count
+        )
+    ];
+
+    // Add batch info
+    if app.batch_view_mode {
+        if let Some(batch_idx) = app.current_batch {
+            if batch_idx < batches.len() {
+                let (start, end) = batches[batch_idx];
+                let line_count = end - start + 1;
+                status_parts.push(format!("Batch {}/{}, {} lines", batch_idx + 1, batches.len(), line_count));
+            }
+        }
+    } else if !batches.is_empty() {
+        status_parts.push(format!("{} batches", batches.len()));
+    }
+
+    let status_text = status_parts.join(" | ");
+
+    let paragraph = Paragraph::new(status_text)
+        .style(Style::default().bg(Color::Rgb(40, 40, 40)));
 
     f.render_widget(paragraph, area);
 }
@@ -1045,7 +1097,9 @@ fn draw_command_input(f: &mut Frame, area: ratatui::layout::Rect, app: &App) {
         ])
     };
 
-    let paragraph = Paragraph::new(text).block(Block::default().borders(Borders::ALL));
+    let paragraph = Paragraph::new(text)
+        .block(Block::default().borders(Borders::NONE))
+        .style(Style::default().bg(Color::Rgb(30, 30, 30)));
 
     f.render_widget(paragraph, area);
 }

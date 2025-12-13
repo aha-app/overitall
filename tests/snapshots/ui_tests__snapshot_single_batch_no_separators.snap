@@ -2,10 +2,9 @@
 source: tests/ui_tests.rs
 expression: output
 ---
- Processes                                                                                                              
 web [Stopped]                                                                                                           
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- Logs  Buffer: 0.0/50 MB (0%) | 3 lines (1 batches)                                                                     
+ Logs                                                                                                                   
 [12:00:00] web: Log message 1                                                                                           
 [12:00:00] web: Log message 2                                                                                           
 [12:00:00] web: Log message 3                                                                                           
@@ -39,6 +38,7 @@ web [Stopped]
                                                                                                                         
                                                                                                                         
                                                                                                                         
-┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│Press : for commands, / to search, q to quit                                                                          │
-└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+                                                                                                                        
+                                                                                                                        
+Buffer: 0.0/50 MB (0%) | 3 lines | 1 batches                                                                            
+Press : for commands, / to search, q to quit
