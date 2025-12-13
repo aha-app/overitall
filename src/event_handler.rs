@@ -114,11 +114,11 @@ impl<'a> EventHandler<'a> {
             }
             // Batch navigation
             KeyCode::Char('[') if !self.app.command_mode && !self.app.search_mode => {
-                self.app.prev_batch();
+                self.handle_prev_batch();
                 Ok(false)
             }
             KeyCode::Char(']') if !self.app.command_mode && !self.app.search_mode => {
-                self.app.next_batch();
+                self.handle_next_batch();
                 Ok(false)
             }
             // Batch window adjustment
@@ -414,6 +414,34 @@ impl<'a> EventHandler<'a> {
         }
     }
 
+    fn handle_next_batch(&mut self) {
+        // Get filtered logs and create snapshot on first entry to batch view mode
+        let logs = self.manager.get_all_logs();
+        let filtered_logs = apply_filters(logs, &self.app.filters);
+
+        // Create snapshot if entering batch view for the first time
+        let was_none = !self.app.batch_view_mode;
+        if was_none {
+            self.app.create_snapshot(filtered_logs);
+        }
+
+        self.app.next_batch();
+    }
+
+    fn handle_prev_batch(&mut self) {
+        // Get filtered logs and create snapshot on first entry to batch view mode
+        let logs = self.manager.get_all_logs();
+        let filtered_logs = apply_filters(logs, &self.app.filters);
+
+        // Create snapshot if entering batch view for the first time
+        let was_none = !self.app.batch_view_mode;
+        if was_none {
+            self.app.create_snapshot(filtered_logs);
+        }
+
+        self.app.prev_batch();
+    }
+
     fn handle_focus_batch(&mut self) {
         if let Some(line_idx) = self.app.selected_line_index {
             // Get all logs and apply filters
@@ -428,9 +456,15 @@ impl<'a> EventHandler<'a> {
             if let Some((batch_idx, _)) = batches.iter().enumerate().find(|(_, (start, end))| {
                 line_idx >= *start && line_idx <= *end
             }) {
+                // Create snapshot if entering batch view for the first time
+                let was_none = !self.app.batch_view_mode;
+                if was_none {
+                    self.app.create_snapshot(filtered_logs);
+                }
+
                 self.app.current_batch = Some(batch_idx);
                 self.app.batch_view_mode = true;
-                self.app.scroll_offset = 0; // Reset scroll to show batch from the start
+                self.app.scroll_offset = 0;
                 self.app.set_status_info(format!("Focused on batch {}", batch_idx + 1));
             } else {
                 self.app.set_status_error("No batch found for selected line".to_string());
@@ -563,6 +597,8 @@ impl<'a> EventHandler<'a> {
         // Two-stage Esc behavior when frozen:
         // 1. First Esc: clear selection, stay frozen at current position
         // 2. Second Esc: unfreeze and resume tailing
+        //
+        // Also handle batch view mode exit
 
         if self.app.frozen {
             if self.app.selected_line_index.is_some() {
@@ -577,8 +613,16 @@ impl<'a> EventHandler<'a> {
                 self.app.scroll_to_bottom();
                 self.app.set_status_info("Resumed tailing".to_string());
             }
+        } else if self.app.batch_view_mode {
+            // Exit batch view mode and discard snapshot
+            self.app.batch_view_mode = false;
+            self.app.current_batch = None;
+            self.app.discard_snapshot();
+            self.app.clear_search();
+            self.app.scroll_to_bottom();
+            self.app.set_status_info("Exited batch view, resumed tailing".to_string());
         } else {
-            // Not frozen, just jump to latest
+            // Not frozen or in batch view, just jump to latest
             self.app.clear_search();
             self.app.scroll_to_bottom();
             self.app.selected_line_index = None;
