@@ -103,15 +103,6 @@ impl<'a> EventHandler<'a> {
                 self.app.add_char(c);
                 Ok(false)
             }
-            // Search navigation
-            KeyCode::Char('n') if !self.app.command_mode && !self.app.search_mode => {
-                self.handle_next_match();
-                Ok(false)
-            }
-            KeyCode::Char('N') if !self.app.command_mode && !self.app.search_mode => {
-                self.handle_prev_match();
-                Ok(false)
-            }
             // Batch navigation
             KeyCode::Char('[') if !self.app.command_mode && !self.app.search_mode => {
                 self.handle_prev_batch();
@@ -245,61 +236,6 @@ impl<'a> EventHandler<'a> {
         self.app.exit_search_mode();
     }
 
-    fn handle_next_match(&mut self) {
-        // Get total matches from filtered logs
-        let logs = self.manager.get_all_logs();
-        let filtered_logs = apply_filters(logs, &self.app.filters);
-
-        // Build search matches vector
-        let search_matches: Vec<usize> = filtered_logs
-            .iter()
-            .enumerate()
-            .filter(|(_, log)| {
-                log.line
-                    .to_lowercase()
-                    .contains(&self.app.search_pattern.to_lowercase())
-            })
-            .map(|(idx, _)| idx)
-            .collect();
-
-        let total_matches = search_matches.len();
-        self.app.next_match(total_matches);
-
-        // Set selected line to the current match
-        if let Some(match_idx) = self.app.current_match {
-            if match_idx < search_matches.len() {
-                self.app.selected_line_index = Some(search_matches[match_idx]);
-            }
-        }
-    }
-
-    fn handle_prev_match(&mut self) {
-        // Get total matches from filtered logs
-        let logs = self.manager.get_all_logs();
-        let filtered_logs = apply_filters(logs, &self.app.filters);
-
-        // Build search matches vector
-        let search_matches: Vec<usize> = filtered_logs
-            .iter()
-            .enumerate()
-            .filter(|(_, log)| {
-                log.line
-                    .to_lowercase()
-                    .contains(&self.app.search_pattern.to_lowercase())
-            })
-            .map(|(idx, _)| idx)
-            .collect();
-
-        let total_matches = search_matches.len();
-        self.app.prev_match(total_matches);
-
-        // Set selected line to the current match
-        if let Some(match_idx) = self.app.current_match {
-            if match_idx < search_matches.len() {
-                self.app.selected_line_index = Some(search_matches[match_idx]);
-            }
-        }
-    }
 
     fn handle_increase_batch_window(&mut self) {
         let new_window = self.app.batch_window_ms + 100;

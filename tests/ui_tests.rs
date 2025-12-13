@@ -225,18 +225,17 @@ fn test_search_pattern_matching() {
 }
 
 #[test]
-fn test_search_navigation() {
+fn test_search_as_filter() {
     let mut app = create_test_app();
     let manager = create_manager_with_logs();
 
-    // Search for ERROR which appears twice
+    // Search for ERROR - this should filter logs to show only ERROR messages
     app.perform_search("ERROR".to_string());
-
-    // Try navigating to next match (there are 2 ERROR messages in the test logs)
-    app.next_match(2);
 
     let output = render_app_to_string(&app, &manager, 120, 40);
     assert!(!output.is_empty());
+    // Search pattern should be shown in the title
+    assert!(output.contains("[Search: ERROR]"));
 }
 
 #[test]

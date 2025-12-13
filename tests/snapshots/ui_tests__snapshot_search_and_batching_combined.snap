@@ -5,10 +5,10 @@ expression: output
 web [Stopped] | worker [Stopped]                                                                                        
                                                                                                                         
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-[Search: no matches]                                                                                                    
-[12:00:00] web: Starting web server on port 3000                                                                        
-[12:00:00] web: Loading configuration                                                                                   
-[12:00:00] web: Database connected                                                                                      
+[Search: job]                                                                                                           
+[12:00:00] worker: Processing job #1234                                                                                 
+[12:00:00] worker: Job #1234 completed                                                                                  
+                                                                                                                        
                                                                                                                         
                                                                                                                         
                                                                                                                         

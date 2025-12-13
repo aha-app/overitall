@@ -109,8 +109,6 @@ pub struct App {
     pub search_mode: bool,
     /// Current search pattern
     pub search_pattern: String,
-    /// Index of current search match
-    pub current_match: Option<usize>,
     /// Time window for batch detection in milliseconds
     pub batch_window_ms: i64,
     /// If true, show only the current batch
@@ -147,7 +145,6 @@ impl App {
             filters: Vec::new(),
             search_mode: false,
             search_pattern: String::new(),
-            current_match: None,
             batch_window_ms: 100,
             batch_view_mode: false,
             current_batch: None,
@@ -323,34 +320,10 @@ impl App {
 
     pub fn perform_search(&mut self, pattern: String) {
         self.search_pattern = pattern;
-        self.current_match = Some(0);
     }
 
     pub fn clear_search(&mut self) {
         self.search_pattern.clear();
-        self.current_match = None;
-    }
-
-    pub fn next_match(&mut self, total_matches: usize) {
-        if total_matches == 0 {
-            return;
-        }
-        if let Some(idx) = self.current_match {
-            self.current_match = Some((idx + 1) % total_matches);
-        }
-    }
-
-    pub fn prev_match(&mut self, total_matches: usize) {
-        if total_matches == 0 {
-            return;
-        }
-        if let Some(idx) = self.current_match {
-            if idx > 0 {
-                self.current_match = Some(idx - 1);
-            } else {
-                self.current_match = Some(total_matches - 1);
-            }
-        }
     }
 
     pub fn next_batch(&mut self) {
@@ -649,7 +622,7 @@ fn draw_log_viewer(
     };
 
     // Apply filters to logs
-    let filtered_logs: Vec<&crate::log::LogLine> = if app.filters.is_empty() {
+    let mut filtered_logs: Vec<&crate::log::LogLine> = if app.filters.is_empty() {
         // No filters, show all logs
         logs_vec
     } else {
@@ -682,6 +655,18 @@ fn draw_log_viewer(
             })
             .collect()
     };
+
+    // Apply search filter if active (temporary filter)
+    if !app.search_pattern.is_empty() {
+        filtered_logs = filtered_logs
+            .into_iter()
+            .filter(|log| {
+                log.line
+                    .to_lowercase()
+                    .contains(&app.search_pattern.to_lowercase())
+            })
+            .collect();
+    }
 
     // Detect batches from filtered logs
     let batches = detect_batches_from_logs(&filtered_logs, app.batch_window_ms);
@@ -742,50 +727,12 @@ fn draw_log_viewer(
     let visible_lines = area.height.saturating_sub(2) as usize;
     let total_logs = display_logs_source.len();
 
-    // Find search matches
-    let search_matches: Vec<usize> = if !app.search_pattern.is_empty() {
-        display_logs_source
-            .iter()
-            .enumerate()
-            .filter(|(_, log)| {
-                log.line
-                    .to_lowercase()
-                    .contains(&app.search_pattern.to_lowercase())
-            })
-            .map(|(idx, _)| idx)
-            .collect()
-    } else {
-        Vec::new()
-    };
-
-    let total_matches = search_matches.len();
-
     // Determine which logs to display based on scroll state
-    let (display_logs, scroll_indicator, display_start) = if app.auto_scroll && app.current_match.is_none() && app.selected_line_index.is_none() {
-        // Auto-scroll mode: show the last N logs (only when not navigating search or selecting lines)
+    let (display_logs, scroll_indicator, display_start) = if app.auto_scroll && app.selected_line_index.is_none() {
+        // Auto-scroll mode: show the last N logs (only when not selecting lines)
         let start = total_logs.saturating_sub(visible_lines);
         let display = &display_logs_source[start..];
         (display, String::new(), start)
-    } else if let Some(match_idx) = app.current_match {
-        // Search mode: scroll to show the current match
-        if match_idx < total_matches {
-            let log_idx = search_matches[match_idx];
-            // Center the match in the viewport
-            let start = if log_idx < visible_lines / 2 {
-                0
-            } else {
-                (log_idx - visible_lines / 2).min(total_logs.saturating_sub(visible_lines))
-            };
-            let end = (start + visible_lines).min(total_logs);
-            let display = &display_logs_source[start..end];
-            (display, String::new(), start)
-        } else {
-            // Invalid match index, fall back to manual scroll
-            let start = app.scroll_offset.min(total_logs.saturating_sub(visible_lines));
-            let end = (start + visible_lines).min(total_logs);
-            let display = &display_logs_source[start..end];
-            (display, String::new(), start)
-        }
     } else if let Some(selected_idx) = app.selected_line_index {
         // Line selection mode: scroll to show the selected line
         if selected_idx < total_logs {
@@ -878,17 +825,13 @@ fn draw_log_viewer(
         let timestamp = log.timestamp.format("%H:%M:%S").to_string();
         let process_name = log.source.process_name();
 
-        // Check if this line is a search match and if it's the current match
-        let log_global_idx = display_start + display_idx;
-        let is_match = search_matches.contains(&log_global_idx);
-        let is_current_match = if let Some(match_idx) = app.current_match {
-            match_idx < total_matches && search_matches.get(match_idx) == Some(&log_global_idx)
-        } else {
-            false
-        };
-
         // Check if this line is selected
+        let log_global_idx = display_start + display_idx;
         let is_selected = app.selected_line_index == Some(log_global_idx);
+
+        // Check if this line is a search match (for highlighting)
+        let is_match = !app.search_pattern.is_empty() &&
+            log.line.to_lowercase().contains(&app.search_pattern.to_lowercase());
 
         // Format timestamp and process name parts (no ANSI codes)
         let timestamp_part = format!("[{}] ", timestamp);
@@ -908,8 +851,6 @@ fn draw_log_viewer(
             // In batch view mode: show full content with ANSI parsing
             let bg_color = if is_selected {
                 Some(Color::Blue)
-            } else if is_current_match {
-                Some(Color::Yellow)
             } else if is_match {
                 Some(Color::DarkGray)
             } else {
@@ -918,8 +859,6 @@ fn draw_log_viewer(
 
             let fg_override = if is_selected {
                 Some(Color::White)
-            } else if is_current_match {
-                Some(Color::Black)
             } else {
                 None
             };
@@ -945,8 +884,6 @@ fn draw_log_viewer(
             let truncated = format!("{}...", &full_line_clean[..truncate_at]);
             let style = if is_selected {
                 Style::default().bg(Color::Blue).fg(Color::White)
-            } else if is_current_match {
-                Style::default().bg(Color::Yellow).fg(Color::Black)
             } else if is_match {
                 Style::default().bg(Color::DarkGray)
             } else {
@@ -957,8 +894,6 @@ fn draw_log_viewer(
             // Full line fits, parse ANSI codes
             let bg_color = if is_selected {
                 Some(Color::Blue)
-            } else if is_current_match {
-                Some(Color::Yellow)
             } else if is_match {
                 Some(Color::DarkGray)
             } else {
@@ -967,8 +902,6 @@ fn draw_log_viewer(
 
             let fg_override = if is_selected {
                 Some(Color::White)
-            } else if is_current_match {
-                Some(Color::Black)
             } else {
                 None
             };
@@ -987,13 +920,7 @@ fn draw_log_viewer(
     }
 
     if !app.search_pattern.is_empty() {
-        if total_matches == 0 {
-            title_parts.push("[Search: no matches]".to_string());
-        } else if let Some(match_idx) = app.current_match {
-            title_parts.push(format!("[Search: {} of {}]", match_idx + 1, total_matches));
-        } else {
-            title_parts.push(format!("[Search: {} matches]", total_matches));
-        }
+        title_parts.push(format!("[Search: {}]", app.search_pattern));
     }
 
     if !scroll_indicator.is_empty() {

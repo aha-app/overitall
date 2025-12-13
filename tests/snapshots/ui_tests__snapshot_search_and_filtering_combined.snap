@@ -5,9 +5,9 @@ expression: output
 web [Stopped] | worker [Stopped]                                                                                        
                                                                                                                         
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-(1 filters) [Search: 1 of 1]                                                                                            
+(1 filters) [Search: Database]                                                                                          
 [12:00:00] web: ERROR: Database connection failed                                                                       
-[12:00:00] worker: ERROR: Failed to process job #5678                                                                   
+                                                                                                                        
                                                                                                                         
                                                                                                                         
                                                                                                                         
