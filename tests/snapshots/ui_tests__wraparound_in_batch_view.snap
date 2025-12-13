@@ -3,12 +3,12 @@ source: tests/ui_tests.rs
 expression: output
 ---
 web [Stopped] | worker [Stopped]                                                                                        
+                                                                                                                        
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- Logs                                                                                                                   
+                                                                                                                        
 [12:00:00] web: Starting web server on port 3000                                                                        
 [12:00:00] web: Loading configuration                                                                                   
 [12:00:00] web: Database connected                                                                                      
-                                                                                                                        
                                                                                                                         
                                                                                                                         
                                                                                                                         

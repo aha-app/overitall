@@ -431,7 +431,7 @@ pub fn draw(f: &mut Frame, app: &App, manager: &ProcessManager) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(2),      // Process list (1 content + 1 separator)
+            Constraint::Length(3),      // Process list (2 content + 1 separator)
             Constraint::Min(0),         // Log viewer (takes remaining space)
             Constraint::Length(1),      // Status bar
             Constraint::Length(1),      // Command input (exactly 1 line)
@@ -931,7 +931,7 @@ fn draw_log_viewer(
     }
 
     // Build title with filters and search info (buffer/batch stats now in status bar)
-    let mut title_parts = vec![" Logs ".to_string()];
+    let mut title_parts = vec![];
 
     if app.filter_count() > 0 {
         title_parts.push(format!("({} filters)", app.filter_count()));
