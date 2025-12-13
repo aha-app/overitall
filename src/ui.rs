@@ -129,6 +129,8 @@ pub struct App {
     pub frozen: bool,
     /// Timestamp when display was frozen (used to filter out newer logs)
     pub frozen_at: Option<chrono::DateTime<chrono::Local>>,
+    /// Snapshot of logs when entering frozen/batch mode (immune to eviction)
+    pub snapshot: Option<Vec<crate::log::LogLine>>,
 }
 
 impl App {
@@ -155,6 +157,7 @@ impl App {
             shutting_down: false,
             frozen: false,
             frozen_at: None,
+            snapshot: None,
         }
     }
 
@@ -449,6 +452,14 @@ impl App {
         self.frozen = false;
         self.frozen_at = None;
     }
+
+    pub fn create_snapshot(&mut self, logs: Vec<crate::log::LogLine>) {
+        self.snapshot = Some(logs);
+    }
+
+    pub fn discard_snapshot(&mut self) {
+        self.snapshot = None;
+    }
 }
 
 /// Draw the UI to the terminal
@@ -621,21 +632,28 @@ fn draw_log_viewer(
     manager: &ProcessManager,
     app: &App,
 ) {
-    let mut logs = manager.get_all_logs();
+    // Use snapshot if available (frozen/batch mode), otherwise use live buffer
+    let logs_vec: Vec<&crate::log::LogLine> = if let Some(ref snapshot) = app.snapshot {
+        snapshot.iter().collect()
+    } else {
+        let mut logs = manager.get_all_logs();
 
-    // If display is frozen, only show logs up to the frozen timestamp
-    if app.frozen {
-        if let Some(frozen_at) = app.frozen_at {
-            logs.retain(|log| log.timestamp <= frozen_at);
+        // If display is frozen (without snapshot), only show logs up to the frozen timestamp
+        if app.frozen {
+            if let Some(frozen_at) = app.frozen_at {
+                logs.retain(|log| log.timestamp <= frozen_at);
+            }
         }
-    }
+
+        logs
+    };
 
     // Apply filters to logs
     let filtered_logs: Vec<&crate::log::LogLine> = if app.filters.is_empty() {
         // No filters, show all logs
-        logs
+        logs_vec
     } else {
-        logs.into_iter()
+        logs_vec.into_iter()
             .filter(|log| {
                 let line_text = &log.line;
 

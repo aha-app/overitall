@@ -462,6 +462,12 @@ impl<'a> EventHandler<'a> {
             filtered_logs.len()
         };
 
+        // Create snapshot on first selection
+        let was_none = self.app.selected_line_index.is_none();
+        if was_none {
+            self.app.create_snapshot(filtered_logs.clone());
+        }
+
         self.app.select_prev_line(total_logs);
     }
 
@@ -488,6 +494,12 @@ impl<'a> EventHandler<'a> {
         } else {
             filtered_logs.len()
         };
+
+        // Create snapshot on first selection
+        let was_none = self.app.selected_line_index.is_none();
+        if was_none {
+            self.app.create_snapshot(filtered_logs.clone());
+        }
 
         self.app.select_next_line(total_logs);
     }
@@ -560,6 +572,7 @@ impl<'a> EventHandler<'a> {
             } else {
                 // Second Esc: unfreeze and resume tailing
                 self.app.unfreeze_display();
+                self.app.discard_snapshot();
                 self.app.clear_search();
                 self.app.scroll_to_bottom();
                 self.app.set_status_info("Resumed tailing".to_string());

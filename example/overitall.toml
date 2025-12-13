@@ -1,15 +1,11 @@
 procfile = "example/Procfile"
-
-# Maximum memory for log buffer (in megabytes)
-# Oldest logs are evicted when limit is reached
-# Default: 50 MB if not specified
 max_log_buffer_mb = 50
-
-[processes.worker]
-log_file = "worker.log"
 
 [processes.web]
 log_file = "web.log"
+
+[processes.worker]
+log_file = "worker.log"
 
 [filters]
 include = []
