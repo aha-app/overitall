@@ -736,17 +736,18 @@ fn draw_log_viewer(
     } else if let Some(selected_idx) = app.selected_line_index {
         // Line selection mode: scroll to show the selected line
         if selected_idx < total_logs {
-            // For lines near the bottom, show them at the bottom (not centered)
-            // This accounts for batch separators that consume screen space
-            let start = if selected_idx + 1 >= total_logs.saturating_sub(visible_lines / 2) {
-                // Selected line is in bottom half - show the last N logs
-                total_logs.saturating_sub(visible_lines)
-            } else if selected_idx < visible_lines / 2 {
+            // Position selected line in viewport, accounting for batch separators
+            // Separators are added during rendering and consume screen lines
+            // We position selected line at 75% down the viewport to leave room for separators
+            let target_position = (visible_lines * 3) / 4; // 75% down
+
+            let start = if selected_idx < target_position {
                 // Selected line is near top - show from beginning
                 0
             } else {
-                // Selected line is in middle - center it
-                selected_idx - visible_lines / 2
+                // Position selected line at target_position from top
+                // This leaves room above for batch separators without pushing line off-screen
+                selected_idx.saturating_sub(target_position)
             };
             let end = (start + visible_lines).min(total_logs);
             let display = &display_logs_source[start..end];
