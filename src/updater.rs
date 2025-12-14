@@ -109,6 +109,9 @@ fn download_and_update(tag: &str) -> anyhow::Result<()> {
 
     let current_exe = std::env::current_exe()?;
 
+    // Remove the old binary first to avoid macOS caching issues
+    // (in-place copy can leave the old executable state cached)
+    fs::remove_file(&current_exe)?;
     fs::copy(&new_binary, &current_exe)?;
 
     let mut perms = fs::metadata(&current_exe)?.permissions();
