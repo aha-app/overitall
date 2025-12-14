@@ -345,7 +345,9 @@ impl<'a> EventHandler<'a> {
         // Save to config
         self.config.batch_window_ms = Some(new_window);
         if let Some(config_path) = &self.config.config_path {
-            let _ = self.config.save_to_file(config_path);
+            if let Err(e) = self.config.save_to_file(config_path) {
+                self.app.set_status_error(format!("Config save failed: {}", e));
+            }
         }
     }
 
@@ -362,7 +364,9 @@ impl<'a> EventHandler<'a> {
         // Save to config
         self.config.batch_window_ms = Some(new_window);
         if let Some(config_path) = &self.config.config_path {
-            let _ = self.config.save_to_file(config_path);
+            if let Err(e) = self.config.save_to_file(config_path) {
+                self.app.set_status_error(format!("Config save failed: {}", e));
+            }
         }
     }
 
