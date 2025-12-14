@@ -16,6 +16,7 @@ Overitall (`oit`) is a Rust-based TUI that helps you manage multiple processes a
 - **Batch Navigation**: Navigate through groups of related log lines that arrived together
 - **Persistent Configuration**: Filters and settings are automatically saved
 - **Vim-style Commands**: Familiar `:command` interface for power users
+- **Auto-Update**: Automatically checks for and installs updates on startup
 
 ## Installation
 
@@ -234,6 +235,30 @@ hidden_processes = ["worker"]
 - `max_log_buffer_mb` - Maximum memory for log buffer in megabytes (default: 50)
 - `batch_window_ms` - Batch grouping window in milliseconds (default: 100)
 
+### Auto-Update
+
+Overitall automatically checks for updates on every startup. When a new version is available, it will:
+
+1. Download the update from GitHub releases
+2. Replace the current binary
+3. Restart with the new version
+
+This requires the `gh` CLI to be installed and authenticated (for private repo access during beta):
+
+```bash
+# Install gh CLI (https://cli.github.com/)
+brew install gh
+
+# Authenticate
+gh auth login
+```
+
+To skip the update check, use the `--no-update` flag:
+
+```bash
+oit --no-update
+```
+
 ### Memory Management
 
 By default, Overitall limits the log buffer to 50 MB. When this limit is reached, the oldest logs are automatically evicted (First-In-First-Out).
@@ -321,6 +346,7 @@ Overitall is under active development. Current features:
 - Dynamic batch window configuration (adjust batch grouping on-the-fly)
 - Persistent configuration
 - Help system
+- Auto-update on startup (via gh CLI)
 
 Planned features:
 

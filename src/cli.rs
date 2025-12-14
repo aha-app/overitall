@@ -31,6 +31,10 @@ pub struct Cli {
     /// Initialize a new .overitall.toml config file from Procfile
     #[arg(long)]
     pub init: bool,
+
+    /// Skip auto-update check on startup
+    #[arg(long)]
+    pub no_update: bool,
 }
 
 /// Initialize a new config file from an existing Procfile
@@ -252,5 +256,18 @@ mod tests {
         let cli = Cli::parse_from(["oit", "--init", "-c", "custom.toml"]);
         assert!(cli.init);
         assert_eq!(cli.config, "custom.toml");
+    }
+
+    #[test]
+    fn test_cli_parses_no_update_flag() {
+        let cli = Cli::parse_from(["oit", "--no-update"]);
+        assert!(cli.no_update);
+        assert!(!cli.init);
+    }
+
+    #[test]
+    fn test_cli_default_no_update_is_false() {
+        let cli = Cli::parse_from(["oit"]);
+        assert!(!cli.no_update);
     }
 }

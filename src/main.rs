@@ -6,6 +6,7 @@ mod log;
 mod procfile;
 mod process;
 mod ui;
+mod updater;
 
 use cli::{Cli, init_config};
 use config::Config;
@@ -22,11 +23,21 @@ use crossterm::{
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
 
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Parse CLI arguments
     let cli = Cli::parse();
     let config_path = &cli.config;
+
+    // Check for updates (unless disabled via --no-update)
+    // If update succeeds, this will re-exec and never return
+    if !cli.no_update {
+        if let Err(e) = updater::check_and_update(VERSION) {
+            eprintln!("Warning: Could not check for updates: {}", e);
+        }
+    }
 
     // Handle --init flag
     if cli.init {
