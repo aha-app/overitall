@@ -15,6 +15,8 @@ pub struct Config {
     pub max_log_buffer_mb: Option<usize>,
     #[serde(default)]
     pub hidden_processes: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disable_auto_update: Option<bool>,
 
     // This field is not serialized, just used at runtime
     #[serde(skip)]
@@ -123,6 +125,7 @@ procfile = "Procfile"
             batch_window_ms: Some(5000),
             max_log_buffer_mb: None,
             hidden_processes: Vec::new(),
+            disable_auto_update: None,
             config_path: None,
         };
 
@@ -145,6 +148,7 @@ procfile = "Procfile"
             batch_window_ms: None,
             max_log_buffer_mb: None,
             hidden_processes: Vec::new(),
+            disable_auto_update: None,
             config_path: None,
         };
 
@@ -171,6 +175,7 @@ procfile = "Procfile"
             batch_window_ms: None,
             max_log_buffer_mb: None,
             hidden_processes: Vec::new(),
+            disable_auto_update: None,
             config_path: None,
         };
 
@@ -193,6 +198,7 @@ procfile = "Procfile"
             batch_window_ms: Some(1500),
             max_log_buffer_mb: None,
             hidden_processes: Vec::new(),
+            disable_auto_update: None,
             config_path: None,
         };
 
@@ -249,6 +255,7 @@ procfile = "Procfile"
             batch_window_ms: None,
             max_log_buffer_mb: Some(75),
             hidden_processes: Vec::new(),
+            disable_auto_update: None,
             config_path: None,
         };
 
@@ -257,5 +264,80 @@ procfile = "Procfile"
 
         let loaded_config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
         assert_eq!(loaded_config.max_log_buffer_mb, Some(75));
+    }
+
+    #[test]
+    fn test_disable_auto_update_loads_from_config() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(
+            temp_file,
+            r#"
+procfile = "Procfile"
+disable_auto_update = true
+
+[processes]
+"#
+        )
+        .unwrap();
+
+        let config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert_eq!(config.disable_auto_update, Some(true));
+    }
+
+    #[test]
+    fn test_disable_auto_update_defaults_when_missing() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(
+            temp_file,
+            r#"
+procfile = "Procfile"
+
+[processes]
+"#
+        )
+        .unwrap();
+
+        let config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert_eq!(config.disable_auto_update, None);
+    }
+
+    #[test]
+    fn test_disable_auto_update_none_not_serialized() {
+        let config = Config {
+            procfile: PathBuf::from("Procfile"),
+            processes: HashMap::new(),
+            filters: FilterConfig::default(),
+            batch_window_ms: None,
+            max_log_buffer_mb: None,
+            hidden_processes: Vec::new(),
+            disable_auto_update: None,
+            config_path: None,
+        };
+
+        let toml_string = toml::to_string_pretty(&config).unwrap();
+        assert!(
+            !toml_string.contains("disable_auto_update"),
+            "disable_auto_update should not be serialized when None"
+        );
+    }
+
+    #[test]
+    fn test_disable_auto_update_some_is_serialized() {
+        let config = Config {
+            procfile: PathBuf::from("Procfile"),
+            processes: HashMap::new(),
+            filters: FilterConfig::default(),
+            batch_window_ms: None,
+            max_log_buffer_mb: None,
+            hidden_processes: Vec::new(),
+            disable_auto_update: Some(true),
+            config_path: None,
+        };
+
+        let toml_string = toml::to_string_pretty(&config).unwrap();
+        assert!(
+            toml_string.contains("disable_auto_update = true"),
+            "disable_auto_update should be serialized when Some(true)"
+        );
     }
 }

@@ -234,6 +234,7 @@ hidden_processes = ["worker"]
 - `hidden_processes` - Array of process names to hide from log viewer (automatically saved)
 - `max_log_buffer_mb` - Maximum memory for log buffer in megabytes (default: 50)
 - `batch_window_ms` - Batch grouping window in milliseconds (default: 100)
+- `disable_auto_update` - Set to `true` to disable auto-update checks (default: false)
 
 ### Auto-Update
 
@@ -257,6 +258,12 @@ To skip the update check, use the `--no-update` flag:
 
 ```bash
 oit --no-update
+```
+
+Or disable auto-update permanently in your config file:
+
+```toml
+disable_auto_update = true
 ```
 
 ### Memory Management

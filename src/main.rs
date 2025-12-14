@@ -31,9 +31,12 @@ async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let config_path = &cli.config;
 
-    // Check for updates (unless disabled via --no-update)
+    // Check for updates (unless disabled via --no-update or config file)
     // If update succeeds, this will re-exec and never return
-    if !cli.no_update {
+    let config_disables_update = Config::from_file(config_path)
+        .map(|c| c.disable_auto_update.unwrap_or(false))
+        .unwrap_or(false);
+    if !cli.no_update && !config_disables_update {
         if let Err(e) = updater::check_and_update(VERSION) {
             eprintln!("Warning: Could not check for updates: {}", e);
         }

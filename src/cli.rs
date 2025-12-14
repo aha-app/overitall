@@ -94,6 +94,7 @@ pub fn init_config(config_path: &str) -> anyhow::Result<()> {
         batch_window_ms: Some(100),
         max_log_buffer_mb: Some(50),
         hidden_processes: Vec::new(),
+        disable_auto_update: None,
         config_path: None,
     };
 
