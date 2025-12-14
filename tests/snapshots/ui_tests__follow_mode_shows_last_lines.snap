@@ -1,0 +1,44 @@
+---
+source: tests/ui_tests.rs
+expression: output
+---
+web [Stopped]                                                                                                           
+                                                                                                                        
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                        
+[12:00:00] web: Log line number 17                                                                                      
+[12:00:00] web: Log line number 18                                                                                      
+[12:00:00] web: Log line number 19                                                                                      
+[12:00:00] web: Log line number 20                                                                                      
+[12:00:00] web: Log line number 21                                                                                      
+[12:00:00] web: Log line number 22                                                                                      
+[12:00:00] web: Log line number 23                                                                                      
+[12:00:00] web: Log line number 24                                                                                      
+[12:00:00] web: Log line number 25                                                                                      
+[12:00:00] web: Log line number 26                                                                                      
+[12:00:00] web: Log line number 27                                                                                      
+[12:00:00] web: Log line number 28                                                                                      
+[12:00:00] web: Log line number 29                                                                                      
+[12:00:00] web: Log line number 30                                                                                      
+[12:00:00] web: Log line number 31                                                                                      
+[12:00:00] web: Log line number 32                                                                                      
+[12:00:00] web: Log line number 33                                                                                      
+[12:00:00] web: Log line number 34                                                                                      
+[12:00:00] web: Log line number 35                                                                                      
+[12:00:00] web: Log line number 36                                                                                      
+[12:00:00] web: Log line number 37                                                                                      
+[12:00:00] web: Log line number 38                                                                                      
+[12:00:00] web: Log line number 39                                                                                      
+[12:00:00] web: Log line number 40                                                                                      
+[12:00:00] web: Log line number 41                                                                                      
+[12:00:00] web: Log line number 42                                                                                      
+[12:00:00] web: Log line number 43                                                                                      
+[12:00:00] web: Log line number 44                                                                                      
+[12:00:00] web: Log line number 45                                                                                      
+[12:00:00] web: Log line number 46                                                                                      
+[12:00:00] web: Log line number 47                                                                                      
+[12:00:00] web: Log line number 48                                                                                      
+[12:00:00] web: Log line number 49                                                                                      
+[12:00:00] web: Log line number 50                                                                                      
+Buffer: 0.0/50 MB (0%) | 50 lines | 1 batches                                                                           
+Press : for commands, / to search, q to quit

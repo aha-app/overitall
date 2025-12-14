@@ -159,14 +159,41 @@ pub fn draw_log_viewer(
         (filtered_logs, 0)
     };
 
-    // Calculate visible lines (area height minus 2 for borders)
-    let visible_lines = area.height.saturating_sub(2) as usize;
+    // Calculate visible lines
+    // Subtract 1 for the title line (Block title takes 1 line even with Borders::NONE)
+    let visible_lines = (area.height as usize).saturating_sub(1);
     let total_logs = display_logs_source.len();
 
     // Determine which logs to display based on scroll state
     let (display_logs, scroll_indicator, display_start) = if app.auto_scroll && app.selected_line_index.is_none() {
         // Auto-scroll mode: show the last N logs (only when not selecting lines)
-        let start = total_logs.saturating_sub(visible_lines);
+        // Account for batch separators: work backwards from the end to find how many logs fit
+        let mut start = total_logs;
+        let mut lines_used = 0;
+
+        while start > 0 && lines_used < visible_lines {
+            start -= 1;
+            lines_used += 1; // The log line itself
+
+            // Check if adding this log would add a separator before it
+            if start > 0 && current_batch_validated.is_none() && !filtered_log_to_batch.is_empty() {
+                let prev_idx = display_start_in_filtered + start - 1;
+                let curr_idx = display_start_in_filtered + start;
+                let prev_batch = filtered_log_to_batch.get(prev_idx).and_then(|b| *b);
+                let curr_batch = filtered_log_to_batch.get(curr_idx).and_then(|b| *b);
+                if prev_batch != curr_batch && curr_batch.is_some() {
+                    // This log would need a separator before it
+                    if lines_used + 1 <= visible_lines {
+                        lines_used += 1; // Account for the separator
+                    } else {
+                        // No room for the separator, don't include this log
+                        start += 1;
+                        break;
+                    }
+                }
+            }
+        }
+
         let display = &display_logs_source[start..];
         (display, String::new(), start)
     } else if let Some(selected_idx) = app.selected_line_index {
