@@ -340,4 +340,99 @@ procfile = "Procfile"
             "disable_auto_update should be serialized when Some(true)"
         );
     }
+
+    #[test]
+    fn test_hidden_processes_loads_from_config() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(
+            temp_file,
+            r#"
+procfile = "Procfile"
+hidden_processes = ["web", "worker"]
+
+[processes]
+"#
+        )
+        .unwrap();
+
+        let config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert_eq!(config.hidden_processes, vec!["web", "worker"]);
+    }
+
+    #[test]
+    fn test_hidden_processes_defaults_to_empty_when_missing() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(
+            temp_file,
+            r#"
+procfile = "Procfile"
+
+[processes]
+"#
+        )
+        .unwrap();
+
+        let config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert!(config.hidden_processes.is_empty());
+    }
+
+    #[test]
+    fn test_hidden_processes_saves_to_config() {
+        let config = Config {
+            procfile: PathBuf::from("Procfile"),
+            processes: HashMap::new(),
+            filters: FilterConfig::default(),
+            batch_window_ms: None,
+            max_log_buffer_mb: None,
+            hidden_processes: vec!["api".to_string(), "db".to_string()],
+            disable_auto_update: None,
+            config_path: None,
+        };
+
+        let temp_file = NamedTempFile::new().unwrap();
+        config.save(temp_file.path().to_str().unwrap()).unwrap();
+
+        let loaded_config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert_eq!(loaded_config.hidden_processes, vec!["api", "db"]);
+    }
+
+    #[test]
+    fn test_hidden_processes_empty_array_serialized() {
+        let config = Config {
+            procfile: PathBuf::from("Procfile"),
+            processes: HashMap::new(),
+            filters: FilterConfig::default(),
+            batch_window_ms: None,
+            max_log_buffer_mb: None,
+            hidden_processes: Vec::new(),
+            disable_auto_update: None,
+            config_path: None,
+        };
+
+        let toml_string = toml::to_string_pretty(&config).unwrap();
+        assert!(
+            toml_string.contains("hidden_processes = []"),
+            "empty hidden_processes should be serialized as empty array"
+        );
+    }
+
+    #[test]
+    fn test_hidden_processes_roundtrip() {
+        let original = Config {
+            procfile: PathBuf::from("Procfile"),
+            processes: HashMap::new(),
+            filters: FilterConfig::default(),
+            batch_window_ms: None,
+            max_log_buffer_mb: None,
+            hidden_processes: vec!["web".to_string(), "worker".to_string(), "scheduler".to_string()],
+            disable_auto_update: None,
+            config_path: None,
+        };
+
+        let temp_file = NamedTempFile::new().unwrap();
+        original.save(temp_file.path().to_str().unwrap()).unwrap();
+
+        let loaded = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert_eq!(loaded.hidden_processes, original.hidden_processes);
+    }
 }
