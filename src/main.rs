@@ -3,6 +3,7 @@ mod command;
 mod config;
 mod event_handler;
 mod log;
+mod operations;
 mod procfile;
 mod process;
 mod ui;

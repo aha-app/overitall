@@ -5,6 +5,7 @@ pub mod clipboard;
 pub mod command;
 pub mod config;
 pub mod log;
+pub mod operations;
 pub mod process;
 pub mod procfile;
 pub mod ui;

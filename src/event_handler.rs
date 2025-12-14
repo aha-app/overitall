@@ -1,6 +1,7 @@
 use crate::command::{Command, parse_command, CommandExecutor};
 use crate::config::Config;
 use crate::log;
+use crate::operations::{config::save_config_with_error, logs::FilteredLogs};
 use crate::process::ProcessManager;
 use crate::ui::{self, App, apply_filters};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -335,39 +336,27 @@ impl<'a> EventHandler<'a> {
     fn handle_increase_batch_window(&mut self) {
         let new_window = self.app.batch_window_ms + 100;
         self.app.set_batch_window(new_window);
-        // Count batches with the new window to show in status
-        let logs = self.manager.get_all_logs();
-        let filtered_logs = apply_filters(logs, &self.app.filters);
-        let filtered_refs: Vec<&log::LogLine> = filtered_logs.iter().collect();
-        let batches = ui::detect_batches_from_logs(&filtered_refs, new_window);
-        self.app.set_status_success(format!("Batch window increased to {}ms ({} batches)", new_window, batches.len()));
 
-        // Save to config
+        // Use shared FilteredLogs to count batches with the new window
+        let filtered = FilteredLogs::from_manager(self.manager, &self.app.filters, new_window);
+        self.app.set_status_success(format!("Batch window increased to {}ms ({} batches)", new_window, filtered.batches.len()));
+
+        // Save to config using shared helper
         self.config.batch_window_ms = Some(new_window);
-        if let Some(config_path) = &self.config.config_path {
-            if let Err(e) = self.config.save_to_file(config_path) {
-                self.app.set_status_error(format!("Config save failed: {}", e));
-            }
-        }
+        save_config_with_error(self.config, self.app);
     }
 
     fn handle_decrease_batch_window(&mut self) {
         let new_window = (self.app.batch_window_ms - 100).max(1);
         self.app.set_batch_window(new_window);
-        // Count batches with the new window to show in status
-        let logs = self.manager.get_all_logs();
-        let filtered_logs = apply_filters(logs, &self.app.filters);
-        let filtered_refs: Vec<&log::LogLine> = filtered_logs.iter().collect();
-        let batches = ui::detect_batches_from_logs(&filtered_refs, new_window);
-        self.app.set_status_success(format!("Batch window decreased to {}ms ({} batches)", new_window, batches.len()));
 
-        // Save to config
+        // Use shared FilteredLogs to count batches with the new window
+        let filtered = FilteredLogs::from_manager(self.manager, &self.app.filters, new_window);
+        self.app.set_status_success(format!("Batch window decreased to {}ms ({} batches)", new_window, filtered.batches.len()));
+
+        // Save to config using shared helper
         self.config.batch_window_ms = Some(new_window);
-        if let Some(config_path) = &self.config.config_path {
-            if let Err(e) = self.config.save_to_file(config_path) {
-                self.app.set_status_error(format!("Config save failed: {}", e));
-            }
-        }
+        save_config_with_error(self.config, self.app);
     }
 
     fn handle_copy_line(&mut self) {
