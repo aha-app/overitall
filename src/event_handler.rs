@@ -1,7 +1,7 @@
 use crate::command::{Command, parse_command, CommandExecutor};
 use crate::config::Config;
 use crate::log;
-use crate::operations::{batch, batch_window};
+use crate::operations::{batch, batch_window, navigation};
 use crate::process::ProcessManager;
 use crate::ui::{self, App, apply_filters};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -459,124 +459,19 @@ impl<'a> EventHandler<'a> {
     }
 
     fn handle_select_prev_line(&mut self) {
-        // Line selection: select previous line with wrap-around
-        // Calculate the correct max based on filtered logs and batch view mode
-        let logs = self.manager.get_all_logs();
-        let filtered_logs = apply_filters(logs, &self.app.filters);
-
-        // If in batch view mode, limit to current batch
-        let filtered_refs: Vec<&log::LogLine> = filtered_logs.iter().collect();
-        let total_logs = if self.app.batch_view_mode {
-            if let Some(batch_idx) = self.app.current_batch {
-                let batches = ui::detect_batches_from_logs(&filtered_refs, self.app.batch_window_ms);
-                if !batches.is_empty() && batch_idx < batches.len() {
-                    let (start, end) = batches[batch_idx];
-                    end - start + 1
-                } else {
-                    filtered_logs.len()
-                }
-            } else {
-                filtered_logs.len()
-            }
-        } else {
-            filtered_logs.len()
-        };
-
-        // Create snapshot on first selection
-        let was_none = self.app.selected_line_index.is_none();
-        if was_none {
-            self.app.create_snapshot(filtered_logs.clone());
-        }
-
-        self.app.select_prev_line(total_logs);
+        navigation::select_prev_line(self.app, self.manager);
     }
 
     fn handle_select_next_line(&mut self) {
-        // Line selection: select next line
-        // Calculate the correct max based on filtered logs and batch view mode
-        let logs = self.manager.get_all_logs();
-        let filtered_logs = apply_filters(logs, &self.app.filters);
-
-        // If in batch view mode, limit to current batch
-        let filtered_refs: Vec<&log::LogLine> = filtered_logs.iter().collect();
-        let total_logs = if self.app.batch_view_mode {
-            if let Some(batch_idx) = self.app.current_batch {
-                let batches = ui::detect_batches_from_logs(&filtered_refs, self.app.batch_window_ms);
-                if !batches.is_empty() && batch_idx < batches.len() {
-                    let (start, end) = batches[batch_idx];
-                    end - start + 1
-                } else {
-                    filtered_logs.len()
-                }
-            } else {
-                filtered_logs.len()
-            }
-        } else {
-            filtered_logs.len()
-        };
-
-        // Create snapshot on first selection
-        let was_none = self.app.selected_line_index.is_none();
-        if was_none {
-            self.app.create_snapshot(filtered_logs.clone());
-        }
-
-        self.app.select_next_line(total_logs);
+        navigation::select_next_line(self.app, self.manager);
     }
 
     fn handle_page_up(&mut self) {
-        // If a line is selected, move the selection by a page
-        if self.app.selected_line_index.is_some() {
-            // Move selection up by a page (20 lines)
-            let page_size = 20;
-            if let Some(current_idx) = self.app.selected_line_index {
-                let new_idx = current_idx.saturating_sub(page_size);
-                self.app.selected_line_index = Some(new_idx);
-                self.app.auto_scroll = false;
-            }
-        } else {
-            // No line selected, just scroll the view
-            self.app.scroll_up(20);
-        }
+        navigation::page_up(self.app, self.manager);
     }
 
     fn handle_page_down(&mut self) {
-        // If a line is selected, move the selection by a page
-        if self.app.selected_line_index.is_some() {
-            // Calculate the correct max based on filtered logs and batch view mode
-            let logs = self.manager.get_all_logs();
-            let filtered_logs = apply_filters(logs, &self.app.filters);
-
-            let filtered_refs: Vec<&log::LogLine> = filtered_logs.iter().collect();
-            let total_logs = if self.app.batch_view_mode {
-                if let Some(batch_idx) = self.app.current_batch {
-                    let batches = ui::detect_batches_from_logs(&filtered_refs, self.app.batch_window_ms);
-                    if !batches.is_empty() && batch_idx < batches.len() {
-                        let (start, end) = batches[batch_idx];
-                        end - start + 1
-                    } else {
-                        filtered_logs.len()
-                    }
-                } else {
-                    filtered_logs.len()
-                }
-            } else {
-                filtered_logs.len()
-            };
-
-            // Move selection down by a page (20 lines)
-            let page_size = 20;
-            if let Some(current_idx) = self.app.selected_line_index {
-                let new_idx = (current_idx + page_size).min(total_logs.saturating_sub(1));
-                self.app.selected_line_index = Some(new_idx);
-                self.app.auto_scroll = false;
-            }
-        } else {
-            // No line selected, just scroll the view
-            let total_logs = self.manager.get_all_logs().len();
-            let max_offset = total_logs.saturating_sub(1);
-            self.app.scroll_down(20, max_offset);
-        }
+        navigation::page_down(self.app, self.manager);
     }
 
     fn handle_reset_to_latest(&mut self) {
