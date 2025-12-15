@@ -5,5 +5,6 @@ pub mod config;
 pub mod filter;
 pub mod logs;
 pub mod navigation;
+pub mod process;
 pub mod search;
 pub mod visibility;

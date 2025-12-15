@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::operations::{batch, batch_window, filter, visibility};
+use crate::operations::{batch, batch_window, filter, process, visibility};
 use crate::process::ProcessManager;
 use crate::ui::App;
 use anyhow::Result;
@@ -197,37 +197,25 @@ impl<'a> CommandExecutor<'a> {
     }
 
     async fn execute_start(&mut self, name: &str) -> Result<()> {
-        match self.manager.start_process(name).await {
-            Ok(_) => {
-                self.app.set_status_success(format!("Started process: {}", name));
-            }
-            Err(e) => {
-                self.app.set_status_error(format!("Failed to start {}: {}", name, e));
-            }
+        match process::start_process(self.manager, name).await {
+            Ok(msg) => self.app.set_status_success(msg),
+            Err(msg) => self.app.set_status_error(msg),
         }
         Ok(())
     }
 
     async fn execute_restart(&mut self, name: &str) -> Result<()> {
-        match self.manager.restart_process(name).await {
-            Ok(_) => {
-                self.app.set_status_success(format!("Restarted process: {}", name));
-            }
-            Err(e) => {
-                self.app.set_status_error(format!("Failed to restart {}: {}", name, e));
-            }
+        match process::restart_process(self.manager, name).await {
+            Ok(msg) => self.app.set_status_success(msg),
+            Err(msg) => self.app.set_status_error(msg),
         }
         Ok(())
     }
 
     async fn execute_kill(&mut self, name: &str) -> Result<()> {
-        match self.manager.kill_process(name).await {
-            Ok(_) => {
-                self.app.set_status_success(format!("Killed process: {}", name));
-            }
-            Err(e) => {
-                self.app.set_status_error(format!("Failed to kill {}: {}", name, e));
-            }
+        match process::kill_process(self.manager, name).await {
+            Ok(msg) => self.app.set_status_success(msg),
+            Err(msg) => self.app.set_status_error(msg),
         }
         Ok(())
     }
