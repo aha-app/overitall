@@ -16,6 +16,7 @@ Snapshot testing with `insta` crate (`cargo insta review` to approve changes).
 
 ## Code Style
 - Comment lightly, do not leave obvious code comments
+- Don't put info about git status in .md files
 
 ## Reference
 See plan.md for detailed feature specs and planned work.

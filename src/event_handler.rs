@@ -1,7 +1,7 @@
 use crate::command::{Command, parse_command, CommandExecutor};
 use crate::config::Config;
 use crate::log;
-use crate::operations::{batch, batch_window, clipboard, navigation};
+use crate::operations::{batch, batch_window, clipboard, navigation, search};
 use crate::process::ProcessManager;
 use crate::ui::{self, App, apply_filters};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -243,94 +243,19 @@ impl<'a> EventHandler<'a> {
 
     fn handle_search_execute(&mut self) {
         let search_text = self.app.input.clone();
-        if search_text.is_empty() {
-            return;
+        if let Err(msg) = search::execute_search(self.app, self.manager, &search_text) {
+            if msg != "Empty search" {
+                self.app.set_status_error(msg);
+            }
         }
-
-        // Save the search pattern
-        self.app.perform_search(search_text.clone());
-
-        // Get filtered logs (after persistent filters AND search filter)
-        let logs = self.manager.get_all_logs();
-        let filtered_logs = apply_filters(logs, &self.app.filters);
-
-        // Apply search filter
-        let search_filtered: Vec<_> = filtered_logs
-            .into_iter()
-            .filter(|log| {
-                log.line
-                    .to_lowercase()
-                    .contains(&search_text.to_lowercase())
-            })
-            .collect();
-
-        if search_filtered.is_empty() {
-            self.app.set_status_error("No matches found".to_string());
-            return;
-        }
-
-        // Create snapshot
-        self.app.create_snapshot(search_filtered.clone());
-
-        // Freeze display
-        self.app.freeze_display();
-
-        // Select the last (bottom) entry
-        let last_index = search_filtered.len().saturating_sub(1);
-        self.app.selected_line_index = Some(last_index);
-
-        // Exit search_mode so user can't type (but keep search_pattern)
-        self.app.search_mode = false;
-        self.app.input.clear();
     }
 
 
     fn handle_show_context(&mut self) {
-        // Close expanded view
-        self.app.close_expanded_view();
-
-        // Get the currently selected log line (before we change anything)
-        let selected_log = if let Some(idx) = self.app.selected_line_index {
-            if let Some(snapshot) = &self.app.snapshot {
-                snapshot.get(idx).cloned()
-            } else {
-                None
-            }
-        } else {
-            None
-        };
-
-        if selected_log.is_none() {
-            return;
+        match search::show_context(self.app, self.manager) {
+            Ok(msg) => self.app.set_status_info(msg),
+            Err(msg) => self.app.set_status_error(msg),
         }
-        let selected_log = selected_log.unwrap();
-
-        // Clear search pattern to show all logs
-        self.app.search_pattern.clear();
-
-        // Get ALL filtered logs (persistent filters only, no search)
-        let logs = self.manager.get_all_logs();
-        let filtered_logs = apply_filters(logs, &self.app.filters);
-
-        // Find the index of the selected log in the full filtered set
-        // Match by timestamp and line content for uniqueness
-        let new_index = filtered_logs.iter().position(|log| {
-            log.timestamp == selected_log.timestamp && log.line == selected_log.line
-        });
-
-        if new_index.is_none() {
-            self.app.set_status_error("Could not find log in context".to_string());
-            return;
-        }
-
-        // Create new snapshot with all logs
-        self.app.create_snapshot(filtered_logs);
-
-        // Update selection to point to the same log in the full context
-        self.app.selected_line_index = new_index;
-
-        // Display is already frozen, keep it that way
-        self.app.set_status_info("Showing context around selected log".to_string());
     }
 
     fn handle_increase_batch_window(&mut self) {
