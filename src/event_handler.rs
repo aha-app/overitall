@@ -1,7 +1,7 @@
 use crate::command::{Command, parse_command, CommandExecutor};
 use crate::config::Config;
 use crate::log;
-use crate::operations::{config::save_config_with_error, logs::FilteredLogs};
+use crate::operations::{batch, config::save_config_with_error, logs::FilteredLogs};
 use crate::process::ProcessManager;
 use crate::ui::{self, App, apply_filters};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -437,31 +437,11 @@ impl<'a> EventHandler<'a> {
     }
 
     fn handle_next_batch(&mut self) {
-        // Get filtered logs and create snapshot on first entry to batch view mode
-        let logs = self.manager.get_all_logs();
-        let filtered_logs = apply_filters(logs, &self.app.filters);
-
-        // Create snapshot if entering batch view for the first time
-        let was_none = !self.app.batch_view_mode;
-        if was_none {
-            self.app.create_snapshot(filtered_logs);
-        }
-
-        self.app.next_batch();
+        batch::next_batch(self.app, self.manager);
     }
 
     fn handle_prev_batch(&mut self) {
-        // Get filtered logs and create snapshot on first entry to batch view mode
-        let logs = self.manager.get_all_logs();
-        let filtered_logs = apply_filters(logs, &self.app.filters);
-
-        // Create snapshot if entering batch view for the first time
-        let was_none = !self.app.batch_view_mode;
-        if was_none {
-            self.app.create_snapshot(filtered_logs);
-        }
-
-        self.app.prev_batch();
+        batch::prev_batch(self.app, self.manager);
     }
 
     fn handle_focus_batch(&mut self) {

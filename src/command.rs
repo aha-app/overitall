@@ -1,5 +1,6 @@
 use crate::config::Config;
 use crate::log;
+use crate::operations::batch;
 use crate::process::ProcessManager;
 use crate::ui::{self, App};
 use anyhow::Result;
@@ -272,51 +273,18 @@ impl<'a> CommandExecutor<'a> {
     }
 
     fn execute_next_batch(&mut self) {
-        // Get filtered logs and create snapshot on first entry to batch view mode
-        let logs = self.manager.get_all_logs();
-        let filtered_logs = ui::apply_filters(logs, &self.app.filters);
-
-        // Create snapshot if entering batch view for the first time
-        let was_none = !self.app.batch_view_mode;
-        if was_none {
-            self.app.create_snapshot(filtered_logs);
-        }
-
-        self.app.next_batch();
+        batch::next_batch(self.app, self.manager);
         self.app.set_status_info("Next batch".to_string());
     }
 
     fn execute_prev_batch(&mut self) {
-        // Get filtered logs and create snapshot on first entry to batch view mode
-        let logs = self.manager.get_all_logs();
-        let filtered_logs = ui::apply_filters(logs, &self.app.filters);
-
-        // Create snapshot if entering batch view for the first time
-        let was_none = !self.app.batch_view_mode;
-        if was_none {
-            self.app.create_snapshot(filtered_logs);
-        }
-
-        self.app.prev_batch();
+        batch::prev_batch(self.app, self.manager);
         self.app.set_status_info("Previous batch".to_string());
     }
 
     fn execute_show_batch(&mut self) {
-        // Get filtered logs and create snapshot when enabling batch view
-        let logs = self.manager.get_all_logs();
-        let filtered_logs = ui::apply_filters(logs, &self.app.filters);
-
-        // Create snapshot if entering batch view mode (toggling from false to true)
-        let entering_batch_view = !self.app.batch_view_mode;
-        if entering_batch_view {
-            self.app.create_snapshot(filtered_logs);
-        } else {
-            // Exiting batch view mode, discard snapshot
-            self.app.discard_snapshot();
-        }
-
-        self.app.toggle_batch_view();
-        if self.app.batch_view_mode {
+        let enabled = batch::toggle_batch_view(self.app, self.manager);
+        if enabled {
             self.app.set_status_info("Batch view mode enabled".to_string());
         } else {
             self.app.set_status_info("Batch view mode disabled".to_string());
