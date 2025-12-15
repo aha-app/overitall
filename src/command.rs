@@ -1,7 +1,7 @@
 use crate::config::Config;
-use crate::operations::{batch, batch_window};
+use crate::operations::{batch, batch_window, filter};
 use crate::process::ProcessManager;
-use crate::ui::{self, App};
+use crate::ui::App;
 use anyhow::Result;
 
 /// Command parsed from user input
@@ -233,36 +233,24 @@ impl<'a> CommandExecutor<'a> {
     }
 
     fn execute_filter_include(&mut self, pattern: String) {
-        self.app.add_include_filter(pattern.clone());
+        filter::add_include_filter(self.app, self.config, pattern.clone());
         self.app.set_status_success(format!("Added include filter: {}", pattern));
-        self.save_config();
     }
 
     fn execute_filter_exclude(&mut self, pattern: String) {
-        self.app.add_exclude_filter(pattern.clone());
+        filter::add_exclude_filter(self.app, self.config, pattern.clone());
         self.app.set_status_success(format!("Added exclude filter: {}", pattern));
-        self.save_config();
     }
 
     fn execute_filter_clear(&mut self) {
-        let count = self.app.filter_count();
-        self.app.clear_filters();
+        let count = filter::clear_filters(self.app, self.config);
         self.app.set_status_success(format!("Cleared {} filter(s)", count));
-        self.save_config();
     }
 
     fn execute_filter_list(&mut self) {
-        if self.app.filters.is_empty() {
-            self.app.set_status_info("No active filters".to_string());
-        } else {
-            let filter_strs: Vec<String> = self.app.filters.iter().map(|f| {
-                let type_str = match f.filter_type {
-                    ui::FilterType::Include => "include",
-                    ui::FilterType::Exclude => "exclude",
-                };
-                format!("{}: {}", type_str, f.pattern)
-            }).collect();
-            self.app.set_status_info(format!("Filters: {}", filter_strs.join(", ")));
+        match filter::list_filters(self.app) {
+            Some(msg) => self.app.set_status_info(msg),
+            None => self.app.set_status_info("No active filters".to_string()),
         }
     }
 
