@@ -1,7 +1,7 @@
 use crate::command::{Command, parse_command, CommandExecutor};
 use crate::config::Config;
 use crate::log;
-use crate::operations::{batch, batch_window, navigation};
+use crate::operations::{batch, batch_window, clipboard, navigation};
 use crate::process::ProcessManager;
 use crate::ui::{self, App, apply_filters};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -344,79 +344,16 @@ impl<'a> EventHandler<'a> {
     }
 
     fn handle_copy_line(&mut self) {
-        if let Some(line_idx) = self.app.selected_line_index {
-            // Get all logs and apply filters (same logic as in draw_expanded_line_overlay)
-            let logs = self.manager.get_all_logs();
-            let filtered_logs = apply_filters(logs, &self.app.filters);
-
-            // Apply batch view mode filtering if enabled
-            let filtered_refs: Vec<&log::LogLine> = filtered_logs.iter().collect();
-            let batches = ui::detect_batches_from_logs(&filtered_refs, self.app.batch_window_ms);
-            let display_logs: Vec<_> = if self.app.batch_view_mode {
-                if let Some(batch_idx) = self.app.current_batch {
-                    if !batches.is_empty() && batch_idx < batches.len() {
-                        let (start, end) = batches[batch_idx];
-                        filtered_logs[start..=end].to_vec()
-                    } else {
-                        filtered_logs
-                    }
-                } else {
-                    filtered_logs
-                }
-            } else {
-                filtered_logs
-            };
-
-            if line_idx < display_logs.len() {
-                let log = &display_logs[line_idx];
-                let formatted = format!(
-                    "[{}] {}: {}",
-                    log.timestamp.format("%Y-%m-%d %H:%M:%S"),
-                    log.source.process_name(),
-                    log.line
-                );
-
-                match overitall::clipboard::copy_to_clipboard(&formatted) {
-                    Ok(_) => self.app.set_status_success("Copied line to clipboard".to_string()),
-                    Err(e) => self.app.set_status_error(format!("Failed to copy: {}", e)),
-                }
-            }
+        match clipboard::copy_line(self.app, self.manager) {
+            Ok(msg) => self.app.set_status_success(msg),
+            Err(msg) => self.app.set_status_error(msg),
         }
     }
 
     fn handle_copy_batch(&mut self) {
-        if let Some(line_idx) = self.app.selected_line_index {
-            // Get all logs and apply filters
-            let logs = self.manager.get_all_logs();
-            let filtered_logs = apply_filters(logs, &self.app.filters);
-
-            // Detect batches
-            let filtered_refs: Vec<&log::LogLine> = filtered_logs.iter().collect();
-            let batches = ui::detect_batches_from_logs(&filtered_refs, self.app.batch_window_ms);
-
-            // Find which batch contains the selected line
-            if let Some((batch_idx, (start, end))) = batches.iter().enumerate().find(|(_, (start, end))| {
-                line_idx >= *start && line_idx <= *end
-            }) {
-                // Format the entire batch
-                let mut batch_text = format!("=== Batch {} ({} lines) ===\n", batch_idx + 1, end - start + 1);
-
-                for log in &filtered_logs[*start..=*end] {
-                    batch_text.push_str(&format!(
-                        "[{}] {}: {}\n",
-                        log.timestamp.format("%Y-%m-%d %H:%M:%S"),
-                        log.source.process_name(),
-                        log.line
-                    ));
-                }
-
-                match overitall::clipboard::copy_to_clipboard(&batch_text) {
-                    Ok(_) => self.app.set_status_success(format!("Copied batch to clipboard ({} lines)", end - start + 1)),
-                    Err(e) => self.app.set_status_error(format!("Failed to copy: {}", e)),
-                }
-            } else {
-                self.app.set_status_error("No batch found for selected line".to_string());
-            }
+        match clipboard::copy_batch(self.app, self.manager) {
+            Ok(msg) => self.app.set_status_success(msg),
+            Err(msg) => self.app.set_status_error(msg),
         }
     }
 
