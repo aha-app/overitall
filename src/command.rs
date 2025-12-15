@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::operations::{batch, batch_window, filter};
+use crate::operations::{batch, batch_window, filter, visibility};
 use crate::process::ProcessManager;
 use crate::ui::App;
 use anyhow::Result;
@@ -283,70 +283,28 @@ impl<'a> CommandExecutor<'a> {
     }
 
     fn execute_hide(&mut self, process: String) {
-        if self.manager.has_process(&process) {
-            self.app.hidden_processes.insert(process.clone());
-            self.app.set_status_success(format!("Hidden: {}", process));
-
-            // Save to config
-            self.sync_hidden_processes_to_config();
-            self.save_config();
-        } else {
-            self.app.set_status_error(format!("Process not found: {}", process));
+        match visibility::hide_process(self.app, self.manager, self.config, &process) {
+            Ok(()) => self.app.set_status_success(format!("Hidden: {}", process)),
+            Err(msg) => self.app.set_status_error(msg),
         }
     }
 
     fn execute_show(&mut self, process: String) {
-        if self.app.hidden_processes.remove(&process) {
-            self.app.set_status_success(format!("Shown: {}", process));
-
-            // Save to config
-            self.sync_hidden_processes_to_config();
-            self.save_config();
-        } else {
-            self.app.set_status_info(format!("Process was not hidden: {}", process));
+        match visibility::show_process(self.app, self.config, &process) {
+            Ok(true) => self.app.set_status_success(format!("Shown: {}", process)),
+            Ok(false) => self.app.set_status_info(format!("Process was not hidden: {}", process)),
+            Err(()) => {}
         }
     }
 
     fn execute_hide_all(&mut self) {
-        let all_processes: Vec<String> = self.manager
-            .get_processes()
-            .keys()
-            .cloned()
-            .collect();
-
-        for process in all_processes {
-            self.app.hidden_processes.insert(process);
-        }
-
+        visibility::hide_all(self.app, self.manager, self.config);
         self.app.set_status_success("Hidden all processes".to_string());
-
-        // Save to config
-        self.sync_hidden_processes_to_config();
-        self.save_config();
     }
 
     fn execute_show_all(&mut self) {
-        let count = self.app.hidden_processes.len();
-        self.app.hidden_processes.clear();
-
+        let count = visibility::show_all(self.app, self.config);
         self.app.set_status_success(format!("Shown all processes ({} were hidden)", count));
-
-        // Save to config
-        self.sync_hidden_processes_to_config();
-        self.save_config();
-    }
-
-    fn sync_hidden_processes_to_config(&mut self) {
-        self.config.hidden_processes = self.app.hidden_processes.iter().cloned().collect();
-    }
-
-    fn save_config(&mut self) {
-        self.config.update_filters(&self.app.filters);
-        if let Some(path) = &self.config.config_path {
-            if let Err(e) = self.config.save(path.to_str().unwrap()) {
-                self.app.set_status_error(format!("Config save failed: {}", e));
-            }
-        }
     }
 }
 
