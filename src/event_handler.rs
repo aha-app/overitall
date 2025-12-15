@@ -1,7 +1,7 @@
 use crate::command::{Command, parse_command, CommandExecutor};
 use crate::config::Config;
 use crate::log;
-use crate::operations::{batch, config::save_config_with_error, logs::FilteredLogs};
+use crate::operations::{batch, batch_window};
 use crate::process::ProcessManager;
 use crate::ui::{self, App, apply_filters};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -334,29 +334,13 @@ impl<'a> EventHandler<'a> {
     }
 
     fn handle_increase_batch_window(&mut self) {
-        let new_window = self.app.batch_window_ms + 100;
-        self.app.set_batch_window(new_window);
-
-        // Use shared FilteredLogs to count batches with the new window
-        let filtered = FilteredLogs::from_manager(self.manager, &self.app.filters, new_window);
-        self.app.set_status_success(format!("Batch window increased to {}ms ({} batches)", new_window, filtered.batches.len()));
-
-        // Save to config using shared helper
-        self.config.batch_window_ms = Some(new_window);
-        save_config_with_error(self.config, self.app);
+        let (new_window, batch_count) = batch_window::increase_batch_window(self.app, self.manager, self.config);
+        self.app.set_status_success(format!("Batch window increased to {}ms ({} batches)", new_window, batch_count));
     }
 
     fn handle_decrease_batch_window(&mut self) {
-        let new_window = (self.app.batch_window_ms - 100).max(1);
-        self.app.set_batch_window(new_window);
-
-        // Use shared FilteredLogs to count batches with the new window
-        let filtered = FilteredLogs::from_manager(self.manager, &self.app.filters, new_window);
-        self.app.set_status_success(format!("Batch window decreased to {}ms ({} batches)", new_window, filtered.batches.len()));
-
-        // Save to config using shared helper
-        self.config.batch_window_ms = Some(new_window);
-        save_config_with_error(self.config, self.app);
+        let (new_window, batch_count) = batch_window::decrease_batch_window(self.app, self.manager, self.config);
+        self.app.set_status_success(format!("Batch window decreased to {}ms ({} batches)", new_window, batch_count));
     }
 
     fn handle_copy_line(&mut self) {

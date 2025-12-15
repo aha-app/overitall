@@ -1,6 +1,5 @@
 use crate::config::Config;
-use crate::log;
-use crate::operations::batch;
+use crate::operations::{batch, batch_window};
 use crate::process::ProcessManager;
 use crate::ui::{self, App};
 use anyhow::Result;
@@ -123,11 +122,6 @@ pub fn parse_command(input: &str) -> Command {
         }
         _ => Command::Unknown(format!("Unknown command: {}", parts[0])),
     }
-}
-
-/// Helper to apply filters to logs - delegates to ui::apply_filters function
-fn apply_filters_internal(logs: Vec<&log::LogLine>, filters: &[ui::Filter]) -> Vec<log::LogLine> {
-    ui::apply_filters(logs, filters)
 }
 
 /// Command executor that handles command execution
@@ -292,21 +286,8 @@ impl<'a> CommandExecutor<'a> {
     }
 
     fn execute_set_batch_window(&mut self, ms: i64) {
-        self.app.set_batch_window(ms);
-        // Count batches with the new window to show in status
-        let logs = self.manager.get_all_logs();
-        let filtered_logs = apply_filters_internal(logs, &self.app.filters);
-        let filtered_refs: Vec<&log::LogLine> = filtered_logs.iter().collect();
-        let batches = ui::detect_batches_from_logs(&filtered_refs, ms);
-        self.app.set_status_success(format!("Batch window set to {}ms ({} batches detected)", ms, batches.len()));
-
-        // Save to config
-        self.config.batch_window_ms = Some(ms);
-        if let Some(config_path) = &self.config.config_path {
-            if let Err(e) = self.config.save_to_file(config_path) {
-                self.app.set_status_error(format!("Config save failed: {}", e));
-            }
-        }
+        let batch_count = batch_window::set_batch_window(self.app, self.manager, self.config, ms);
+        self.app.set_status_success(format!("Batch window set to {}ms ({} batches detected)", ms, batch_count));
     }
 
     fn execute_show_batch_window(&mut self) {
