@@ -167,14 +167,12 @@ mod tests {
     use chrono::Duration;
 
     fn make_log(line: &str, arrival_offset_secs: i64) -> LogLine {
+        // For tests, just use LogLine::new which handles ID assignment
+        let mut log = LogLine::new(LogSource::ProcessStdout("test".to_string()), line.to_string());
         let base_time = Local::now();
-        let arrival_time = base_time + Duration::seconds(arrival_offset_secs);
-        LogLine {
-            timestamp: arrival_time,
-            arrival_time,
-            source: LogSource::ProcessStdout("test".to_string()),
-            line: line.to_string(),
-        }
+        log.timestamp = base_time + Duration::seconds(arrival_offset_secs);
+        log.arrival_time = base_time + Duration::seconds(arrival_offset_secs);
+        log
     }
 
     #[test]

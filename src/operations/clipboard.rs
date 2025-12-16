@@ -11,10 +11,20 @@ fn copy_to_clipboard(text: &str) -> AnyhowResult<()> {
     Ok(())
 }
 
+/// Find a log line by its ID in the given list.
+fn find_log_by_id<'a>(logs: &'a [crate::log::LogLine], id: u64) -> Option<&'a crate::log::LogLine> {
+    logs.iter().find(|log| log.id == id)
+}
+
+/// Find the index of a log line by its ID in the given list.
+fn find_index_by_id(logs: &[crate::log::LogLine], id: u64) -> Option<usize> {
+    logs.iter().position(|log| log.id == id)
+}
+
 /// Copy the selected line to clipboard.
 /// Returns Ok with success message or Err with error message.
 pub fn copy_line(app: &App, manager: &ProcessManager) -> Result<String, String> {
-    let line_idx = app.selected_line_index
+    let line_id = app.selected_line_id
         .ok_or_else(|| "No line selected".to_string())?;
 
     let filtered = FilteredLogs::from_manager(manager, &app.filters, app.batch_window_ms);
@@ -35,11 +45,9 @@ pub fn copy_line(app: &App, manager: &ProcessManager) -> Result<String, String> 
         filtered.logs
     };
 
-    if line_idx >= display_logs.len() {
-        return Err("Selected line out of range".to_string());
-    }
+    let log = find_log_by_id(&display_logs, line_id)
+        .ok_or_else(|| "Selected line not found".to_string())?;
 
-    let log = &display_logs[line_idx];
     let formatted = format!(
         "[{}] {}: {}",
         log.timestamp.format("%Y-%m-%d %H:%M:%S"),
@@ -55,12 +63,16 @@ pub fn copy_line(app: &App, manager: &ProcessManager) -> Result<String, String> 
 /// Copy the batch containing the selected line to clipboard.
 /// Returns Ok with success message or Err with error message.
 pub fn copy_batch(app: &App, manager: &ProcessManager) -> Result<String, String> {
-    let line_idx = app.selected_line_index
+    let line_id = app.selected_line_id
         .ok_or_else(|| "No line selected".to_string())?;
 
     let filtered = FilteredLogs::from_manager(manager, &app.filters, app.batch_window_ms);
 
-    // When in batch view mode, we're viewing a single batch and line_idx is relative to it
+    // Find the line's index in the filtered logs
+    let line_idx = find_index_by_id(&filtered.logs, line_id)
+        .ok_or_else(|| "Selected line not found".to_string())?;
+
+    // When in batch view mode, we're viewing a single batch
     let (batch_idx, start, end) = if app.batch_view_mode {
         if let Some(current_batch) = app.current_batch {
             if current_batch < filtered.batches.len() {

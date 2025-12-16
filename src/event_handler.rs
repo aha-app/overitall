@@ -130,9 +130,9 @@ impl<'a> EventHandler<'a> {
                 Ok(false)
             }
             // Esc in selection mode with active search pattern - return to search typing
-            KeyCode::Esc if !self.app.search_mode && !self.app.search_pattern.is_empty() && self.app.selected_line_index.is_some() => {
+            KeyCode::Esc if !self.app.search_mode && !self.app.search_pattern.is_empty() && self.app.selected_line_id.is_some() => {
                 // Return to search typing mode
-                self.app.selected_line_index = None;
+                self.app.selected_line_id = None;
                 self.app.unfreeze_display();
                 self.app.discard_snapshot();
                 // Re-enter search mode with the saved pattern
@@ -253,7 +253,7 @@ impl<'a> EventHandler<'a> {
     }
 
     fn handle_toggle_expanded_view(&mut self) {
-        if self.app.selected_line_index.is_some() {
+        if self.app.selected_line_id.is_some() {
             self.app.toggle_expanded_view();
         }
     }
@@ -332,10 +332,19 @@ impl<'a> EventHandler<'a> {
     }
 
     fn handle_focus_batch(&mut self) {
-        if let Some(line_idx) = self.app.selected_line_index {
+        if let Some(selected_id) = self.app.selected_line_id {
             // Get all logs and apply filters
             let logs = self.manager.get_all_logs();
             let filtered_logs = apply_filters(logs, &self.app.filters);
+
+            // Find the index of the selected log by ID
+            let line_idx = match filtered_logs.iter().position(|log| log.id == selected_id) {
+                Some(idx) => idx,
+                None => {
+                    self.app.set_status_error("Selected line not found".to_string());
+                    return;
+                }
+            };
 
             // Detect batches
             let filtered_refs: Vec<&log::LogLine> = filtered_logs.iter().collect();
@@ -385,9 +394,9 @@ impl<'a> EventHandler<'a> {
         // Also handle batch view mode exit
 
         if self.app.frozen {
-            if self.app.selected_line_index.is_some() {
+            if self.app.selected_line_id.is_some() {
                 // First Esc: clear selection but stay frozen
-                self.app.selected_line_index = None;
+                self.app.selected_line_id = None;
                 self.app.set_status_info("Selection cleared. Press Esc again to resume tailing.".to_string());
             } else {
                 // Second Esc: unfreeze and resume tailing
@@ -409,7 +418,7 @@ impl<'a> EventHandler<'a> {
             // Not frozen or in batch view, just jump to latest
             self.app.clear_search();
             self.app.scroll_to_bottom();
-            self.app.selected_line_index = None;
+            self.app.selected_line_id = None;
             self.app.set_status_info("Jumped to latest logs".to_string());
         }
     }

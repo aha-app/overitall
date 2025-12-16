@@ -5,6 +5,7 @@ use ratatui::{
     Frame,
 };
 
+use crate::log::LogLine;
 use crate::process::ProcessManager;
 use crate::ui::app::App;
 use crate::ui::batch::detect_batches_from_logs;
@@ -13,9 +14,9 @@ use crate::ui::utils::centered_rect;
 
 /// Draw the expanded line view overlay
 pub fn draw_expanded_line_overlay(f: &mut Frame, manager: &ProcessManager, app: &App) {
-    // Get the selected line if available
-    let selected_line_index = match app.selected_line_index {
-        Some(idx) => idx,
+    // Get the selected line ID if available
+    let selected_line_id = match app.selected_line_id {
+        Some(id) => id,
         None => {
             // No line selected, don't show the overlay
             return;
@@ -24,7 +25,7 @@ pub fn draw_expanded_line_overlay(f: &mut Frame, manager: &ProcessManager, app: 
 
     // Use snapshot if available (frozen/batch/trace mode), otherwise use live buffer
     // This must match the logic in log_viewer.rs exactly
-    let logs_vec: Vec<&crate::log::LogLine> = if let Some(ref snapshot) = app.snapshot {
+    let logs_vec: Vec<&LogLine> = if let Some(ref snapshot) = app.snapshot {
         snapshot.iter().collect()
     } else {
         let mut logs = manager.get_all_logs();
@@ -37,7 +38,7 @@ pub fn draw_expanded_line_overlay(f: &mut Frame, manager: &ProcessManager, app: 
     };
 
     // Apply filters
-    let mut filtered_logs: Vec<&crate::log::LogLine> = if app.filters.is_empty() {
+    let mut filtered_logs: Vec<&LogLine> = if app.filters.is_empty() {
         logs_vec
     } else {
         logs_vec.into_iter()
@@ -119,7 +120,7 @@ pub fn draw_expanded_line_overlay(f: &mut Frame, manager: &ProcessManager, app: 
     let batches = detect_batches_from_logs(&filtered_logs, app.batch_window_ms);
 
     // Apply batch view mode filtering if enabled
-    let display_logs: Vec<&crate::log::LogLine> = if app.batch_view_mode {
+    let display_logs: Vec<&LogLine> = if app.batch_view_mode {
         if let Some(batch_idx) = app.current_batch {
             if !batches.is_empty() && batch_idx < batches.len() {
                 let (start, end) = batches[batch_idx];
@@ -134,17 +135,19 @@ pub fn draw_expanded_line_overlay(f: &mut Frame, manager: &ProcessManager, app: 
         filtered_logs
     };
 
-    // Check if selected line index is valid
-    if selected_line_index >= display_logs.len() {
-        return;
-    }
-
-    let selected_log = display_logs[selected_line_index];
+    // Find the selected log by ID
+    let (selected_idx, selected_log) = match display_logs.iter().enumerate().find(|(_, log)| log.id == selected_line_id) {
+        Some((idx, log)) => (idx, *log),
+        None => {
+            // Selected line not found in display logs
+            return;
+        }
+    };
 
     // Find which batch this line belongs to
     let batch_info = if !batches.is_empty() {
         batches.iter().enumerate().find(|(_, (start, end))| {
-            selected_line_index >= *start && selected_line_index <= *end
+            selected_idx >= *start && selected_idx <= *end
         }).map(|(batch_idx, _)| batch_idx + 1)
     } else {
         None
@@ -188,7 +191,7 @@ pub fn draw_expanded_line_overlay(f: &mut Frame, manager: &ProcessManager, app: 
     content.push(Line::from(vec![
         Span::styled("Line: ", Style::default().add_modifier(Modifier::BOLD)),
         Span::styled(
-            format!("{} of {}", selected_line_index + 1, display_logs.len()),
+            format!("{} of {}", selected_idx + 1, display_logs.len()),
             Style::default().fg(Color::Magenta),
         ),
     ]));

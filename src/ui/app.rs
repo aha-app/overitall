@@ -39,8 +39,8 @@ pub struct App {
     pub current_batch: Option<usize>,
     /// Whether to show the help overlay
     pub show_help: bool,
-    /// Index of selected line (for line expansion/clipboard)
-    pub selected_line_index: Option<usize>,
+    /// ID of selected line (for line expansion/clipboard)
+    pub selected_line_id: Option<u64>,
     /// Whether to show expanded line view
     pub expanded_line_view: bool,
     /// Whether we're in the process of shutting down
@@ -95,7 +95,7 @@ impl App {
             batch_view_mode: false,
             current_batch: None,
             show_help: false,
-            selected_line_index: None,
+            selected_line_id: None,
             expanded_line_view: false,
             shutting_down: false,
             frozen: false,
@@ -331,40 +331,12 @@ impl App {
         self.show_help = !self.show_help;
     }
 
-    pub fn select_line(&mut self, index: Option<usize>) {
-        self.selected_line_index = index;
+    pub fn select_line_by_id(&mut self, id: Option<u64>) {
+        self.selected_line_id = id;
     }
 
-    pub fn select_next_line(&mut self, max_lines: usize) {
-        if max_lines == 0 {
-            return;
-        }
-        let was_none = self.selected_line_index.is_none();
-        self.selected_line_index = Some(match self.selected_line_index {
-            None => 0,
-            Some(idx) if idx >= max_lines - 1 => 0, // Wrap to top when at bottom
-            Some(idx) => idx + 1,
-        });
-        self.auto_scroll = false;
-        if was_none {
-            self.freeze_display();
-        }
-    }
-
-    pub fn select_prev_line(&mut self, max_lines: usize) {
-        if max_lines == 0 {
-            return;
-        }
-        let was_none = self.selected_line_index.is_none();
-        self.selected_line_index = Some(match self.selected_line_index {
-            None => max_lines - 1, // When tailing, Up arrow selects the last (most recent) line
-            Some(idx) if idx > 0 => idx - 1,
-            Some(_) => max_lines - 1, // Wrap to bottom when at top
-        });
-        self.auto_scroll = false;
-        if was_none {
-            self.freeze_display();
-        }
+    pub fn clear_selection(&mut self) {
+        self.selected_line_id = None;
     }
 
     pub fn toggle_expanded_view(&mut self) {
@@ -466,6 +438,6 @@ impl App {
         self.trace_expand_before = Duration::zero();
         self.trace_expand_after = Duration::zero();
         self.unfreeze_display();
-        self.selected_line_index = None;
+        self.selected_line_id = None;
     }
 }

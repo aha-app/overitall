@@ -582,11 +582,11 @@ fn test_wraparound_top_to_bottom() {
     let mut app = create_test_app();
     let manager = create_manager_with_logs();
 
-    // Select first line (index 0)
-    app.select_next_line(8); // 8 logs total
+    // Use operations module for navigation
+    overitall::operations::navigation::select_next_line(&mut app, &manager);
 
-    // Now at index 0, press "Up" to wrap to bottom (index 7)
-    app.select_prev_line(8);
+    // Now at first line, press "Up" to wrap to bottom
+    overitall::operations::navigation::select_prev_line(&mut app, &manager);
 
     let output = render_app_to_string(&app, &manager, 120, 40);
     assert_snapshot!(output);
@@ -598,12 +598,12 @@ fn test_wraparound_bottom_to_top() {
     let manager = create_manager_with_logs();
 
     // Navigate to last line by selecting down multiple times
-    for _ in 0..7 {
-        app.select_next_line(8);
+    for _ in 0..8 {
+        overitall::operations::navigation::select_next_line(&mut app, &manager);
     }
 
-    // Now at index 7 (bottom), press "Down" to wrap to top (index 0)
-    app.select_next_line(8);
+    // Now at bottom, press "Down" to wrap to top
+    overitall::operations::navigation::select_next_line(&mut app, &manager);
 
     let output = render_app_to_string(&app, &manager, 120, 40);
     assert_snapshot!(output);
@@ -618,10 +618,10 @@ fn test_wraparound_in_batch_view() {
     app.toggle_batch_view();
 
     // Select first line in batch
-    app.select_next_line(3); // Batch has 3 logs
+    overitall::operations::navigation::select_next_line(&mut app, &manager);
 
     // Wrap from top to bottom within batch
-    app.select_prev_line(3);
+    overitall::operations::navigation::select_prev_line(&mut app, &manager);
 
     let output = render_app_to_string(&app, &manager, 120, 40);
     assert_snapshot!(output);
@@ -637,10 +637,10 @@ fn test_wraparound_with_filters() {
     // This should leave 2 logs visible
 
     // Select first filtered line
-    app.select_next_line(2);
+    overitall::operations::navigation::select_next_line(&mut app, &manager);
 
     // Wrap from top to bottom
-    app.select_prev_line(2);
+    overitall::operations::navigation::select_prev_line(&mut app, &manager);
 
     let output = render_app_to_string(&app, &manager, 120, 40);
     assert_snapshot!(output);

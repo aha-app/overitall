@@ -1,5 +1,6 @@
 use chrono::{DateTime, Local};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 pub mod buffer;
 pub mod file;
@@ -8,9 +9,14 @@ pub mod file;
 pub use buffer::LogBuffer;
 pub use file::FileReader;
 
+/// Global counter for unique log line IDs
+static NEXT_LOG_ID: AtomicU64 = AtomicU64::new(1);
+
 /// A log line with enhanced metadata
 #[derive(Debug, Clone)]
 pub struct LogLine {
+    /// Unique ID for this log line, assigned on creation
+    pub id: u64,
     pub timestamp: DateTime<Local>,
     pub arrival_time: DateTime<Local>,  // When log was received
     pub source: LogSource,
@@ -21,6 +27,7 @@ impl LogLine {
     pub fn new(source: LogSource, line: String) -> Self {
         let now = Local::now();
         Self {
+            id: NEXT_LOG_ID.fetch_add(1, Ordering::Relaxed),
             timestamp: now,  // Will be updated by parser if found
             arrival_time: now,  // Capture arrival time
             source,

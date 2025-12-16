@@ -187,8 +187,13 @@ pub fn draw_log_viewer(
     let visible_lines = (area.height as usize).saturating_sub(1);
     let total_logs = display_logs_source.len();
 
+    // Find the selected line index by ID (if any line is selected)
+    let selected_line_index: Option<usize> = app.selected_line_id.and_then(|id| {
+        display_logs_source.iter().position(|log| log.id == id)
+    });
+
     // Determine which logs to display based on scroll state
-    let (display_logs, scroll_indicator, display_start) = if app.auto_scroll && app.selected_line_index.is_none() {
+    let (display_logs, scroll_indicator, display_start) = if app.auto_scroll && selected_line_index.is_none() {
         // Auto-scroll mode: show the last N logs (only when not selecting lines)
         // Account for batch separators: work backwards from the end to find how many logs fit
         let mut start = total_logs;
@@ -219,7 +224,7 @@ pub fn draw_log_viewer(
 
         let display = &display_logs_source[start..];
         (display, String::new(), start)
-    } else if let Some(selected_idx) = app.selected_line_index {
+    } else if let Some(selected_idx) = selected_line_index {
         // Line selection mode: scroll to show the selected line
         if selected_idx < total_logs {
             // Center the selected line in the viewport for better visibility
@@ -311,9 +316,8 @@ pub fn draw_log_viewer(
         let timestamp = log.timestamp.format("%H:%M:%S").to_string();
         let process_name = log.source.process_name();
 
-        // Check if this line is selected
-        let log_global_idx = display_start + display_idx;
-        let is_selected = app.selected_line_index == Some(log_global_idx);
+        // Check if this line is selected by ID
+        let is_selected = app.selected_line_id == Some(log.id);
 
         // Don't highlight search matches - we're already filtering to show only matches
         // Highlighting would make all visible lines gray, which looks bad

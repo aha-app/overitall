@@ -31,15 +31,15 @@ pub fn execute_search(app: &mut App, manager: &ProcessManager, search_text: &str
 
     let match_count = search_filtered.len();
 
+    // Select the last (bottom) entry by ID
+    let last_id = search_filtered.last().map(|log| log.id);
+    app.selected_line_id = last_id;
+
     // Create snapshot
     app.create_snapshot(search_filtered);
 
     // Freeze display
     app.freeze_display();
-
-    // Select the last (bottom) entry
-    let last_index = match_count.saturating_sub(1);
-    app.selected_line_index = Some(last_index);
 
     // Exit search_mode so user can't type (but keep search_pattern)
     app.search_mode = false;
@@ -55,21 +55,18 @@ pub fn show_context(app: &mut App, manager: &ProcessManager) -> Result<String, S
     // Close expanded view
     app.close_expanded_view();
 
-    // Get the currently selected log line (before we change anything)
-    let selected_log = if let Some(idx) = app.selected_line_index {
-        if let Some(snapshot) = &app.snapshot {
-            snapshot.get(idx).cloned()
-        } else {
-            None
+    // Get the currently selected log line by ID (before we change anything)
+    let selected_id = app.selected_line_id
+        .ok_or_else(|| "No log selected".to_string())?;
+
+    // Verify the selected ID exists in the snapshot
+    if let Some(snapshot) = &app.snapshot {
+        if !snapshot.iter().any(|log| log.id == selected_id) {
+            return Err("Selected log not found".to_string());
         }
     } else {
-        None
-    };
-
-    let selected_log = match selected_log {
-        Some(log) => log,
-        None => return Err("No log selected".to_string()),
-    };
+        return Err("No snapshot available".to_string());
+    }
 
     // Clear search pattern to show all logs
     app.search_pattern.clear();
@@ -78,22 +75,14 @@ pub fn show_context(app: &mut App, manager: &ProcessManager) -> Result<String, S
     let logs = manager.get_all_logs();
     let filtered_logs = apply_filters(logs, &app.filters);
 
-    // Find the index of the selected log in the full filtered set
-    // Match by timestamp and line content for uniqueness
-    let new_index = filtered_logs.iter().position(|log| {
-        log.timestamp == selected_log.timestamp && log.line == selected_log.line
-    });
-
-    let new_index = match new_index {
-        Some(idx) => idx,
-        None => return Err("Could not find log in context".to_string()),
-    };
+    // Verify the selected ID exists in the full filtered set
+    if !filtered_logs.iter().any(|log| log.id == selected_id) {
+        return Err("Could not find log in context".to_string());
+    }
 
     // Create new snapshot with all logs
+    // The selected_line_id remains the same - it will still point to the same log
     app.create_snapshot(filtered_logs);
-
-    // Update selection to point to the same log in the full context
-    app.selected_line_index = Some(new_index);
 
     // Display is already frozen, keep it that way
     Ok("Showing context around selected log".to_string())
