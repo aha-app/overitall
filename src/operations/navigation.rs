@@ -245,6 +245,18 @@ pub fn page_up(app: &mut App, manager: &ProcessManager) {
                 app.auto_scroll = false;
             }
         }
+    } else if app.auto_scroll {
+        // When in auto_scroll mode, we're viewing the bottom of the log.
+        // Calculate the effective scroll position and move up from there.
+        let display_logs = get_display_logs(app, manager);
+        let total_logs = display_logs.len();
+
+        // Effective position when auto-scrolling: showing the last PAGE_SIZE*2 lines
+        // (we use PAGE_SIZE*2 as a reasonable approximation of visible_lines + PAGE_SIZE)
+        // After pressing PageUp, we want to show one page earlier
+        let effective_offset = total_logs.saturating_sub(PAGE_SIZE * 2);
+        app.scroll_offset = effective_offset;
+        app.auto_scroll = false;
     } else {
         app.scroll_up(PAGE_SIZE);
     }
