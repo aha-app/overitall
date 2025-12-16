@@ -80,6 +80,20 @@ mod tests {
     use std::io::Write;
     use tempfile::NamedTempFile;
 
+    fn test_config() -> Config {
+        Config {
+            procfile: PathBuf::from("Procfile"),
+            processes: HashMap::new(),
+            filters: FilterConfig::default(),
+            batch_window_ms: None,
+            max_log_buffer_mb: None,
+            hidden_processes: Vec::new(),
+            disable_auto_update: None,
+            compact_mode: None,
+            config_path: None,
+        }
+    }
+
     #[test]
     fn test_batch_window_loads_from_config() {
         // Create a temp config file with batch_window_ms
@@ -119,74 +133,38 @@ procfile = "Procfile"
 
     #[test]
     fn test_batch_window_saves_to_config() {
-        // Create a config with batch_window_ms
         let config = Config {
-            procfile: PathBuf::from("Procfile"),
-            processes: HashMap::new(),
-            filters: FilterConfig::default(),
             batch_window_ms: Some(5000),
-            max_log_buffer_mb: None,
-            hidden_processes: Vec::new(),
-            disable_auto_update: None,
-            compact_mode: None,
-            config_path: None,
+            ..test_config()
         };
 
-        // Save to temp file
         let temp_file = NamedTempFile::new().unwrap();
         config.save(temp_file.path().to_str().unwrap()).unwrap();
 
-        // Read back and verify
         let loaded_config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
         assert_eq!(loaded_config.batch_window_ms, Some(5000));
     }
 
     #[test]
     fn test_batch_window_updates_in_config() {
-        // Start with no batch_window_ms
-        let mut config = Config {
-            procfile: PathBuf::from("Procfile"),
-            processes: HashMap::new(),
-            filters: FilterConfig::default(),
-            batch_window_ms: None,
-            max_log_buffer_mb: None,
-            hidden_processes: Vec::new(),
-            disable_auto_update: None,
-            compact_mode: None,
-            config_path: None,
-        };
+        let mut config = test_config();
 
-        // Save initial config
         let temp_file = NamedTempFile::new().unwrap();
         config.save(temp_file.path().to_str().unwrap()).unwrap();
 
-        // Update batch_window_ms
         config.batch_window_ms = Some(3000);
         config.save(temp_file.path().to_str().unwrap()).unwrap();
 
-        // Load and verify update
         let loaded_config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
         assert_eq!(loaded_config.batch_window_ms, Some(3000));
     }
 
     #[test]
     fn test_batch_window_none_not_serialized() {
-        // When batch_window_ms is None, it should not appear in the TOML
-        let config = Config {
-            procfile: PathBuf::from("Procfile"),
-            processes: HashMap::new(),
-            filters: FilterConfig::default(),
-            batch_window_ms: None,
-            max_log_buffer_mb: None,
-            hidden_processes: Vec::new(),
-            disable_auto_update: None,
-            compact_mode: None,
-            config_path: None,
-        };
+        let config = test_config();
 
         let toml_string = toml::to_string_pretty(&config).unwrap();
 
-        // Verify that "batch_window_ms" does not appear in the TOML output
         assert!(
             !toml_string.contains("batch_window_ms"),
             "batch_window_ms should not be serialized when None"
@@ -195,22 +173,13 @@ procfile = "Procfile"
 
     #[test]
     fn test_batch_window_some_is_serialized() {
-        // When batch_window_ms is Some, it should appear in the TOML
         let config = Config {
-            procfile: PathBuf::from("Procfile"),
-            processes: HashMap::new(),
-            filters: FilterConfig::default(),
             batch_window_ms: Some(1500),
-            max_log_buffer_mb: None,
-            hidden_processes: Vec::new(),
-            disable_auto_update: None,
-            compact_mode: None,
-            config_path: None,
+            ..test_config()
         };
 
         let toml_string = toml::to_string_pretty(&config).unwrap();
 
-        // Verify that "batch_window_ms = 1500" appears in the TOML output
         assert!(
             toml_string.contains("batch_window_ms = 1500"),
             "batch_window_ms should be serialized when Some(1500)"
@@ -255,15 +224,8 @@ procfile = "Procfile"
     #[test]
     fn test_max_log_buffer_mb_saves_to_config() {
         let config = Config {
-            procfile: PathBuf::from("Procfile"),
-            processes: HashMap::new(),
-            filters: FilterConfig::default(),
-            batch_window_ms: None,
             max_log_buffer_mb: Some(75),
-            hidden_processes: Vec::new(),
-            disable_auto_update: None,
-            compact_mode: None,
-            config_path: None,
+            ..test_config()
         };
 
         let temp_file = NamedTempFile::new().unwrap();
@@ -310,17 +272,7 @@ procfile = "Procfile"
 
     #[test]
     fn test_disable_auto_update_none_not_serialized() {
-        let config = Config {
-            procfile: PathBuf::from("Procfile"),
-            processes: HashMap::new(),
-            filters: FilterConfig::default(),
-            batch_window_ms: None,
-            max_log_buffer_mb: None,
-            hidden_processes: Vec::new(),
-            disable_auto_update: None,
-            compact_mode: None,
-            config_path: None,
-        };
+        let config = test_config();
 
         let toml_string = toml::to_string_pretty(&config).unwrap();
         assert!(
@@ -332,15 +284,8 @@ procfile = "Procfile"
     #[test]
     fn test_disable_auto_update_some_is_serialized() {
         let config = Config {
-            procfile: PathBuf::from("Procfile"),
-            processes: HashMap::new(),
-            filters: FilterConfig::default(),
-            batch_window_ms: None,
-            max_log_buffer_mb: None,
-            hidden_processes: Vec::new(),
             disable_auto_update: Some(true),
-            compact_mode: None,
-            config_path: None,
+            ..test_config()
         };
 
         let toml_string = toml::to_string_pretty(&config).unwrap();
@@ -388,15 +333,8 @@ procfile = "Procfile"
     #[test]
     fn test_hidden_processes_saves_to_config() {
         let config = Config {
-            procfile: PathBuf::from("Procfile"),
-            processes: HashMap::new(),
-            filters: FilterConfig::default(),
-            batch_window_ms: None,
-            max_log_buffer_mb: None,
             hidden_processes: vec!["api".to_string(), "db".to_string()],
-            disable_auto_update: None,
-            compact_mode: None,
-            config_path: None,
+            ..test_config()
         };
 
         let temp_file = NamedTempFile::new().unwrap();
@@ -408,17 +346,7 @@ procfile = "Procfile"
 
     #[test]
     fn test_hidden_processes_empty_array_serialized() {
-        let config = Config {
-            procfile: PathBuf::from("Procfile"),
-            processes: HashMap::new(),
-            filters: FilterConfig::default(),
-            batch_window_ms: None,
-            max_log_buffer_mb: None,
-            hidden_processes: Vec::new(),
-            disable_auto_update: None,
-            compact_mode: None,
-            config_path: None,
-        };
+        let config = test_config();
 
         let toml_string = toml::to_string_pretty(&config).unwrap();
         assert!(
@@ -430,15 +358,8 @@ procfile = "Procfile"
     #[test]
     fn test_hidden_processes_roundtrip() {
         let original = Config {
-            procfile: PathBuf::from("Procfile"),
-            processes: HashMap::new(),
-            filters: FilterConfig::default(),
-            batch_window_ms: None,
-            max_log_buffer_mb: None,
             hidden_processes: vec!["web".to_string(), "worker".to_string(), "scheduler".to_string()],
-            disable_auto_update: None,
-            compact_mode: None,
-            config_path: None,
+            ..test_config()
         };
 
         let temp_file = NamedTempFile::new().unwrap();
