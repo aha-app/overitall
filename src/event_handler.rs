@@ -354,8 +354,8 @@ impl<'a> EventHandler<'a> {
     /// 3. Command mode - exit command input
     /// 4. Search mode - exit search input
     /// 5. Trace selection mode - cancel trace selection
-    /// 6. Trace filter mode - exit trace view
-    /// 7. Search results with selection - return to search input
+    /// 6. Search results with selection - return to search input
+    /// 7. Trace filter mode - exit trace view
     /// 8. Frozen with selection - clear selection
     /// 9. Frozen without selection - unfreeze and resume tailing
     /// 10. Batch view mode - exit batch view
@@ -392,21 +392,21 @@ impl<'a> EventHandler<'a> {
             return;
         }
 
-        // 6. Trace filter mode
-        if self.app.trace_filter_mode {
-            self.app.exit_trace_filter();
-            self.app.discard_snapshot();
-            self.app.set_status_info("Exited trace view".to_string());
-            return;
-        }
-
-        // 7. Search results with selection - return to search input
+        // 6. Search results with selection - return to search input
         if !self.app.search_pattern.is_empty() && self.app.selected_line_id.is_some() {
             self.app.selected_line_id = None;
             self.app.unfreeze_display();
             self.app.discard_snapshot();
             self.app.search_mode = true;
             self.app.input = self.app.search_pattern.clone();
+            return;
+        }
+
+        // 7. Trace filter mode
+        if self.app.trace_filter_mode {
+            self.app.exit_trace_filter();
+            self.app.discard_snapshot();
+            self.app.set_status_info("Exited trace view".to_string());
             return;
         }
 
