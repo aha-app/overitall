@@ -13,7 +13,10 @@ Rust TUI combining overmind (process management) + lnav (log viewing).
 ## Testing
 Use ratatui's `TestBackend` for TUI testing (renders to in-memory buffer, works in CI).
 Snapshot testing with `insta` crate (`cargo insta review` to approve changes).
-Always run tests after making changes
+Always run tests after making changes.
+
+## Performance Changes
+Any performance optimization MUST include before/after benchmarks. Create a simple benchmark that measures the specific operation being optimized, run it before and after the change, and document the results in the commit message and scratch.md. Without measured proof, we don't know if the "optimization" actually helped.
 
 ## Code Style
 - Comment lightly, do not leave obvious code comments
