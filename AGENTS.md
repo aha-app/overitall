@@ -13,6 +13,7 @@ Rust TUI combining overmind (process management) + lnav (log viewing).
 ## Testing
 Use ratatui's `TestBackend` for TUI testing (renders to in-memory buffer, works in CI).
 Snapshot testing with `insta` crate (`cargo insta review` to approve changes).
+Always run tests after making changes
 
 ## Code Style
 - Comment lightly, do not leave obvious code comments
