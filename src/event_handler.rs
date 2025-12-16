@@ -42,33 +42,7 @@ impl<'a> EventHandler<'a> {
                 self.handle_help_toggle();
                 Ok(false)
             }
-            // Trace selection mode
-            KeyCode::Esc if self.app.trace_selection_mode => {
-                self.app.exit_trace_selection();
-                self.app.set_status_info("Trace selection cancelled".to_string());
-                Ok(false)
-            }
-            KeyCode::Enter if self.app.trace_selection_mode => {
-                traces::select_trace(self.app, self.manager);
-                Ok(false)
-            }
-            KeyCode::Up if self.app.trace_selection_mode => {
-                self.app.select_prev_trace();
-                Ok(false)
-            }
-            KeyCode::Down if self.app.trace_selection_mode => {
-                self.app.select_next_trace();
-                Ok(false)
-            }
-            KeyCode::Char('k') if self.app.trace_selection_mode => {
-                self.app.select_prev_trace();
-                Ok(false)
-            }
-            KeyCode::Char('j') if self.app.trace_selection_mode => {
-                self.app.select_next_trace();
-                Ok(false)
-            }
-            // Expanded line view (must come before trace_filter_mode so Esc closes modal first)
+            // Expanded line view - Esc closes modal (highest priority after help)
             KeyCode::Esc if self.app.expanded_line_view => {
                 self.app.close_expanded_view();
                 Ok(false)
@@ -77,26 +51,7 @@ impl<'a> EventHandler<'a> {
                 self.handle_show_context();
                 Ok(false)
             }
-            // Trace filter mode
-            KeyCode::Esc if self.app.trace_filter_mode => {
-                self.app.exit_trace_filter();
-                self.app.discard_snapshot();
-                self.app.set_status_info("Exited trace view".to_string());
-                Ok(false)
-            }
-            KeyCode::Char('[') if self.app.trace_filter_mode => {
-                traces::expand_trace_before(self.app);
-                Ok(false)
-            }
-            KeyCode::Char(']') if self.app.trace_filter_mode => {
-                traces::expand_trace_after(self.app);
-                Ok(false)
-            }
-            KeyCode::Enter if !self.app.command_mode && !self.app.search_mode && !self.app.expanded_line_view => {
-                self.handle_toggle_expanded_view();
-                Ok(false)
-            }
-            // Command mode
+            // Command mode - Esc exits command mode (before trace modes)
             KeyCode::Char(':') if !self.app.command_mode && !self.app.search_mode && !self.app.show_help => {
                 self.app.enter_command_mode();
                 Ok(false)
@@ -124,23 +79,11 @@ impl<'a> EventHandler<'a> {
                 self.app.add_char(c);
                 Ok(false)
             }
-            // Search mode
+            // Search mode - Esc exits search mode (before trace modes)
             KeyCode::Char('/') if !self.app.command_mode && !self.app.search_mode && !self.app.show_help => {
                 self.app.enter_search_mode();
                 Ok(false)
             }
-            // Esc in selection mode with active search pattern - return to search typing
-            KeyCode::Esc if !self.app.search_mode && !self.app.search_pattern.is_empty() && self.app.selected_line_id.is_some() => {
-                // Return to search typing mode
-                self.app.selected_line_id = None;
-                self.app.unfreeze_display();
-                self.app.discard_snapshot();
-                // Re-enter search mode with the saved pattern
-                self.app.search_mode = true;
-                self.app.input = self.app.search_pattern.clone();
-                Ok(false)
-            }
-            // Esc in search typing mode - exit search completely
             KeyCode::Esc if self.app.search_mode => {
                 self.app.exit_search_mode();
                 Ok(false)
@@ -151,6 +94,62 @@ impl<'a> EventHandler<'a> {
             }
             KeyCode::Backspace if self.app.search_mode => {
                 self.app.delete_char();
+                Ok(false)
+            }
+            // Trace selection mode
+            KeyCode::Esc if self.app.trace_selection_mode => {
+                self.app.exit_trace_selection();
+                self.app.set_status_info("Trace selection cancelled".to_string());
+                Ok(false)
+            }
+            KeyCode::Enter if self.app.trace_selection_mode => {
+                traces::select_trace(self.app, self.manager);
+                Ok(false)
+            }
+            KeyCode::Up if self.app.trace_selection_mode => {
+                self.app.select_prev_trace();
+                Ok(false)
+            }
+            KeyCode::Down if self.app.trace_selection_mode => {
+                self.app.select_next_trace();
+                Ok(false)
+            }
+            KeyCode::Char('k') if self.app.trace_selection_mode => {
+                self.app.select_prev_trace();
+                Ok(false)
+            }
+            KeyCode::Char('j') if self.app.trace_selection_mode => {
+                self.app.select_next_trace();
+                Ok(false)
+            }
+            // Trace filter mode - Esc exits trace view (after command/search modes)
+            KeyCode::Esc if self.app.trace_filter_mode => {
+                self.app.exit_trace_filter();
+                self.app.discard_snapshot();
+                self.app.set_status_info("Exited trace view".to_string());
+                Ok(false)
+            }
+            KeyCode::Char('[') if self.app.trace_filter_mode => {
+                traces::expand_trace_before(self.app);
+                Ok(false)
+            }
+            KeyCode::Char(']') if self.app.trace_filter_mode => {
+                traces::expand_trace_after(self.app);
+                Ok(false)
+            }
+            // Esc with active search pattern and selection - return to search typing
+            KeyCode::Esc if !self.app.search_pattern.is_empty() && self.app.selected_line_id.is_some() => {
+                // Return to search typing mode
+                self.app.selected_line_id = None;
+                self.app.unfreeze_display();
+                self.app.discard_snapshot();
+                // Re-enter search mode with the saved pattern
+                self.app.search_mode = true;
+                self.app.input = self.app.search_pattern.clone();
+                Ok(false)
+            }
+            KeyCode::Enter if !self.app.command_mode && !self.app.search_mode && !self.app.expanded_line_view => {
+                self.handle_toggle_expanded_view();
                 Ok(false)
             }
             KeyCode::Char(c) if self.app.search_mode => {
