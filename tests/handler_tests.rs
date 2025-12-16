@@ -508,3 +508,162 @@ fn test_parse_commands_missing_args() {
     let cmd = parse_command("fn");
     assert!(matches!(cmd, overitall::command::Command::Unknown(_)));
 }
+
+// ============================================================================
+// Manual Trace Capture Tests
+// ============================================================================
+
+#[test]
+fn test_manual_trace_start_recording() {
+    use overitall::operations::manual_trace;
+
+    let mut app = create_test_app();
+
+    // Initially not recording
+    assert!(!app.manual_trace_recording);
+    assert!(app.manual_trace_start.is_none());
+
+    // Start recording
+    manual_trace::start_recording(&mut app);
+
+    assert!(app.manual_trace_recording);
+    assert!(app.manual_trace_start.is_some());
+    // Status message should be set
+    assert!(app.status_message.is_some());
+}
+
+#[test]
+fn test_manual_trace_cancel_recording() {
+    use overitall::operations::manual_trace;
+
+    let mut app = create_test_app();
+
+    // Start recording
+    manual_trace::start_recording(&mut app);
+    assert!(app.manual_trace_recording);
+
+    // Cancel recording
+    manual_trace::cancel_recording(&mut app);
+
+    assert!(!app.manual_trace_recording);
+    assert!(app.manual_trace_start.is_none());
+}
+
+#[test]
+fn test_manual_trace_stop_recording_with_logs() {
+    use overitall::operations::manual_trace;
+    use std::thread;
+    use std::time::Duration;
+
+    let mut app = create_test_app();
+    let mut manager = create_manager_with_batched_logs();
+
+    // Start recording
+    manual_trace::start_recording(&mut app);
+    assert!(app.manual_trace_recording);
+
+    // Add a log that arrives "now" (within the recording window)
+    let now_log = LogLine::new(
+        LogSource::ProcessStdout("web".to_string()),
+        "Log during recording".to_string()
+    );
+    manager.add_test_log(now_log);
+
+    // Wait a tiny bit so end_time > start_time
+    thread::sleep(Duration::from_millis(5));
+
+    // Stop recording
+    let result = manual_trace::stop_recording(&mut app, &manager);
+
+    // Should succeed with at least one log
+    assert!(result.is_ok());
+    let msg = result.unwrap();
+    assert!(msg.contains("Captured"));
+
+    // Should be in trace filter mode
+    assert!(app.trace_filter_mode);
+    assert!(!app.manual_trace_recording);
+    assert!(app.manual_trace_start.is_none());
+    assert!(app.frozen);
+    assert!(app.snapshot.is_some());
+}
+
+#[test]
+fn test_manual_trace_stop_recording_no_logs() {
+    use overitall::operations::manual_trace;
+    use chrono::Local;
+
+    let mut app = create_test_app();
+    let manager = ProcessManager::new(); // Empty manager
+
+    // Start recording
+    manual_trace::start_recording(&mut app);
+
+    // Set start time to the future so no logs match
+    app.manual_trace_start = Some(Local::now() + chrono::Duration::hours(1));
+
+    // Stop recording
+    let result = manual_trace::stop_recording(&mut app, &manager);
+
+    // Should fail with error message
+    assert!(result.is_err());
+    let msg = result.unwrap_err();
+    assert!(msg.contains("No logs captured"));
+
+    // Should NOT be in trace filter mode
+    assert!(!app.trace_filter_mode);
+    assert!(!app.manual_trace_recording);
+}
+
+#[test]
+fn test_manual_trace_stop_without_start() {
+    use overitall::operations::manual_trace;
+
+    let mut app = create_test_app();
+    let manager = ProcessManager::new();
+
+    // Try to stop without starting
+    let result = manual_trace::stop_recording(&mut app, &manager);
+
+    // Should fail with error
+    assert!(result.is_err());
+    assert!(result.unwrap_err().contains("No recording in progress"));
+}
+
+#[test]
+fn test_manual_trace_time_window_filtering() {
+    use overitall::operations::manual_trace;
+    use chrono::Duration;
+
+    let mut app = create_test_app();
+    let mut manager = ProcessManager::new();
+    manager.add_process("test".to_string(), "echo test".to_string(), None);
+
+    // Add a log with a specific arrival time (in the past)
+    let old_time = Local::now() - Duration::hours(1);
+    let mut old_log = LogLine::new(
+        LogSource::ProcessStdout("test".to_string()),
+        "Old log from the past".to_string()
+    );
+    old_log.arrival_time = old_time;
+    manager.add_test_log(old_log);
+
+    // Start recording (sets start time to now)
+    manual_trace::start_recording(&mut app);
+
+    // Add a new log that arrives "now"
+    let new_log = LogLine::new(
+        LogSource::ProcessStdout("test".to_string()),
+        "New log during recording".to_string()
+    );
+    manager.add_test_log(new_log);
+
+    // Stop recording
+    let result = manual_trace::stop_recording(&mut app, &manager);
+
+    // Should succeed with only the new log (old log was before recording started)
+    assert!(result.is_ok());
+    let msg = result.unwrap();
+    // Should contain "1 logs" since only one log was within the time window
+    assert!(msg.contains("1 logs") || msg.contains("Captured 1"));
+}

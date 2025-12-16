@@ -1,6 +1,8 @@
+use chrono::Local;
 use ratatui::{
     layout::Rect,
-    style::{Color, Style},
+    style::{Color, Modifier, Style},
+    text::{Line, Span},
     widgets::Paragraph,
     Frame,
 };
@@ -80,7 +82,24 @@ pub fn draw_status_bar(
 
     let status_text = status_parts.join(" | ");
 
-    let paragraph = Paragraph::new(status_text)
+    // Build styled line with optional recording indicator
+    let line = if app.manual_trace_recording {
+        // Show red recording indicator with elapsed time
+        let elapsed_secs = app.manual_trace_start
+            .map(|start| (Local::now() - start).num_seconds())
+            .unwrap_or(0);
+
+        let rec_span = Span::styled(
+            format!("● REC {}s ", elapsed_secs),
+            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
+        );
+        let status_span = Span::raw(status_text);
+        Line::from(vec![rec_span, status_span])
+    } else {
+        Line::from(status_text)
+    };
+
+    let paragraph = Paragraph::new(line)
         .style(Style::default().bg(Color::Rgb(40, 40, 40)));
 
     f.render_widget(paragraph, area);

@@ -353,6 +353,7 @@ Overitall is under active development. Current features:
 - Batch focus from selected line
 - Dynamic batch window configuration (adjust batch grouping on-the-fly)
 - Trace detection and filtering (find correlation IDs like UUIDs)
+- Manual trace capture (record logs during a time window with `s` key)
 - Persistent configuration
 - Help system
 - Auto-update on startup (via gh CLI)
@@ -372,6 +373,17 @@ Traces are detected as tokens that:
 - Don't span the entire log buffer (those are likely config values)
 
 This is useful for debugging request flows through multi-service architectures.
+
+#### Manual Trace Capture
+
+Capture logs during a specific time window without needing correlation IDs:
+
+- `s` - Start recording (status bar shows "● REC" with elapsed time)
+- `s` - Press again to stop recording and enter trace view with captured logs
+- `Esc` - Cancel recording (if pressed while recording) or exit trace view (after capture)
+- `[` / `]` - Expand time window backward/forward (same as auto-detected traces)
+
+This is useful when you want to isolate logs for a specific action (like clicking a button or running a command) without needing correlation IDs in your logs.
 
 Planned features:
 

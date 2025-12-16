@@ -186,6 +186,10 @@ pub fn draw_help_overlay(f: &mut Frame) {
             Span::raw("     Detect correlation IDs (UUIDs, etc.)"),
         ]),
         Line::from(vec![
+            Span::styled("  s", Style::default().fg(Color::Yellow)),
+            Span::raw("         Start/stop manual trace capture"),
+        ]),
+        Line::from(vec![
             Span::styled("  [ ]", Style::default().fg(Color::Yellow)),
             Span::raw("       Expand trace view (before/after)"),
         ]),

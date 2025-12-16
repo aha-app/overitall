@@ -4,6 +4,7 @@ pub mod clipboard;
 pub mod config;
 pub mod filter;
 pub mod logs;
+pub mod manual_trace;
 pub mod navigation;
 pub mod process;
 pub mod search;

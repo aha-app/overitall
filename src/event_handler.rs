@@ -1,7 +1,7 @@
 use crate::command::{Command, parse_command, CommandExecutor};
 use crate::config::Config;
 use crate::log;
-use crate::operations::{batch, batch_window, clipboard, navigation, search, traces};
+use crate::operations::{batch, batch_window, clipboard, manual_trace, navigation, search, traces};
 use crate::process::ProcessManager;
 use crate::ui::{self, App, apply_filters};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -163,6 +163,13 @@ impl<'a> EventHandler<'a> {
             // Batch focus
             KeyCode::Char('b') if !self.app.command_mode && !self.app.search_mode && !self.app.expanded_line_view => {
                 self.handle_focus_batch();
+                Ok(false)
+            }
+            // Manual trace capture
+            KeyCode::Char('s') if !self.app.command_mode && !self.app.search_mode
+                && !self.app.trace_filter_mode && !self.app.trace_selection_mode
+                && !self.app.expanded_line_view => {
+                self.handle_manual_trace_toggle();
                 Ok(false)
             }
             // Line selection and scrolling
@@ -347,8 +354,20 @@ impl<'a> EventHandler<'a> {
         navigation::page_down(self.app, self.manager);
     }
 
+    fn handle_manual_trace_toggle(&mut self) {
+        if self.app.manual_trace_recording {
+            match manual_trace::stop_recording(self.app, self.manager) {
+                Ok(msg) => self.app.set_status_success(msg),
+                Err(msg) => self.app.set_status_error(msg),
+            }
+        } else {
+            manual_trace::start_recording(self.app);
+        }
+    }
+
     /// Handle Esc key - all escape logic in one place for clarity.
     /// Priority order (first match wins):
+    /// 0. Manual trace recording - cancel recording
     /// 1. Help overlay - close help
     /// 2. Expanded line view - close modal
     /// 3. Command mode - exit command input
@@ -361,6 +380,13 @@ impl<'a> EventHandler<'a> {
     /// 10. Batch view mode - exit batch view
     /// 11. Default - jump to latest logs
     fn handle_escape(&mut self) {
+        // 0. Manual trace recording
+        if self.app.manual_trace_recording {
+            manual_trace::cancel_recording(self.app);
+            self.app.set_status_info("Recording cancelled".to_string());
+            return;
+        }
+
         // 1. Help overlay
         if self.app.show_help {
             self.app.toggle_help();

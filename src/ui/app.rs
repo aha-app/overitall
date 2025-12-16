@@ -75,6 +75,12 @@ pub struct App {
     pub trace_expand_before: Duration,
     /// How much to expand view after the last trace occurrence
     pub trace_expand_after: Duration,
+
+    // Manual trace capture
+    /// Whether we're currently recording a manual trace
+    pub manual_trace_recording: bool,
+    /// When manual trace recording started
+    pub manual_trace_start: Option<DateTime<Local>>,
 }
 
 impl App {
@@ -115,6 +121,10 @@ impl App {
             trace_time_end: None,
             trace_expand_before: Duration::zero(),
             trace_expand_after: Duration::zero(),
+
+            // Manual trace capture
+            manual_trace_recording: false,
+            manual_trace_start: None,
         }
     }
 
