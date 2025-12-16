@@ -2,10 +2,19 @@
 name = "overitall"
 version = "0.1.14"
 edition = "2024"
+default-run = "oit"
 
 [[bin]]
 name = "oit"
 path = "src/main.rs"
+
+[[bin]]
+name = "bench_baseline"
+path = "benches/batch_detection.rs"
+
+[[bin]]
+name = "bench_cached"
+path = "benches/batch_detection_cached.rs"
 
 [dependencies]
 ratatui = "0.29"

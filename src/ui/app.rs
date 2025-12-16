@@ -4,6 +4,7 @@ use chrono::{DateTime, Duration, Local};
 
 use crate::log::LogLine;
 use crate::traces::TraceCandidate;
+use super::batch_cache::BatchCache;
 use super::filter::{Filter, FilterType};
 use super::types::StatusType;
 
@@ -89,6 +90,10 @@ pub struct App {
     // Display mode
     /// Whether to show logs in compact mode (collapse [key:value] metadata)
     pub compact_mode: bool,
+
+    // Performance
+    /// Cache for batch detection results
+    pub batch_cache: BatchCache,
 }
 
 impl App {
@@ -139,6 +144,9 @@ impl App {
 
             // Display mode
             compact_mode: true, // Default to compact mode
+
+            // Performance
+            batch_cache: BatchCache::new(),
         }
     }
 

@@ -50,7 +50,7 @@ fn create_manager_with_logs() -> ProcessManager {
 }
 
 /// Helper to render the app to a test terminal and return the buffer as a string
-fn render_app_to_string(app: &App, manager: &ProcessManager, width: u16, height: u16) -> String {
+fn render_app_to_string(app: &mut App, manager: &ProcessManager, width: u16, height: u16) -> String {
     let backend = TestBackend::new(width, height);
     let mut terminal = Terminal::new(backend).unwrap();
 
@@ -75,10 +75,10 @@ fn render_app_to_string(app: &App, manager: &ProcessManager, width: u16, height:
 
 #[test]
 fn test_basic_ui_rendering() {
-    let app = create_test_app();
+    let mut app = create_test_app();
     let manager = create_test_process_manager();
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
 }
 
@@ -94,7 +94,7 @@ fn test_search_mode_display() {
 
     let manager = create_test_process_manager();
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
 }
 
@@ -110,16 +110,16 @@ fn test_command_mode_display() {
 
     let manager = create_test_process_manager();
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
 }
 
 #[test]
 fn test_help_text_display() {
-    let app = create_test_app();
+    let mut app = create_test_app();
     let manager = create_test_process_manager();
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
     // Should contain help text since we're not in command or search mode
     // The text appears in cells but may not be visible in simple string matching
     // Just verify it renders without panicking
@@ -134,7 +134,7 @@ fn test_filter_display() {
 
     let manager = create_test_process_manager();
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
     // Should show filter count in the title - check for "2" and "filter" separately
     assert!(output.contains("2"));
     assert!(output.contains("filter"));
@@ -147,7 +147,7 @@ fn test_status_message_success() {
 
     let manager = create_test_process_manager();
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
     // Just verify it renders - the status text styling may not show in plain text
     assert!(!output.is_empty());
 }
@@ -159,7 +159,7 @@ fn test_status_message_error() {
 
     let manager = create_test_process_manager();
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
     // Just verify it renders - the status text styling may not show in plain text
     assert!(!output.is_empty());
 }
@@ -168,10 +168,10 @@ fn test_status_message_error() {
 
 #[test]
 fn test_log_display_with_data() {
-    let app = create_test_app();
+    let mut app = create_test_app();
     let manager = create_manager_with_logs();
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
 
     // Verify log content appears in output
     assert!(output.contains("Starting web server"));
@@ -202,7 +202,7 @@ fn test_search_with_results() {
     // Perform the search
     app.perform_search("ERROR".to_string());
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
 
     // Should show search pattern in title or status
     assert!(output.contains("ERROR") || output.contains("Search"));
@@ -218,7 +218,7 @@ fn test_search_pattern_matching() {
     // Search for a pattern that should match
     app.perform_search("job".to_string());
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
 
     // The output should contain matched lines
     assert!(output.contains("job") || output.contains("Job"));
@@ -232,7 +232,7 @@ fn test_search_as_filter() {
     // Search for ERROR - this should filter logs to show only ERROR messages
     app.perform_search("ERROR".to_string());
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert!(!output.is_empty());
     // Search pattern should be shown in the title
     assert!(output.contains("[Search: ERROR]"));
@@ -249,7 +249,7 @@ fn test_search_with_filters() {
     // Search for ERROR in filtered logs
     app.perform_search("ERROR".to_string());
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
 
     // Should show both filter and search
     assert!(output.contains("filter") || output.contains("1"));
@@ -257,10 +257,10 @@ fn test_search_with_filters() {
 
 #[test]
 fn test_process_display_with_processes() {
-    let app = create_test_app();
+    let mut app = create_test_app();
     let manager = create_manager_with_logs();
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
 
     // Should show process names
     assert!(output.contains("web"));
@@ -269,10 +269,10 @@ fn test_process_display_with_processes() {
 
 #[test]
 fn test_log_formatting() {
-    let app = create_test_app();
+    let mut app = create_test_app();
     let manager = create_manager_with_logs();
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
 
     // Check that timestamps are shown (they should contain ':' for HH:MM:SS)
     // and that process names are shown in brackets or similar
@@ -287,7 +287,7 @@ fn test_empty_search_pattern() {
     // Enter search mode but don't type anything
     app.enter_search_mode();
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
 
     // Should show search mode indicator
     assert!(!output.is_empty());
@@ -301,7 +301,7 @@ fn test_filter_with_logs() {
     // Add include filter for "ERROR"
     app.add_include_filter("ERROR".to_string());
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
 
     // Should show filter count
     assert!(output.contains("1") && output.contains("filter"));
@@ -315,7 +315,7 @@ fn test_exclude_filter_with_logs() {
     // Add exclude filter for "ERROR"
     app.add_exclude_filter("ERROR".to_string());
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
 
     // Should show filter count
     assert!(output.contains("1"));
@@ -335,7 +335,7 @@ fn test_snapshot_include_filter_active() {
     // Apply include filter for "ERROR"
     app.add_include_filter("ERROR".to_string());
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
 }
 
@@ -347,7 +347,7 @@ fn test_snapshot_exclude_filter_active() {
     // Apply exclude filter for "ERROR"
     app.add_exclude_filter("ERROR".to_string());
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
 }
 
@@ -360,7 +360,7 @@ fn test_snapshot_multiple_filters_active() {
     app.add_include_filter("job".to_string());
     app.add_exclude_filter("ERROR".to_string());
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
 }
 
@@ -379,7 +379,7 @@ fn test_snapshot_filter_list_display() {
     app.add_char('f');
     app.add_char('l');
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
 }
 
@@ -391,7 +391,7 @@ fn test_snapshot_empty_results_after_filtering() {
     // Apply filter that matches nothing
     app.add_include_filter("NONEXISTENT_PATTERN_XYZ".to_string());
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
 }
 
@@ -451,17 +451,17 @@ fn test_snapshot_batch_view_mode() {
     // Enable batch view mode and select first batch
     app.toggle_batch_view();
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
 }
 
 #[test]
 fn test_snapshot_batch_separators_visible() {
-    let app = create_test_app();
+    let mut app = create_test_app();
     let manager = create_manager_with_batched_logs();
 
     // Normal mode should show batch separators
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
 }
 
@@ -474,7 +474,7 @@ fn test_snapshot_batch_navigation_second_batch() {
     app.toggle_batch_view();
     app.next_batch();
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
 }
 
@@ -486,7 +486,7 @@ fn test_snapshot_batch_info_in_status() {
     // Enable batch view mode
     app.toggle_batch_view();
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
     // Should show "Batch N/M, X lines" in output
     assert!(output.contains("Batch") || output.contains("batch"));
     assert_snapshot!(output);
@@ -509,8 +509,8 @@ fn test_snapshot_single_batch_no_separators() {
         manager.add_test_log(log);
     }
 
-    let app = create_test_app();
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let mut app = create_test_app();
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
 }
 
@@ -525,7 +525,7 @@ fn test_snapshot_filtering_and_batching_combined() {
     app.add_include_filter("web".to_string());
     app.toggle_batch_view();
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
 }
 
@@ -540,7 +540,7 @@ fn test_snapshot_search_and_filtering_combined() {
     // Perform search
     app.perform_search("Database".to_string());
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
 }
 
@@ -555,7 +555,7 @@ fn test_snapshot_search_and_batching_combined() {
     // Perform search
     app.perform_search("job".to_string());
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
 }
 
@@ -573,7 +573,7 @@ fn test_snapshot_all_features_active() {
     // Perform search
     app.perform_search("server".to_string());
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
 }
 
@@ -588,7 +588,7 @@ fn test_wraparound_top_to_bottom() {
     // Now at first line, press "Up" to wrap to bottom
     overitall::operations::navigation::select_prev_line(&mut app, &manager);
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
 }
 
@@ -605,7 +605,7 @@ fn test_wraparound_bottom_to_top() {
     // Now at bottom, press "Down" to wrap to top
     overitall::operations::navigation::select_next_line(&mut app, &manager);
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
 }
 
@@ -623,7 +623,7 @@ fn test_wraparound_in_batch_view() {
     // Wrap from top to bottom within batch
     overitall::operations::navigation::select_prev_line(&mut app, &manager);
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
 }
 
@@ -642,7 +642,7 @@ fn test_wraparound_with_filters() {
     // Wrap from top to bottom
     overitall::operations::navigation::select_prev_line(&mut app, &manager);
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
 }
 
@@ -652,7 +652,7 @@ fn test_wraparound_with_filters() {
 
 #[test]
 fn test_batch_window_default_value() {
-    let app = create_test_app();
+    let mut app = create_test_app();
 
     // Default batch window should be 100ms
     assert_eq!(app.batch_window_ms, 100);
@@ -705,7 +705,7 @@ fn test_batch_window_snapshot_with_small_window() {
     // This should create more batches from the test data
     app.set_batch_window(50);
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
 }
 
@@ -718,7 +718,7 @@ fn test_batch_window_snapshot_with_large_window() {
     // This should group all test logs into a single batch
     app.set_batch_window(5000);
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
 }
 
@@ -824,7 +824,7 @@ fn test_hide_process_filters_logs() {
     // Hide the worker process
     app.hidden_processes.insert("worker".to_string());
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
 
     // Worker logs should not appear
     assert!(!output.contains("Processing job"));
@@ -845,7 +845,7 @@ fn test_show_process_restores_logs() {
     // Then show it again
     app.hidden_processes.remove("worker");
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
 
     // Worker logs should appear again
     assert!(output.contains("Processing job") || output.contains("worker"));
@@ -860,7 +860,7 @@ fn test_hide_all_processes() {
     app.hidden_processes.insert("web".to_string());
     app.hidden_processes.insert("worker".to_string());
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
 
     // No process logs should appear
     assert!(!output.contains("Starting web server"));
@@ -875,7 +875,7 @@ fn test_snapshot_hidden_process_display() {
     // Hide worker process
     app.hidden_processes.insert("worker".to_string());
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
 }
 
@@ -888,7 +888,7 @@ fn test_snapshot_all_processes_hidden() {
     app.hidden_processes.insert("web".to_string());
     app.hidden_processes.insert("worker".to_string());
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
 }
 
@@ -901,7 +901,7 @@ fn test_hidden_process_with_filters() {
     app.hidden_processes.insert("worker".to_string());
     app.add_include_filter("ERROR".to_string());
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
 
     // Should only show web ERROR logs, not worker ERROR logs
     assert!(output.contains("ERROR"));
@@ -917,7 +917,7 @@ fn test_snapshot_hidden_with_filters_combined() {
     app.hidden_processes.insert("worker".to_string());
     app.add_include_filter("ERROR".to_string());
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
 }
 
@@ -959,12 +959,12 @@ fn test_follow_mode_shows_last_lines() {
     // We create MORE logs than fit on screen to ensure scrolling is needed,
     // then verify the last logs are visible.
 
-    let app = create_test_app();
+    let mut app = create_test_app();
     // Create 50 logs in same batch - more than the ~34 line visible area
     // This ensures we need to scroll, and tests that follow mode shows the last lines
     let manager = create_manager_with_n_logs_same_batch(50);
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
 
     // The last log lines should be visible in follow mode
     assert!(
@@ -1021,11 +1021,11 @@ fn test_follow_mode_with_batch_separators() {
     // With a 35-line visible area and logs + separators taking 2 lines each (log + separator),
     // we can fit about 17-18 logs. The last log should still be visible.
 
-    let app = create_test_app();
+    let mut app = create_test_app();
     // Create 25 logs in separate batches - with separators, this will overflow the screen
     let manager = create_manager_with_n_logs_separate_batches(25);
 
-    let output = render_app_to_string(&app, &manager, 120, 40);
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
 
     // The last log line should be visible in follow mode
     assert!(

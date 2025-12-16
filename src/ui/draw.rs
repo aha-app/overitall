@@ -9,7 +9,7 @@ use super::overlays::{draw_help_overlay, draw_expanded_line_overlay, draw_trace_
 use super::widgets::{draw_process_list, draw_log_viewer, draw_status_bar, draw_command_input};
 
 /// Draw the UI to the terminal
-pub fn draw(f: &mut Frame, app: &App, manager: &ProcessManager) {
+pub fn draw(f: &mut Frame, app: &mut App, manager: &ProcessManager) {
     // Create the main layout: process list, log viewer, status bar, command input
     let chunks = Layout::default()
         .direction(Direction::Vertical)

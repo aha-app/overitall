@@ -10,7 +10,7 @@ use unicode_width::UnicodeWidthStr;
 use crate::log::LogLine;
 use crate::process::ProcessManager;
 use crate::ui::app::App;
-use crate::ui::batch::detect_batches_from_logs;
+use crate::ui::batch_cache::BatchCacheKey;
 use crate::ui::filter::FilterType;
 use crate::ui::utils::{condense_log_line, parse_ansi_with_background};
 
@@ -19,7 +19,7 @@ pub fn draw_log_viewer(
     f: &mut Frame,
     area: Rect,
     manager: &ProcessManager,
-    app: &App,
+    app: &mut App,
 ) {
     // Use snapshot if available (frozen/batch mode), otherwise use live buffer
     let logs_vec: Vec<&LogLine> = if let Some(ref snapshot) = app.snapshot {
@@ -127,8 +127,17 @@ pub fn draw_log_viewer(
         0
     };
 
-    // Detect batches from filtered logs
-    let batches = detect_batches_from_logs(&filtered_logs, app.batch_window_ms);
+    // Build cache key and detect batches (cached)
+    let cache_key = BatchCacheKey::from_context(
+        &filtered_logs,
+        app.batch_window_ms,
+        app.filters.len(),
+        active_search_pattern.to_string(),
+        app.hidden_processes.len(),
+        app.trace_filter_mode,
+        app.snapshot.is_some(),
+    );
+    let batches = app.batch_cache.get_or_compute(&filtered_logs, app.batch_window_ms, cache_key).clone();
 
     // Build a map from each log index to its batch number (before consuming filtered_logs)
     let filtered_log_to_batch: Vec<Option<usize>> = if !batches.is_empty() {
