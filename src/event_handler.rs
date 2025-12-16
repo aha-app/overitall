@@ -38,26 +38,19 @@ impl<'a> EventHandler<'a> {
                 self.handle_help_toggle();
                 Ok(false)
             }
-            KeyCode::Esc if self.app.show_help => {
-                self.handle_help_toggle();
+            // All Esc handling in one place
+            KeyCode::Esc => {
+                self.handle_escape();
                 Ok(false)
             }
-            // Expanded line view - Esc closes modal (highest priority after help)
-            KeyCode::Esc if self.app.expanded_line_view => {
-                self.app.close_expanded_view();
-                Ok(false)
-            }
+            // Expanded line view
             KeyCode::Enter if self.app.expanded_line_view => {
                 self.handle_show_context();
                 Ok(false)
             }
-            // Command mode - Esc exits command mode (before trace modes)
+            // Command mode
             KeyCode::Char(':') if !self.app.command_mode && !self.app.search_mode && !self.app.show_help => {
                 self.app.enter_command_mode();
-                Ok(false)
-            }
-            KeyCode::Esc if self.app.command_mode => {
-                self.app.exit_command_mode();
                 Ok(false)
             }
             KeyCode::Enter if self.app.command_mode => {
@@ -79,13 +72,9 @@ impl<'a> EventHandler<'a> {
                 self.app.add_char(c);
                 Ok(false)
             }
-            // Search mode - Esc exits search mode (before trace modes)
+            // Search mode
             KeyCode::Char('/') if !self.app.command_mode && !self.app.search_mode && !self.app.show_help => {
                 self.app.enter_search_mode();
-                Ok(false)
-            }
-            KeyCode::Esc if self.app.search_mode => {
-                self.app.exit_search_mode();
                 Ok(false)
             }
             KeyCode::Enter if self.app.search_mode => {
@@ -96,12 +85,11 @@ impl<'a> EventHandler<'a> {
                 self.app.delete_char();
                 Ok(false)
             }
-            // Trace selection mode
-            KeyCode::Esc if self.app.trace_selection_mode => {
-                self.app.exit_trace_selection();
-                self.app.set_status_info("Trace selection cancelled".to_string());
+            KeyCode::Char(c) if self.app.search_mode => {
+                self.app.add_char(c);
                 Ok(false)
             }
+            // Trace selection mode
             KeyCode::Enter if self.app.trace_selection_mode => {
                 traces::select_trace(self.app, self.manager);
                 Ok(false)
@@ -122,13 +110,7 @@ impl<'a> EventHandler<'a> {
                 self.app.select_next_trace();
                 Ok(false)
             }
-            // Trace filter mode - Esc exits trace view (after command/search modes)
-            KeyCode::Esc if self.app.trace_filter_mode => {
-                self.app.exit_trace_filter();
-                self.app.discard_snapshot();
-                self.app.set_status_info("Exited trace view".to_string());
-                Ok(false)
-            }
+            // Trace filter mode
             KeyCode::Char('[') if self.app.trace_filter_mode => {
                 traces::expand_trace_before(self.app);
                 Ok(false)
@@ -137,23 +119,8 @@ impl<'a> EventHandler<'a> {
                 traces::expand_trace_after(self.app);
                 Ok(false)
             }
-            // Esc with active search pattern and selection - return to search typing
-            KeyCode::Esc if !self.app.search_pattern.is_empty() && self.app.selected_line_id.is_some() => {
-                // Return to search typing mode
-                self.app.selected_line_id = None;
-                self.app.unfreeze_display();
-                self.app.discard_snapshot();
-                // Re-enter search mode with the saved pattern
-                self.app.search_mode = true;
-                self.app.input = self.app.search_pattern.clone();
-                Ok(false)
-            }
             KeyCode::Enter if !self.app.command_mode && !self.app.search_mode && !self.app.expanded_line_view => {
                 self.handle_toggle_expanded_view();
-                Ok(false)
-            }
-            KeyCode::Char(c) if self.app.search_mode => {
-                self.app.add_char(c);
                 Ok(false)
             }
             // Batch navigation
@@ -221,11 +188,6 @@ impl<'a> EventHandler<'a> {
             }
             KeyCode::End if !self.app.command_mode && !self.app.search_mode => {
                 self.app.scroll_to_bottom();
-                Ok(false)
-            }
-            // Reset to latest logs with Esc
-            KeyCode::Esc if !self.app.command_mode && !self.app.search_mode => {
-                self.handle_reset_to_latest();
                 Ok(false)
             }
             // Quit - initiate graceful shutdown
@@ -385,13 +347,70 @@ impl<'a> EventHandler<'a> {
         navigation::page_down(self.app, self.manager);
     }
 
-    fn handle_reset_to_latest(&mut self) {
-        // Two-stage Esc behavior when frozen:
-        // 1. First Esc: clear selection, stay frozen at current position
-        // 2. Second Esc: unfreeze and resume tailing
-        //
-        // Also handle batch view mode exit
+    /// Handle Esc key - all escape logic in one place for clarity.
+    /// Priority order (first match wins):
+    /// 1. Help overlay - close help
+    /// 2. Expanded line view - close modal
+    /// 3. Command mode - exit command input
+    /// 4. Search mode - exit search input
+    /// 5. Trace selection mode - cancel trace selection
+    /// 6. Trace filter mode - exit trace view
+    /// 7. Search results with selection - return to search input
+    /// 8. Frozen with selection - clear selection
+    /// 9. Frozen without selection - unfreeze and resume tailing
+    /// 10. Batch view mode - exit batch view
+    /// 11. Default - jump to latest logs
+    fn handle_escape(&mut self) {
+        // 1. Help overlay
+        if self.app.show_help {
+            self.app.toggle_help();
+            return;
+        }
 
+        // 2. Expanded line view (modal)
+        if self.app.expanded_line_view {
+            self.app.close_expanded_view();
+            return;
+        }
+
+        // 3. Command mode
+        if self.app.command_mode {
+            self.app.exit_command_mode();
+            return;
+        }
+
+        // 4. Search mode (actively typing)
+        if self.app.search_mode {
+            self.app.exit_search_mode();
+            return;
+        }
+
+        // 5. Trace selection mode
+        if self.app.trace_selection_mode {
+            self.app.exit_trace_selection();
+            self.app.set_status_info("Trace selection cancelled".to_string());
+            return;
+        }
+
+        // 6. Trace filter mode
+        if self.app.trace_filter_mode {
+            self.app.exit_trace_filter();
+            self.app.discard_snapshot();
+            self.app.set_status_info("Exited trace view".to_string());
+            return;
+        }
+
+        // 7. Search results with selection - return to search input
+        if !self.app.search_pattern.is_empty() && self.app.selected_line_id.is_some() {
+            self.app.selected_line_id = None;
+            self.app.unfreeze_display();
+            self.app.discard_snapshot();
+            self.app.search_mode = true;
+            self.app.input = self.app.search_pattern.clone();
+            return;
+        }
+
+        // 8-9. Frozen state (two-stage Esc)
         if self.app.frozen {
             if self.app.selected_line_id.is_some() {
                 // First Esc: clear selection but stay frozen
@@ -405,20 +424,24 @@ impl<'a> EventHandler<'a> {
                 self.app.scroll_to_bottom();
                 self.app.set_status_info("Resumed tailing".to_string());
             }
-        } else if self.app.batch_view_mode {
-            // Exit batch view mode and discard snapshot
+            return;
+        }
+
+        // 10. Batch view mode
+        if self.app.batch_view_mode {
             self.app.batch_view_mode = false;
             self.app.current_batch = None;
             self.app.discard_snapshot();
             self.app.clear_search();
             self.app.scroll_to_bottom();
             self.app.set_status_info("Exited batch view, resumed tailing".to_string());
-        } else {
-            // Not frozen or in batch view, just jump to latest
-            self.app.clear_search();
-            self.app.scroll_to_bottom();
-            self.app.selected_line_id = None;
-            self.app.set_status_info("Jumped to latest logs".to_string());
+            return;
         }
+
+        // 11. Default - jump to latest
+        self.app.clear_search();
+        self.app.scroll_to_bottom();
+        self.app.selected_line_id = None;
+        self.app.set_status_info("Jumped to latest logs".to_string());
     }
 }
