@@ -98,6 +98,29 @@ pub fn draw_log_viewer(
         !app.hidden_processes.contains(log.source.process_name())
     });
 
+    // Apply trace filter mode if active
+    if app.trace_filter_mode {
+        if let (Some(trace_id), Some(start), Some(end)) = (
+            &app.active_trace_id,
+            app.trace_time_start,
+            app.trace_time_end,
+        ) {
+            // Calculate expanded time window
+            let expanded_start = start - app.trace_expand_before;
+            let expanded_end = end + app.trace_expand_after;
+
+            filtered_logs = filtered_logs
+                .into_iter()
+                .filter(|log| {
+                    // Include if: contains trace ID OR is within expanded time window
+                    let contains_trace = log.line.contains(trace_id.as_str());
+                    let in_time_window = log.arrival_time >= expanded_start && log.arrival_time <= expanded_end;
+                    contains_trace || (in_time_window && (app.trace_expand_before.num_seconds() > 0 || app.trace_expand_after.num_seconds() > 0))
+                })
+                .collect();
+        }
+    }
+
     let match_count = if !active_search_pattern.is_empty() {
         filtered_logs.len()
     } else {

@@ -1,7 +1,7 @@
 use crate::command::{Command, parse_command, CommandExecutor};
 use crate::config::Config;
 use crate::log;
-use crate::operations::{batch, batch_window, clipboard, navigation, search};
+use crate::operations::{batch, batch_window, clipboard, navigation, search, traces};
 use crate::process::ProcessManager;
 use crate::ui::{self, App, apply_filters};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -40,6 +40,47 @@ impl<'a> EventHandler<'a> {
             }
             KeyCode::Esc if self.app.show_help => {
                 self.handle_help_toggle();
+                Ok(false)
+            }
+            // Trace selection mode
+            KeyCode::Esc if self.app.trace_selection_mode => {
+                self.app.exit_trace_selection();
+                self.app.set_status_info("Trace selection cancelled".to_string());
+                Ok(false)
+            }
+            KeyCode::Enter if self.app.trace_selection_mode => {
+                traces::select_trace(self.app, self.manager);
+                Ok(false)
+            }
+            KeyCode::Up if self.app.trace_selection_mode => {
+                self.app.select_prev_trace();
+                Ok(false)
+            }
+            KeyCode::Down if self.app.trace_selection_mode => {
+                self.app.select_next_trace();
+                Ok(false)
+            }
+            KeyCode::Char('k') if self.app.trace_selection_mode => {
+                self.app.select_prev_trace();
+                Ok(false)
+            }
+            KeyCode::Char('j') if self.app.trace_selection_mode => {
+                self.app.select_next_trace();
+                Ok(false)
+            }
+            // Trace filter mode
+            KeyCode::Esc if self.app.trace_filter_mode => {
+                self.app.exit_trace_filter();
+                self.app.discard_snapshot();
+                self.app.set_status_info("Exited trace view".to_string());
+                Ok(false)
+            }
+            KeyCode::Char('[') if self.app.trace_filter_mode => {
+                traces::expand_trace_before(self.app);
+                Ok(false)
+            }
+            KeyCode::Char(']') if self.app.trace_filter_mode => {
+                traces::expand_trace_after(self.app);
                 Ok(false)
             }
             // Expanded line view

@@ -7,4 +7,5 @@ pub mod logs;
 pub mod navigation;
 pub mod process;
 pub mod search;
+pub mod traces;
 pub mod visibility;

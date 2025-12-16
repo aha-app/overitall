@@ -14,6 +14,7 @@ Overitall (`oit`) is a Rust-based TUI that helps you manage multiple processes a
 - **Process Visibility Toggle**: Hide/show logs from specific processes on demand
 - **Search**: Full-text search with highlighting across all logs
 - **Batch Navigation**: Navigate through groups of related log lines that arrived together
+- **Trace Detection**: Find correlation IDs (UUIDs, trace IDs) and filter to specific traces
 - **Persistent Configuration**: Filters and settings are automatically saved
 - **Vim-style Commands**: Familiar `:command` interface for power users
 - **Auto-Update**: Automatically checks for and installs updates on startup
@@ -351,9 +352,26 @@ Overitall is under active development. Current features:
 - Clipboard operations (copy lines and batches to system clipboard)
 - Batch focus from selected line
 - Dynamic batch window configuration (adjust batch grouping on-the-fly)
+- Trace detection and filtering (find correlation IDs like UUIDs)
 - Persistent configuration
 - Help system
 - Auto-update on startup (via gh CLI)
+
+#### Trace Detection
+
+Find correlation IDs (UUIDs, trace IDs, etc.) that appear multiple times in your logs:
+
+- `:traces` - Scan logs for correlation IDs and show selection overlay
+- `Enter` - Select a trace to filter logs to only that trace
+- `[` / `]` - Expand trace view backward/forward in time (5 seconds per press)
+- `Esc` - Exit trace view and return to normal log display
+
+Traces are detected as tokens that:
+- Look like correlation IDs (UUIDs, long numbers, long hex strings, etc.)
+- Appear 3 or more times in the logs
+- Don't span the entire log buffer (those are likely config values)
+
+This is useful for debugging request flows through multi-service architectures.
 
 Planned features:
 

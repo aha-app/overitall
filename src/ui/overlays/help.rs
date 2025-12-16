@@ -179,6 +179,18 @@ pub fn draw_help_overlay(f: &mut Frame) {
         ]),
         Line::from(""),
         Line::from(vec![
+            Span::styled("Trace Detection:", Style::default().add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(vec![
+            Span::styled("  :traces", Style::default().fg(Color::Yellow)),
+            Span::raw("     Detect correlation IDs (UUIDs, etc.)"),
+        ]),
+        Line::from(vec![
+            Span::styled("  [ ]", Style::default().fg(Color::Yellow)),
+            Span::raw("       Expand trace view (before/after)"),
+        ]),
+        Line::from(""),
+        Line::from(vec![
             Span::styled("Press ", Style::default()),
             Span::styled("ESC", Style::default().fg(Color::Yellow)),
             Span::styled(" or ", Style::default()),

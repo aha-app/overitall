@@ -6,6 +6,7 @@ mod log;
 mod operations;
 mod procfile;
 mod process;
+mod traces;
 mod ui;
 mod updater;
 

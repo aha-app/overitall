@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::operations::{batch, batch_window, filter, process, visibility};
+use crate::operations::{batch, batch_window, filter, process, traces, visibility};
 use crate::process::ProcessManager;
 use crate::ui::App;
 use anyhow::Result;
@@ -24,6 +24,7 @@ pub enum Command {
     Show(String),
     HideAll,
     ShowAll,
+    Traces,
     Unknown(String),
 }
 
@@ -120,6 +121,7 @@ pub fn parse_command(input: &str) -> Command {
                 Command::Show(parts[1].to_string())
             }
         }
+        "traces" => Command::Traces,
         _ => Command::Unknown(format!("Unknown command: {}", parts[0])),
     }
 }
@@ -188,6 +190,9 @@ impl<'a> CommandExecutor<'a> {
             }
             Command::ShowAll => {
                 self.execute_show_all();
+            }
+            Command::Traces => {
+                self.execute_traces();
             }
             Command::Unknown(msg) => {
                 self.app.set_status_error(format!("Error: {}", msg));
@@ -293,6 +298,10 @@ impl<'a> CommandExecutor<'a> {
     fn execute_show_all(&mut self) {
         let count = visibility::show_all(self.app, self.config);
         self.app.set_status_success(format!("Shown all processes ({} were hidden)", count));
+    }
+
+    fn execute_traces(&mut self) {
+        traces::execute_traces(self.app, self.manager);
     }
 }
 

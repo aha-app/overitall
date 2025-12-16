@@ -8,4 +8,5 @@ pub mod log;
 pub mod operations;
 pub mod process;
 pub mod procfile;
+pub mod traces;
 pub mod ui;
