@@ -137,9 +137,9 @@ pub fn detect_traces(logs: &[&LogLine]) -> Vec<TraceCandidate> {
         .into_iter()
         .filter(|(_, occ)| occ.count >= 3 && is_bursty(occ, buffer_start, buffer_end))
         .map(|(token, occ)| {
-            // Create a short context preview (first 60 chars of first line)
-            let preview = if occ.first_line.len() > 60 {
-                format!("{}...", &occ.first_line[..60])
+            // Create a context preview (first 200 chars of first line, UI will truncate as needed)
+            let preview = if occ.first_line.len() > 200 {
+                format!("{}...", &occ.first_line[..200])
             } else {
                 occ.first_line.clone()
             };

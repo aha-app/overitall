@@ -22,13 +22,25 @@ pub fn draw_expanded_line_overlay(f: &mut Frame, manager: &ProcessManager, app: 
         }
     };
 
-    // Get all logs and apply filters (same logic as in draw_log_viewer)
-    let logs = manager.get_all_logs();
-
-    let filtered_logs: Vec<&crate::log::LogLine> = if app.filters.is_empty() {
-        logs
+    // Use snapshot if available (frozen/batch/trace mode), otherwise use live buffer
+    // This must match the logic in log_viewer.rs exactly
+    let logs_vec: Vec<&crate::log::LogLine> = if let Some(ref snapshot) = app.snapshot {
+        snapshot.iter().collect()
     } else {
-        logs.into_iter()
+        let mut logs = manager.get_all_logs();
+        if app.frozen {
+            if let Some(frozen_at) = app.frozen_at {
+                logs.retain(|log| log.timestamp <= frozen_at);
+            }
+        }
+        logs
+    };
+
+    // Apply filters
+    let mut filtered_logs: Vec<&crate::log::LogLine> = if app.filters.is_empty() {
+        logs_vec
+    } else {
+        logs_vec.into_iter()
             .filter(|log| {
                 let line_text = &log.line;
 
@@ -56,6 +68,52 @@ pub fn draw_expanded_line_overlay(f: &mut Frame, manager: &ProcessManager, app: 
             })
             .collect()
     };
+
+    // Apply search filter if active
+    let active_search_pattern = if app.search_mode && !app.input.is_empty() {
+        &app.input
+    } else if !app.search_pattern.is_empty() {
+        &app.search_pattern
+    } else {
+        ""
+    };
+
+    if !active_search_pattern.is_empty() {
+        filtered_logs = filtered_logs
+            .into_iter()
+            .filter(|log| {
+                log.line
+                    .to_lowercase()
+                    .contains(&active_search_pattern.to_lowercase())
+            })
+            .collect();
+    }
+
+    // Apply process visibility filter
+    filtered_logs.retain(|log| {
+        !app.hidden_processes.contains(log.source.process_name())
+    });
+
+    // Apply trace filter mode if active
+    if app.trace_filter_mode {
+        if let (Some(trace_id), Some(start), Some(end)) = (
+            &app.active_trace_id,
+            app.trace_time_start,
+            app.trace_time_end,
+        ) {
+            let expanded_start = start - app.trace_expand_before;
+            let expanded_end = end + app.trace_expand_after;
+
+            filtered_logs = filtered_logs
+                .into_iter()
+                .filter(|log| {
+                    let contains_trace = log.line.contains(trace_id.as_str());
+                    let in_time_window = log.arrival_time >= expanded_start && log.arrival_time <= expanded_end;
+                    contains_trace || (in_time_window && (app.trace_expand_before.num_seconds() > 0 || app.trace_expand_after.num_seconds() > 0))
+                })
+                .collect();
+        }
+    }
 
     // Detect batches
     let batches = detect_batches_from_logs(&filtered_logs, app.batch_window_ms);
