@@ -17,6 +17,8 @@ pub struct Config {
     pub hidden_processes: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disable_auto_update: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compact_mode: Option<bool>,
 
     // This field is not serialized, just used at runtime
     #[serde(skip)]
@@ -126,6 +128,7 @@ procfile = "Procfile"
             max_log_buffer_mb: None,
             hidden_processes: Vec::new(),
             disable_auto_update: None,
+            compact_mode: None,
             config_path: None,
         };
 
@@ -149,6 +152,7 @@ procfile = "Procfile"
             max_log_buffer_mb: None,
             hidden_processes: Vec::new(),
             disable_auto_update: None,
+            compact_mode: None,
             config_path: None,
         };
 
@@ -176,6 +180,7 @@ procfile = "Procfile"
             max_log_buffer_mb: None,
             hidden_processes: Vec::new(),
             disable_auto_update: None,
+            compact_mode: None,
             config_path: None,
         };
 
@@ -199,6 +204,7 @@ procfile = "Procfile"
             max_log_buffer_mb: None,
             hidden_processes: Vec::new(),
             disable_auto_update: None,
+            compact_mode: None,
             config_path: None,
         };
 
@@ -256,6 +262,7 @@ procfile = "Procfile"
             max_log_buffer_mb: Some(75),
             hidden_processes: Vec::new(),
             disable_auto_update: None,
+            compact_mode: None,
             config_path: None,
         };
 
@@ -311,6 +318,7 @@ procfile = "Procfile"
             max_log_buffer_mb: None,
             hidden_processes: Vec::new(),
             disable_auto_update: None,
+            compact_mode: None,
             config_path: None,
         };
 
@@ -331,6 +339,7 @@ procfile = "Procfile"
             max_log_buffer_mb: None,
             hidden_processes: Vec::new(),
             disable_auto_update: Some(true),
+            compact_mode: None,
             config_path: None,
         };
 
@@ -386,6 +395,7 @@ procfile = "Procfile"
             max_log_buffer_mb: None,
             hidden_processes: vec!["api".to_string(), "db".to_string()],
             disable_auto_update: None,
+            compact_mode: None,
             config_path: None,
         };
 
@@ -406,6 +416,7 @@ procfile = "Procfile"
             max_log_buffer_mb: None,
             hidden_processes: Vec::new(),
             disable_auto_update: None,
+            compact_mode: None,
             config_path: None,
         };
 
@@ -426,6 +437,7 @@ procfile = "Procfile"
             max_log_buffer_mb: None,
             hidden_processes: vec!["web".to_string(), "worker".to_string(), "scheduler".to_string()],
             disable_auto_update: None,
+            compact_mode: None,
             config_path: None,
         };
 

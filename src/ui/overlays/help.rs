@@ -41,6 +41,10 @@ pub fn draw_help_overlay(f: &mut Frame, scroll_offset: u16) {
             Span::styled("  s", Style::default().fg(Color::Yellow)),
             Span::raw("       Start/stop manual trace capture"),
         ]),
+        Line::from(vec![
+            Span::styled("  w", Style::default().fg(Color::Yellow)),
+            Span::raw("       Toggle compact mode (condense metadata)"),
+        ]),
         Line::from(""),
         Line::from(vec![
             Span::styled("Commands:", Style::default().add_modifier(Modifier::BOLD)),

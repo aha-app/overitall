@@ -12,7 +12,7 @@ use crate::process::ProcessManager;
 use crate::ui::app::App;
 use crate::ui::batch::detect_batches_from_logs;
 use crate::ui::filter::FilterType;
-use crate::ui::utils::parse_ansi_with_background;
+use crate::ui::utils::{condense_log_line, parse_ansi_with_background};
 
 /// Draw the log viewer in the middle of the screen
 pub fn draw_log_viewer(
@@ -327,8 +327,15 @@ pub fn draw_log_viewer(
         let timestamp_part = format!("[{}] ", timestamp);
         let process_part = format!("{}: ", process_name);
 
+        // Apply condensing in compact mode (but not in batch view mode, which shows full content)
+        let log_content = if app.compact_mode && current_batch_validated.is_none() {
+            condense_log_line(&log.line)
+        } else {
+            log.line.clone()
+        };
+
         // Build the full line with ANSI codes preserved
-        let full_line_with_ansi = format!("{}{}{}", timestamp_part, process_part, log.line);
+        let full_line_with_ansi = format!("{}{}{}", timestamp_part, process_part, log_content);
 
         // For width calculations, strip ANSI codes
         let full_line_clean = strip_ansi_escapes::strip_str(&full_line_with_ansi);

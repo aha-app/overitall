@@ -123,6 +123,11 @@ async fn main() -> anyhow::Result<()> {
     // Load hidden processes from config
     app.hidden_processes = config.hidden_processes.iter().cloned().collect();
 
+    // Load compact mode from config (default: true if not specified)
+    if let Some(compact_mode) = config.compact_mode {
+        app.compact_mode = compact_mode;
+    }
+
     // TUI event loop
     let result = run_app(&mut terminal, &mut app, &mut manager, &mut config).await;
 

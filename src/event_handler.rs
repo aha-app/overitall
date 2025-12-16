@@ -181,6 +181,12 @@ impl<'a> EventHandler<'a> {
                 self.handle_manual_trace_toggle();
                 Ok(false)
             }
+            // Toggle compact mode (condense metadata tags)
+            KeyCode::Char('w') if !self.app.command_mode && !self.app.search_mode
+                && !self.app.show_help && !self.app.expanded_line_view => {
+                self.handle_toggle_compact_mode();
+                Ok(false)
+            }
             // Line selection and scrolling
             KeyCode::Up if !self.app.command_mode && !self.app.search_mode => {
                 self.handle_select_prev_line();
@@ -372,6 +378,15 @@ impl<'a> EventHandler<'a> {
         } else {
             manual_trace::start_recording(self.app);
         }
+    }
+
+    fn handle_toggle_compact_mode(&mut self) {
+        self.app.toggle_compact_mode();
+        // Persist to config
+        self.config.compact_mode = Some(self.app.compact_mode);
+        crate::operations::config::save_config_with_error(self.config, self.app);
+        let mode = if self.app.compact_mode { "compact" } else { "full" };
+        self.app.set_status_info(format!("Display mode: {}", mode));
     }
 
     /// Handle Esc key - all escape logic in one place for clarity.

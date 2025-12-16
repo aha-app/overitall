@@ -85,6 +85,10 @@ pub struct App {
     // Help overlay
     /// Scroll offset for help overlay
     pub help_scroll_offset: u16,
+
+    // Display mode
+    /// Whether to show logs in compact mode (collapse [key:value] metadata)
+    pub compact_mode: bool,
 }
 
 impl App {
@@ -132,6 +136,9 @@ impl App {
 
             // Help overlay
             help_scroll_offset: 0,
+
+            // Display mode
+            compact_mode: true, // Default to compact mode
         }
     }
 
@@ -467,5 +474,10 @@ impl App {
         self.trace_expand_after = Duration::zero();
         self.unfreeze_display();
         self.selected_line_id = None;
+    }
+
+    /// Toggle compact display mode
+    pub fn toggle_compact_mode(&mut self) {
+        self.compact_mode = !self.compact_mode;
     }
 }

@@ -16,6 +16,7 @@ Overitall (`oit`) is a Rust-based TUI that helps you manage multiple processes a
 - **Batch Navigation**: Navigate through groups of related log lines that arrived together
 - **Trace Detection**: Find correlation IDs (UUIDs, trace IDs) and filter to specific traces
 - **Persistent Configuration**: Filters and settings are automatically saved
+- **Compact Mode**: Collapse verbose metadata tags (`[key:value]`) into `[+N]` for cleaner log viewing
 - **Vim-style Commands**: Familiar `:command` interface for power users
 - **Auto-Update**: Automatically checks for and installs updates on startup
 
@@ -116,6 +117,7 @@ oit -c path/to/config.toml
 - `:` - Enter command mode
 - `/` - Enter search mode
 - `Esc` - Exit current mode, close overlays, or jump to latest logs
+- `w` - Toggle compact mode (condense `[key:value]` metadata to `[+N]`)
 
 
 #### Batch Navigation
@@ -236,6 +238,7 @@ hidden_processes = ["worker"]
 - `max_log_buffer_mb` - Maximum memory for log buffer in megabytes (default: 50)
 - `batch_window_ms` - Batch grouping window in milliseconds (default: 100)
 - `disable_auto_update` - Set to `true` to disable auto-update checks (default: false)
+- `compact_mode` - Set to `false` to show full log lines by default (default: true)
 
 ### Auto-Update
 
@@ -354,6 +357,7 @@ Overitall is under active development. Current features:
 - Dynamic batch window configuration (adjust batch grouping on-the-fly)
 - Trace detection and filtering (find correlation IDs like UUIDs)
 - Manual trace capture (record logs during a time window with `s` key)
+- Compact mode (collapse `[key:value]` metadata tags into `[+N]` for cleaner viewing)
 - Persistent configuration
 - Help system
 - Auto-update on startup (via gh CLI)
