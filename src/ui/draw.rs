@@ -35,7 +35,7 @@ pub fn draw(f: &mut Frame, app: &App, manager: &ProcessManager) {
 
     // Draw help overlay if show_help is true (must be last so it's on top)
     if app.show_help {
-        draw_help_overlay(f);
+        draw_help_overlay(f, app.help_scroll_offset);
     }
 
     // Draw expanded line view overlay if enabled (must be last so it's on top)

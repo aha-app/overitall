@@ -38,6 +38,15 @@ impl<'a> EventHandler<'a> {
                 self.handle_help_toggle();
                 Ok(false)
             }
+            // Help overlay scrolling (must come before other navigation handlers)
+            KeyCode::Up | KeyCode::Char('k') if self.app.show_help => {
+                self.app.scroll_help_up();
+                Ok(false)
+            }
+            KeyCode::Down | KeyCode::Char('j') if self.app.show_help => {
+                self.app.scroll_help_down();
+                Ok(false)
+            }
             // All Esc handling in one place
             KeyCode::Esc => {
                 self.handle_escape();

@@ -81,6 +81,10 @@ pub struct App {
     pub manual_trace_recording: bool,
     /// When manual trace recording started
     pub manual_trace_start: Option<DateTime<Local>>,
+
+    // Help overlay
+    /// Scroll offset for help overlay
+    pub help_scroll_offset: u16,
 }
 
 impl App {
@@ -125,6 +129,9 @@ impl App {
             // Manual trace capture
             manual_trace_recording: false,
             manual_trace_start: None,
+
+            // Help overlay
+            help_scroll_offset: 0,
         }
     }
 
@@ -339,6 +346,17 @@ impl App {
 
     pub fn toggle_help(&mut self) {
         self.show_help = !self.show_help;
+        if self.show_help {
+            self.help_scroll_offset = 0; // Reset scroll when opening
+        }
+    }
+
+    pub fn scroll_help_up(&mut self) {
+        self.help_scroll_offset = self.help_scroll_offset.saturating_sub(1);
+    }
+
+    pub fn scroll_help_down(&mut self) {
+        self.help_scroll_offset = self.help_scroll_offset.saturating_add(1);
     }
 
     pub fn select_line_by_id(&mut self, id: Option<u64>) {

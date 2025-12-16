@@ -7,8 +7,8 @@ use ratatui::{
 
 use crate::ui::utils::centered_rect;
 
-/// Draw the help overlay
-pub fn draw_help_overlay(f: &mut Frame) {
+/// Draw the help overlay with scroll support
+pub fn draw_help_overlay(f: &mut Frame, scroll_offset: u16) {
     let help_text = vec![
         Line::from(vec![
             Span::styled("Overitall Help", Style::default().add_modifier(Modifier::BOLD)),
@@ -36,6 +36,10 @@ pub fn draw_help_overlay(f: &mut Frame) {
         Line::from(vec![
             Span::styled("  q", Style::default().fg(Color::Yellow)),
             Span::raw("       Quit"),
+        ]),
+        Line::from(vec![
+            Span::styled("  s", Style::default().fg(Color::Yellow)),
+            Span::raw("       Start/stop manual trace capture"),
         ]),
         Line::from(""),
         Line::from(vec![
@@ -186,20 +190,17 @@ pub fn draw_help_overlay(f: &mut Frame) {
             Span::raw("     Detect correlation IDs (UUIDs, etc.)"),
         ]),
         Line::from(vec![
-            Span::styled("  s", Style::default().fg(Color::Yellow)),
-            Span::raw("         Start/stop manual trace capture"),
-        ]),
-        Line::from(vec![
             Span::styled("  [ ]", Style::default().fg(Color::Yellow)),
             Span::raw("       Expand trace view (before/after)"),
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("Press ", Style::default()),
+            Span::styled("↑/↓", Style::default().fg(Color::Yellow)),
+            Span::styled(" scroll | ", Style::default()),
             Span::styled("ESC", Style::default().fg(Color::Yellow)),
             Span::styled(" or ", Style::default()),
             Span::styled("?", Style::default().fg(Color::Yellow)),
-            Span::styled(" to close this help", Style::default()),
+            Span::styled(" to close", Style::default()),
         ]),
     ];
 
@@ -210,7 +211,8 @@ pub fn draw_help_overlay(f: &mut Frame) {
 
     let paragraph = Paragraph::new(help_text)
         .block(block)
-        .wrap(Wrap { trim: true });
+        .wrap(Wrap { trim: true })
+        .scroll((scroll_offset, 0));
 
     let area = centered_rect(60, 80, f.area());
 
