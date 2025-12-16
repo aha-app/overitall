@@ -1,4 +1,4 @@
-mod ansi_cache;
+pub mod ansi_cache;
 mod app;
 mod batch;
 pub mod batch_cache;
@@ -6,7 +6,7 @@ mod draw;
 mod filter;
 mod overlays;
 mod types;
-mod utils;
+pub mod utils;
 mod widgets;
 
 // Public API (maintains backward compatibility)

@@ -16,6 +16,10 @@ path = "benches/batch_detection.rs"
 name = "bench_cached"
 path = "benches/batch_detection_cached.rs"
 
+[[bin]]
+name = "bench_ansi_cache"
+path = "benches/ansi_cache.rs"
+
 [dependencies]
 ratatui = "0.29"
 tokio = { version = "1.42", features = ["full"] }
