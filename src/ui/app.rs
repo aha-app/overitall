@@ -4,6 +4,7 @@ use chrono::{DateTime, Duration, Local};
 
 use crate::log::LogLine;
 use crate::traces::TraceCandidate;
+use super::ansi_cache::AnsiCache;
 use super::batch_cache::BatchCache;
 use super::filter::{Filter, FilterType};
 use super::types::StatusType;
@@ -94,6 +95,8 @@ pub struct App {
     // Performance
     /// Cache for batch detection results
     pub batch_cache: BatchCache,
+    /// Cache for ANSI parsing results
+    pub ansi_cache: AnsiCache,
 }
 
 impl App {
@@ -147,6 +150,7 @@ impl App {
 
             // Performance
             batch_cache: BatchCache::new(),
+            ansi_cache: AnsiCache::new(2000), // Cache up to 2000 parsed lines
         }
     }
 

@@ -9,10 +9,11 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::log::LogLine;
 use crate::process::ProcessManager;
+use crate::ui::ansi_cache::{AnsiCache, AnsiCacheKey};
 use crate::ui::app::App;
 use crate::ui::batch_cache::BatchCacheKey;
 use crate::ui::filter::FilterType;
-use crate::ui::utils::{condense_log_line, parse_ansi_with_background};
+use crate::ui::utils::condense_log_line;
 
 /// Draw the log viewer in the middle of the screen
 pub fn draw_log_viewer(
@@ -354,7 +355,7 @@ pub fn draw_log_viewer(
 
         // Determine if we need to truncate and render accordingly
         let line = if current_batch_validated.is_some() {
-            // In batch view mode: show full content with ANSI parsing
+            // In batch view mode: show full content with cached ANSI parsing
             let bg_color = if is_selected {
                 Some(Color::Blue)
             } else if is_match {
@@ -369,7 +370,10 @@ pub fn draw_log_viewer(
                 None
             };
 
-            parse_ansi_with_background(full_line_with_ansi.clone(), bg_color, fg_override)
+            // Use cache: batch view mode always uses non-compact content
+            let cache_key = AnsiCacheKey::new(log.id, false);
+            let cached = app.ansi_cache.get_or_parse(cache_key, &full_line_with_ansi);
+            AnsiCache::to_line_with_overrides(cached, bg_color, fg_override)
         } else if full_line_clean.width() > max_line_width {
             // Truncate based on display width (using clean text for measurement)
             let mut current_width = 0;
@@ -397,7 +401,7 @@ pub fn draw_log_viewer(
             };
             Line::from(Span::styled(truncated, style))
         } else {
-            // Full line fits, parse ANSI codes
+            // Full line fits, parse ANSI codes with caching
             let bg_color = if is_selected {
                 Some(Color::Blue)
             } else if is_match {
@@ -412,7 +416,10 @@ pub fn draw_log_viewer(
                 None
             };
 
-            parse_ansi_with_background(full_line_with_ansi.clone(), bg_color, fg_override)
+            // Use cache: key includes compact mode since content may differ
+            let cache_key = AnsiCacheKey::new(log.id, app.compact_mode);
+            let cached = app.ansi_cache.get_or_parse(cache_key, &full_line_with_ansi);
+            AnsiCache::to_line_with_overrides(cached, bg_color, fg_override)
         };
 
         log_lines.push(line);
