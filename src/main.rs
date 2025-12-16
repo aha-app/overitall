@@ -87,7 +87,8 @@ async fn main() -> anyhow::Result<()> {
         // If this process has a log file configured, add it
         if let Some(proc_config) = config.processes.get(name) {
             if let Some(log_file) = &proc_config.log_file {
-                manager.add_log_file(name.clone(), log_file.clone()).await?;
+                let log_path = procfile_dir.join(log_file);
+                manager.add_log_file(name.clone(), log_path).await?;
             }
         }
     }
