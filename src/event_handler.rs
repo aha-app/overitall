@@ -68,6 +68,15 @@ impl<'a> EventHandler<'a> {
                 self.app.select_next_trace();
                 Ok(false)
             }
+            // Expanded line view (must come before trace_filter_mode so Esc closes modal first)
+            KeyCode::Esc if self.app.expanded_line_view => {
+                self.app.close_expanded_view();
+                Ok(false)
+            }
+            KeyCode::Enter if self.app.expanded_line_view => {
+                self.handle_show_context();
+                Ok(false)
+            }
             // Trace filter mode
             KeyCode::Esc if self.app.trace_filter_mode => {
                 self.app.exit_trace_filter();
@@ -81,15 +90,6 @@ impl<'a> EventHandler<'a> {
             }
             KeyCode::Char(']') if self.app.trace_filter_mode => {
                 traces::expand_trace_after(self.app);
-                Ok(false)
-            }
-            // Expanded line view
-            KeyCode::Esc if self.app.expanded_line_view => {
-                self.app.close_expanded_view();
-                Ok(false)
-            }
-            KeyCode::Enter if self.app.expanded_line_view => {
-                self.handle_show_context();
                 Ok(false)
             }
             KeyCode::Enter if !self.app.command_mode && !self.app.search_mode && !self.app.expanded_line_view => {

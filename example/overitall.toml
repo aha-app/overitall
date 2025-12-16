@@ -1,5 +1,7 @@
 procfile = "example/Procfile"
+batch_window_ms = 5000
 max_log_buffer_mb = 50
+hidden_processes = []
 
 [processes.web]
 log_file = "web.log"
