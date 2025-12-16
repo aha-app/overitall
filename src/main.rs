@@ -187,23 +187,30 @@ async fn run_app(
             break;
         }
 
-        // Handle input with short timeout
-        // Note: In raw mode, Ctrl+C is captured as a keyboard event, not a signal,
-        // so we handle it in the event handler instead of using tokio::signal::ctrl_c()
+        // Handle input - drain ALL pending events before next redraw
+        // This prevents input lag when keys are held down (terminal key repeat)
+        // Note: In raw mode, Ctrl+C is captured as a keyboard event, not a signal
 
-        // Don't use tokio::select - check for input directly
-        // This avoids potential issues with the tokio runtime
+        // First, wait for at least one event (with timeout for log updates)
         if event::poll(std::time::Duration::from_millis(100))? {
-            if let Event::Key(key) = event::read()? {
-                let mut event_handler = EventHandler::new(app, manager, config);
-                if event_handler.handle_key_event(key).await? {
-                    break; // Quit was requested (shouldn't happen now)
+            // Process all pending events before redrawing
+            loop {
+                if let Event::Key(key) = event::read()? {
+                    let mut event_handler = EventHandler::new(app, manager, config);
+                    if event_handler.handle_key_event(key).await? {
+                        return Ok(()); // Quit was requested
+                    }
+                }
+
+                // Check if more events are immediately available
+                if !event::poll(std::time::Duration::ZERO)? {
+                    break;
                 }
             }
         }
 
-        // Small delay to prevent busy-looping
-        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+        // Small delay to prevent busy-looping when no events
+        tokio::time::sleep(tokio::time::Duration::from_millis(16)).await;
     }
 
     Ok(())
