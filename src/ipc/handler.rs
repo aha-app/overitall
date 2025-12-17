@@ -26,6 +26,8 @@ impl IpcCommandHandler {
             "processes" => IpcHandlerResult::response_only(self.handle_processes(state)),
             "logs" => IpcHandlerResult::response_only(self.handle_logs(&request.args, state)),
             "search" => self.handle_search(&request.args, state),
+            "select" => self.handle_select(&request.args, state),
+            "context" => self.handle_context(&request.args, state),
             _ => IpcHandlerResult::response_only(IpcResponse::err(format!(
                 "unknown command: {}",
                 request.command
@@ -168,19 +170,25 @@ impl IpcCommandHandler {
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
 
-        // Create action to update TUI search state
-        let actions = vec![IpcAction::SetSearch {
-            pattern: pattern.to_string(),
-        }];
+        // Create actions to update TUI: set search pattern and disable auto-scroll
+        // so the user sees the same frozen view as the CLI results
+        let actions = vec![
+            IpcAction::SetSearch {
+                pattern: pattern.to_string(),
+            },
+            IpcAction::SetAutoScroll { enabled: false },
+        ];
 
         match state {
             Some(snapshot) => {
-                // Search through recent_logs
+                // Search through recent_logs in reverse order (newest first)
+                // This ensures the LLM sees the most recent matches when debugging
                 let pattern_lower = pattern.to_lowercase();
 
                 let matches: Vec<Value> = snapshot
                     .recent_logs
                     .iter()
+                    .rev() // Newest first
                     .filter(|log| {
                         if case_sensitive {
                             log.content.contains(pattern)
@@ -223,6 +231,115 @@ impl IpcCommandHandler {
                     actions,
                 )
             }
+        }
+    }
+
+    fn handle_select(&self, args: &Value, state: Option<&StateSnapshot>) -> IpcHandlerResult {
+        // ID is required
+        let id = match args.get("id").and_then(|v| v.as_u64()) {
+            Some(id) => id,
+            None => {
+                return IpcHandlerResult::response_only(IpcResponse::err(
+                    "missing required argument: id".to_string(),
+                ));
+            }
+        };
+
+        // Verify the log line exists in current state
+        let line_exists = state
+            .map(|s| s.recent_logs.iter().any(|log| log.id == id))
+            .unwrap_or(false);
+
+        if !line_exists {
+            return IpcHandlerResult::response_only(IpcResponse::err(format!(
+                "log line with id {} not found",
+                id
+            )));
+        }
+
+        // Emit action to select and expand the line, also disable auto-scroll
+        let actions = vec![
+            IpcAction::SelectAndExpandLine { id },
+            IpcAction::SetAutoScroll { enabled: false },
+        ];
+
+        IpcHandlerResult::with_actions(
+            IpcResponse::ok(json!({
+                "selected": true,
+                "id": id
+            })),
+            actions,
+        )
+    }
+
+    fn handle_context(&self, args: &Value, state: Option<&StateSnapshot>) -> IpcHandlerResult {
+        // ID is required
+        let id = match args.get("id").and_then(|v| v.as_u64()) {
+            Some(id) => id,
+            None => {
+                return IpcHandlerResult::response_only(IpcResponse::err(
+                    "missing required argument: id".to_string(),
+                ));
+            }
+        };
+
+        // Parse optional before/after counts (default: 5 lines each)
+        let before = args
+            .get("before")
+            .and_then(|v| v.as_u64())
+            .map(|v| v as usize)
+            .unwrap_or(5);
+        let after = args
+            .get("after")
+            .and_then(|v| v.as_u64())
+            .map(|v| v as usize)
+            .unwrap_or(5);
+
+        match state {
+            Some(snapshot) => {
+                // Find the index of the target log line
+                let target_idx = snapshot
+                    .recent_logs
+                    .iter()
+                    .position(|log| log.id == id);
+
+                match target_idx {
+                    Some(idx) => {
+                        // Calculate range with bounds checking
+                        let start = idx.saturating_sub(before);
+                        let end = (idx + after + 1).min(snapshot.recent_logs.len());
+
+                        // Collect context lines
+                        let context_lines: Vec<Value> = snapshot.recent_logs[start..end]
+                            .iter()
+                            .map(|log| {
+                                json!({
+                                    "id": log.id,
+                                    "process": log.process,
+                                    "content": log.content,
+                                    "timestamp": log.timestamp,
+                                    "is_target": log.id == id
+                                })
+                            })
+                            .collect();
+
+                        IpcHandlerResult::response_only(IpcResponse::ok(json!({
+                            "target_id": id,
+                            "before": before,
+                            "after": after,
+                            "lines": context_lines,
+                            "count": context_lines.len()
+                        })))
+                    }
+                    None => IpcHandlerResult::response_only(IpcResponse::err(format!(
+                        "log line with id {} not found",
+                        id
+                    ))),
+                }
+            }
+            None => IpcHandlerResult::response_only(IpcResponse::err(
+                "no state available".to_string(),
+            )),
         }
     }
 }
@@ -596,12 +713,13 @@ mod tests {
         assert_eq!(data["count"], 0);
         assert_eq!(data["limit"], 100);
 
-        // Should still emit SetSearch action
-        assert_eq!(result.actions.len(), 1);
+        // Should emit SetSearch and SetAutoScroll actions
+        assert_eq!(result.actions.len(), 2);
         assert!(matches!(
             &result.actions[0],
             IpcAction::SetSearch { pattern } if pattern == "error"
         ));
+        assert_eq!(result.actions[1], IpcAction::SetAutoScroll { enabled: false });
     }
 
     #[test]
@@ -665,17 +783,19 @@ mod tests {
         assert_eq!(data["pattern"], "error");
         assert_eq!(data["count"], 2);
 
-        assert_eq!(matches[0]["id"], 2);
-        assert_eq!(matches[0]["content"], "Error: connection failed");
-        assert_eq!(matches[1]["id"], 4);
-        assert_eq!(matches[1]["content"], "Job error: timeout");
+        // Results are newest first
+        assert_eq!(matches[0]["id"], 4);
+        assert_eq!(matches[0]["content"], "Job error: timeout");
+        assert_eq!(matches[1]["id"], 2);
+        assert_eq!(matches[1]["content"], "Error: connection failed");
 
-        // Should emit SetSearch action
-        assert_eq!(result.actions.len(), 1);
+        // Should emit SetSearch and SetAutoScroll actions
+        assert_eq!(result.actions.len(), 2);
         assert!(matches!(
             &result.actions[0],
             IpcAction::SetSearch { pattern } if pattern == "error"
         ));
+        assert_eq!(result.actions[1], IpcAction::SetAutoScroll { enabled: false });
     }
 
     #[test]
@@ -727,11 +847,13 @@ mod tests {
         assert_eq!(matches[0]["id"], 1);
         assert_eq!(matches[0]["content"], "Error: connection failed");
 
-        // Action should have the exact pattern
+        // Action should have the exact pattern and disable auto-scroll
+        assert_eq!(result.actions.len(), 2);
         assert!(matches!(
             &result.actions[0],
             IpcAction::SetSearch { pattern } if pattern == "Error"
         ));
+        assert_eq!(result.actions[1], IpcAction::SetAutoScroll { enabled: false });
     }
 
     #[test]
@@ -793,7 +915,108 @@ mod tests {
 
         assert_eq!(matches.len(), 2);
         assert_eq!(data["limit"], 2);
-        assert_eq!(matches[0]["id"], 1);
-        assert_eq!(matches[1]["id"], 2);
+        // Results are newest first
+        assert_eq!(matches[0]["id"], 4);
+        assert_eq!(matches[1]["id"], 3);
+    }
+
+    #[test]
+    fn select_without_id_returns_error() {
+        let handler = test_handler();
+        let request = IpcRequest::new("select");
+        let result = handler.handle(&request, None);
+
+        assert!(!result.response.success);
+        assert!(result.response.error.is_some());
+        assert!(result.response.error.unwrap().contains("id"));
+        assert!(result.actions.is_empty());
+    }
+
+    #[test]
+    fn select_with_nonexistent_id_returns_error() {
+        use super::super::state::{BufferStats, LogLineInfo, ViewModeInfo};
+
+        let handler = test_handler();
+        let request = IpcRequest::with_args("select", json!({"id": 999}));
+
+        let snapshot = StateSnapshot {
+            processes: vec![],
+            filter_count: 0,
+            active_filters: vec![],
+            search_pattern: None,
+            view_mode: ViewModeInfo::default(),
+            auto_scroll: true,
+            log_count: 0,
+            buffer_stats: BufferStats::default(),
+            trace_recording: false,
+            active_trace_id: None,
+            recent_logs: vec![LogLineInfo {
+                id: 1,
+                process: "web".to_string(),
+                content: "Test log".to_string(),
+                timestamp: "2025-12-17T10:00:00Z".to_string(),
+                batch_id: None,
+            }],
+            total_log_lines: 1,
+        };
+
+        let result = handler.handle(&request, Some(&snapshot));
+
+        assert!(!result.response.success);
+        assert!(result.response.error.unwrap().contains("not found"));
+        assert!(result.actions.is_empty());
+    }
+
+    #[test]
+    fn select_with_valid_id_returns_success_and_actions() {
+        use super::super::state::{BufferStats, LogLineInfo, ViewModeInfo};
+
+        let handler = test_handler();
+        let request = IpcRequest::with_args("select", json!({"id": 42}));
+
+        let snapshot = StateSnapshot {
+            processes: vec![],
+            filter_count: 0,
+            active_filters: vec![],
+            search_pattern: None,
+            view_mode: ViewModeInfo::default(),
+            auto_scroll: true,
+            log_count: 0,
+            buffer_stats: BufferStats::default(),
+            trace_recording: false,
+            active_trace_id: None,
+            recent_logs: vec![
+                LogLineInfo {
+                    id: 42,
+                    process: "web".to_string(),
+                    content: "The important log".to_string(),
+                    timestamp: "2025-12-17T10:00:00Z".to_string(),
+                    batch_id: None,
+                },
+                LogLineInfo {
+                    id: 43,
+                    process: "worker".to_string(),
+                    content: "Another log".to_string(),
+                    timestamp: "2025-12-17T10:00:01Z".to_string(),
+                    batch_id: None,
+                },
+            ],
+            total_log_lines: 2,
+        };
+
+        let result = handler.handle(&request, Some(&snapshot));
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        assert_eq!(data["selected"], true);
+        assert_eq!(data["id"], 42);
+
+        // Should emit SelectAndExpandLine and SetAutoScroll actions
+        assert_eq!(result.actions.len(), 2);
+        assert!(matches!(
+            &result.actions[0],
+            IpcAction::SelectAndExpandLine { id } if *id == 42
+        ));
+        assert_eq!(result.actions[1], IpcAction::SetAutoScroll { enabled: false });
     }
 }

@@ -405,6 +405,13 @@ fn apply_ipc_action(app: &mut App, action: IpcAction) {
         IpcAction::ClearSearch => {
             app.clear_search();
         }
+        IpcAction::SetAutoScroll { enabled } => {
+            app.auto_scroll = enabled;
+        }
+        IpcAction::SelectAndExpandLine { id } => {
+            app.selected_line_id = Some(id);
+            app.expanded_line_view = true;
+        }
     }
 }
 

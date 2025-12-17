@@ -70,6 +70,22 @@ pub enum Commands {
         #[arg(long)]
         case_sensitive: bool,
     },
+    /// Select a log line by ID and open expanded view in TUI
+    Select {
+        /// The log line ID to select (from search results)
+        id: u64,
+    },
+    /// Get context lines around a specific log line ID
+    Context {
+        /// The log line ID to get context for
+        id: u64,
+        /// Number of lines before the target (default: 5)
+        #[arg(long, default_value = "5")]
+        before: u64,
+        /// Number of lines after the target (default: 5)
+        #[arg(long, default_value = "5")]
+        after: u64,
+    },
 }
 
 /// Initialize a new config file from an existing Procfile
@@ -191,6 +207,13 @@ pub async fn run_ipc_command(command: &Commands) -> anyhow::Result<()> {
                 "limit": limit,
                 "case_sensitive": case_sensitive
             }),
+        ),
+        Commands::Select { id } => {
+            IpcRequest::with_args("select", serde_json::json!({"id": id}))
+        }
+        Commands::Context { id, before, after } => IpcRequest::with_args(
+            "context",
+            serde_json::json!({"id": id, "before": before, "after": after}),
         ),
     };
 

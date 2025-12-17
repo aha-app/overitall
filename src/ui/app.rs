@@ -317,6 +317,8 @@ impl App {
 
     pub fn perform_search(&mut self, pattern: String) {
         self.search_pattern = pattern;
+        // Close expanded view when a new search is performed
+        self.expanded_line_view = false;
     }
 
     pub fn clear_search(&mut self) {

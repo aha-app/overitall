@@ -8,6 +8,10 @@ pub enum IpcAction {
     SetSearch { pattern: String },
     /// Clear the current search
     ClearSearch,
+    /// Enable or disable auto-scroll (tail mode)
+    SetAutoScroll { enabled: bool },
+    /// Select a log line by ID and open the expanded view
+    SelectAndExpandLine { id: u64 },
 }
 
 /// Result of handling an IPC command: response to send + actions to apply
