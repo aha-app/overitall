@@ -188,74 +188,73 @@ pub enum Commands {
 
 /// Initialize a new config file from an existing Procfile
 pub fn init_config(config_path: &str, with_skill: bool) -> anyhow::Result<()> {
-    // Check if config file already exists
-    if Path::new(config_path).exists() {
-        return Err(anyhow!(
-            "Config file '{}' already exists. Remove it first if you want to reinitialize.",
-            config_path
-        ));
-    }
+    let config_exists = Path::new(config_path).exists();
 
-    // Default Procfile location
-    let procfile_path = "Procfile";
+    // Only create config if it doesn't exist
+    if !config_exists {
+        // Default Procfile location
+        let procfile_path = "Procfile";
 
-    // Check if Procfile exists and provide helpful error if not
-    if !Path::new(procfile_path).exists() {
-        return Err(anyhow!(
-            "No Procfile found in current directory.\n\n\
-            To use --init, first create a Procfile with your processes.\n\
-            Example Procfile:\n\
-            \n\
-              web: rails server -p 3000\n\
-              worker: bundle exec sidekiq\n\
-            \n\
-            See: https://devcenter.heroku.com/articles/procfile\n\
-            \n\
-            Then run 'oit --init' again to generate the config file."
-        ));
-    }
+        // Check if Procfile exists and provide helpful error if not
+        if !Path::new(procfile_path).exists() {
+            return Err(anyhow!(
+                "No Procfile found in current directory.\n\n\
+                To use --init, first create a Procfile with your processes.\n\
+                Example Procfile:\n\
+                \n\
+                  web: rails server -p 3000\n\
+                  worker: bundle exec sidekiq\n\
+                \n\
+                See: https://devcenter.heroku.com/articles/procfile\n\
+                \n\
+                Then run 'oit --init' again to generate the config file."
+            ));
+        }
 
-    // Try to parse the Procfile
-    let procfile = Procfile::from_file(procfile_path)
-        .with_context(|| format!("Failed to parse Procfile at '{}'", procfile_path))?;
+        // Try to parse the Procfile
+        let procfile = Procfile::from_file(procfile_path)
+            .with_context(|| format!("Failed to parse Procfile at '{}'", procfile_path))?;
 
-    // Get sorted list of process names
-    let process_names = procfile.process_names();
+        // Get sorted list of process names
+        let process_names = procfile.process_names();
 
-    // Create default config
-    let mut processes = HashMap::new();
-    for name in &process_names {
-        processes.insert(
-            name.to_string(),
-            config::ProcessConfig {
-                log_file: Some(std::path::PathBuf::from(format!("logs/{}.log", name))),
+        // Create default config
+        let mut processes = HashMap::new();
+        for name in &process_names {
+            processes.insert(
+                name.to_string(),
+                config::ProcessConfig {
+                    log_file: Some(std::path::PathBuf::from(format!("logs/{}.log", name))),
+                },
+            );
+        }
+
+        let config = Config {
+            procfile: std::path::PathBuf::from(procfile_path),
+            processes,
+            filters: config::FilterConfig {
+                include: vec![],
+                exclude: vec![],
             },
-        );
-    }
+            batch_window_ms: Some(100),
+            max_log_buffer_mb: Some(50),
+            hidden_processes: Vec::new(),
+            disable_auto_update: None,
+            compact_mode: None,
+            config_path: None,
+        };
 
-    let config = Config {
-        procfile: std::path::PathBuf::from(procfile_path),
-        processes,
-        filters: config::FilterConfig {
-            include: vec![],
-            exclude: vec![],
-        },
-        batch_window_ms: Some(100),
-        max_log_buffer_mb: Some(50),
-        hidden_processes: Vec::new(),
-        disable_auto_update: None,
-        compact_mode: None,
-        config_path: None,
-    };
+        // Save the config
+        config.save(config_path)
+            .with_context(|| format!("Failed to write config to '{}'", config_path))?;
 
-    // Save the config
-    config.save(config_path)
-        .with_context(|| format!("Failed to write config to '{}'", config_path))?;
-
-    // Print success message
-    println!("Created {} with {} processes:", config_path, process_names.len());
-    for name in &process_names {
-        println!("  - {}", name);
+        // Print success message
+        println!("Created {} with {} processes:", config_path, process_names.len());
+        for name in &process_names {
+            println!("  - {}", name);
+        }
+    } else {
+        println!("Config file '{}' already exists, skipping config creation.", config_path);
     }
 
     // Handle skill installation
@@ -280,11 +279,18 @@ pub fn init_config(config_path: &str, with_skill: bool) -> anyhow::Result<()> {
         }
     }
 
-    println!("\nNext steps:");
-    println!("  1. Edit {} to configure log file paths", config_path);
-    println!("  2. Run 'oit' to start the TUI");
-    if skill_installed {
-        println!("  3. AI tools can now control oit via CLI commands");
+    if !config_exists || skill_installed {
+        println!("\nNext steps:");
+        let mut step = 1;
+        if !config_exists {
+            println!("  {}. Edit {} to configure log file paths", step, config_path);
+            step += 1;
+            println!("  {}. Run 'oit' to start the TUI", step);
+            step += 1;
+        }
+        if skill_installed {
+            println!("  {}. AI tools can now control oit via CLI commands", step);
+        }
     }
 
     Ok(())
@@ -464,7 +470,7 @@ mod tests {
     }
 
     #[test]
-    fn test_init_config_fails_if_file_exists() {
+    fn test_init_config_skips_config_if_file_exists() {
         // Lock mutex to prevent parallel directory changes
         let _guard = CWD_MUTEX.lock().unwrap();
 
@@ -472,28 +478,25 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let temp_path = temp_dir.path();
 
-        // Create a test Procfile
-        let procfile_path = temp_path.join("Procfile");
-        fs::write(&procfile_path, "web: rails server\n").unwrap();
-
-        // Create a config file that already exists
+        // Create a config file that already exists with custom content
         let config_path = temp_path.join(".overitall.toml");
-        fs::write(&config_path, "# existing config\n").unwrap();
+        let original_content = "# existing config\n";
+        fs::write(&config_path, original_content).unwrap();
 
         // Change to the temp directory
         let original_dir = std::env::current_dir().unwrap();
         std::env::set_current_dir(temp_path).unwrap();
 
-        // Call init_config
+        // Call init_config (no Procfile needed since config exists)
         let result = init_config(config_path.to_str().unwrap(), false);
 
         // Restore original directory
         std::env::set_current_dir(original_dir).unwrap();
 
-        // Check that init failed
-        assert!(result.is_err(), "init_config should fail when file exists");
-        let err_msg = result.unwrap_err().to_string();
-        assert!(err_msg.contains("already exists"), "Error should mention file already exists: {}", err_msg);
+        // Check that init succeeded but didn't overwrite the config
+        assert!(result.is_ok(), "init_config should succeed when config exists");
+        let content = fs::read_to_string(&config_path).unwrap();
+        assert_eq!(content, original_content, "Config file should not be modified");
     }
 
     #[test]
