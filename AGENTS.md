@@ -6,7 +6,8 @@ Rust TUI combining overmind (process management) + lnav (log viewing).
 **Read [ARCHITECTURE.md](ARCHITECTURE.md)** for code structure and where to make changes.
 
 ## Testing
-Run `cargo test` after changes. Use `cargo insta review` to approve snapshot changes.
+- Write tests for changes and new functionality
+- Run `cargo test` after changes. Use `cargo insta review` to approve snapshot changes.
 
 ## Performance Changes
 Any optimization MUST include before/after benchmarks. Document results in commit message and scratch.md.
@@ -14,6 +15,11 @@ Any optimization MUST include before/after benchmarks. Document results in commi
 ## Code Style
 - Comment lightly, no obvious code comments
 - Don't put git status info in .md files
+
+## Documentation
+- Add new features in README.md
+- Add commands and keys in the help system
+- Document new architecture patterns very concisely in ARCHITECTURE.md, only write out how it works, do not add discussion on pros/cons
 
 ## Reference
 - [ARCHITECTURE.md](ARCHITECTURE.md) - code structure, how to add features
