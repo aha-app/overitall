@@ -157,6 +157,28 @@ pub enum Commands {
         /// Process name to start
         name: String,
     },
+    /// Get recent log lines containing error or warning patterns
+    Errors {
+        /// Maximum number of lines to return (default: 50)
+        #[arg(long, default_value = "50")]
+        limit: u64,
+        /// Level filter: error, warning, or error_or_warning (default: error)
+        #[arg(long, default_value = "error")]
+        level: String,
+        /// Filter by process name
+        #[arg(long)]
+        process: Option<String>,
+    },
+    /// Get comprehensive AI-friendly summary of current state
+    Summary,
+    /// Get all log lines from a specific batch
+    Batch {
+        /// Batch ID to retrieve
+        id: u64,
+        /// Scroll TUI to first line of batch
+        #[arg(long)]
+        scroll: bool,
+    },
 }
 
 /// Initialize a new config file from an existing Procfile
@@ -324,6 +346,21 @@ pub async fn run_ipc_command(command: &Commands) -> anyhow::Result<()> {
         }
         Commands::Start { name } => {
             IpcRequest::with_args("start", serde_json::json!({"name": name}))
+        }
+        Commands::Errors {
+            limit,
+            level,
+            process,
+        } => {
+            let mut args = serde_json::json!({"limit": limit, "level": level});
+            if let Some(proc) = process {
+                args["process"] = serde_json::json!(proc);
+            }
+            IpcRequest::with_args("errors", args)
+        }
+        Commands::Summary => IpcRequest::new("summary"),
+        Commands::Batch { id, scroll } => {
+            IpcRequest::with_args("batch", serde_json::json!({"id": id, "scroll": scroll}))
         }
     };
 
@@ -863,6 +900,90 @@ mod tests {
                 assert_eq!(name, "worker");
             }
             _ => panic!("Expected Start command via 's' alias"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_errors_subcommand() {
+        let cli = Cli::parse_from(["oit", "errors"]);
+        match cli.command {
+            Some(Commands::Errors {
+                limit,
+                level,
+                process,
+            }) => {
+                assert_eq!(limit, 50);
+                assert_eq!(level, "error");
+                assert!(process.is_none());
+            }
+            _ => panic!("Expected Errors command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_errors_with_options() {
+        let cli = Cli::parse_from([
+            "oit",
+            "errors",
+            "--limit",
+            "20",
+            "--level",
+            "warning",
+            "--process",
+            "web",
+        ]);
+        match cli.command {
+            Some(Commands::Errors {
+                limit,
+                level,
+                process,
+            }) => {
+                assert_eq!(limit, 20);
+                assert_eq!(level, "warning");
+                assert_eq!(process, Some("web".to_string()));
+            }
+            _ => panic!("Expected Errors command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_errors_error_or_warning() {
+        let cli = Cli::parse_from(["oit", "errors", "--level", "error_or_warning"]);
+        match cli.command {
+            Some(Commands::Errors { level, .. }) => {
+                assert_eq!(level, "error_or_warning");
+            }
+            _ => panic!("Expected Errors command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_summary_subcommand() {
+        let cli = Cli::parse_from(["oit", "summary"]);
+        assert!(matches!(cli.command, Some(Commands::Summary)));
+    }
+
+    #[test]
+    fn test_cli_parses_batch_subcommand() {
+        let cli = Cli::parse_from(["oit", "batch", "42"]);
+        match cli.command {
+            Some(Commands::Batch { id, scroll }) => {
+                assert_eq!(id, 42);
+                assert!(!scroll);
+            }
+            _ => panic!("Expected Batch command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_batch_with_scroll() {
+        let cli = Cli::parse_from(["oit", "batch", "123", "--scroll"]);
+        match cli.command {
+            Some(Commands::Batch { id, scroll }) => {
+                assert_eq!(id, 123);
+                assert!(scroll);
+            }
+            _ => panic!("Expected Batch command"),
         }
     }
 }
