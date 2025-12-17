@@ -7,6 +7,7 @@ mod log;
 mod operations;
 mod procfile;
 mod process;
+mod skill;
 mod traces;
 mod ui;
 mod updater;
@@ -51,7 +52,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Handle --init flag
     if cli.init {
-        return init_config(config_path);
+        return init_config(config_path, cli.with_skill);
     }
 
     // Handle IPC subcommands (ping, status, etc.)

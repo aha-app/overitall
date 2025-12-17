@@ -19,6 +19,7 @@ Overitall (`oit`) is a Rust-based TUI that helps you manage multiple processes a
 - **Compact Mode**: Collapse verbose metadata tags (`[key:value]`) into `[+N]` for cleaner log viewing
 - **Vim-style Commands**: Familiar `:command` interface for power users
 - **Auto-Update**: Automatically checks for and installs updates on startup
+- **AI Integration**: Install Claude Code/Cursor skill to let AI control the TUI via CLI
 
 ## Installation
 
@@ -270,6 +271,36 @@ Or disable auto-update permanently in your config file:
 disable_auto_update = true
 ```
 
+### AI Integration (Claude Code / Cursor)
+
+When you run `oit --init`, if a `.claude/` or `.cursor/` directory is detected, you'll be prompted to install an AI skill that teaches Claude Code and Cursor how to control the running TUI via CLI commands.
+
+```bash
+oit --init
+# Output:
+# Created .overitall.toml with 2 processes:
+#   - web
+#   - worker
+# Claude Code detected. Install oit skill for AI integration? [y/N] y
+# Installed .claude/skills/oit/
+```
+
+To skip the prompt and auto-install:
+
+```bash
+oit --init --with-skill
+```
+
+Once installed, AI assistants can control the running TUI with commands like:
+
+- `oit summary` - Get comprehensive status (processes, recent logs, errors)
+- `oit errors --limit 10` - Get recent error logs
+- `oit restart worker` - Restart a process
+- `oit search "pattern"` - Search logs
+- `oit freeze on` - Pause the display
+
+This enables AI pair-programming workflows where the AI can investigate logs, restart processes, and manage filters while you watch the TUI.
+
 ### Memory Management
 
 By default, Overitall limits the log buffer to 50 MB. When this limit is reached, the oldest logs are automatically evicted (First-In-First-Out).
@@ -361,6 +392,7 @@ Overitall is under active development. Current features:
 - Persistent configuration
 - Help system
 - Auto-update on startup (via gh CLI)
+- AI integration via Claude Code/Cursor skill installation (`--with-skill`)
 
 #### Trace Detection
 
