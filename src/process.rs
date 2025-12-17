@@ -267,12 +267,21 @@ impl ProcessManager {
         process.start(self.log_tx.clone()).await
     }
 
-    pub async fn start_all(&mut self) -> Result<()> {
+    /// Start all processes, continuing even if some fail.
+    /// Returns a list of (name, error_message) for any processes that failed to start.
+    pub async fn start_all(&mut self) -> Vec<(String, String)> {
         let names: Vec<String> = self.processes.keys().cloned().collect();
+        let mut failures = Vec::new();
         for name in names {
-            self.start_process(&name).await?;
+            if let Err(e) = self.start_process(&name).await {
+                // Set the process status to Failed
+                if let Some(process) = self.processes.get_mut(&name) {
+                    process.status = ProcessStatus::Failed(e.to_string());
+                }
+                failures.push((name, e.to_string()));
+            }
         }
-        Ok(())
+        failures
     }
 
     pub async fn kill_process(&mut self, name: &str) -> Result<()> {
@@ -345,10 +354,21 @@ impl ProcessManager {
         all_terminated
     }
 
-    pub async fn check_all_status(&mut self) {
-        for process in self.processes.values_mut() {
-            process.check_status().await;
+    /// Check all process statuses and return a list of newly failed processes.
+    /// Returns Vec<(name, error_message)> for processes that just transitioned to Failed.
+    pub async fn check_all_status(&mut self) -> Vec<(String, String)> {
+        let mut newly_failed = Vec::new();
+        for (name, process) in self.processes.iter_mut() {
+            let was_running = process.status == ProcessStatus::Running;
+            let new_status = process.check_status().await;
+            // Detect transitions to Failed status
+            if was_running {
+                if let ProcessStatus::Failed(ref msg) = new_status {
+                    newly_failed.push((name.clone(), msg.clone()));
+                }
+            }
         }
+        newly_failed
     }
 
     pub fn get_status(&self, name: &str) -> Option<ProcessStatus> {
@@ -461,7 +481,8 @@ mod tests {
         manager.add_process("proc1".to_string(), "sleep 10".to_string(), None);
         manager.add_process("proc2".to_string(), "sleep 10".to_string(), None);
 
-        manager.start_all().await.unwrap();
+        let failures = manager.start_all().await;
+        assert!(failures.is_empty(), "Expected no failures, got {:?}", failures);
         assert_eq!(manager.get_status("proc1"), Some(ProcessStatus::Running));
         assert_eq!(manager.get_status("proc2"), Some(ProcessStatus::Running));
 
@@ -486,7 +507,8 @@ mod tests {
         manager.add_process("proc2".to_string(), "sleep 10".to_string(), None);
         manager.add_process("proc3".to_string(), "sleep 10".to_string(), None);
 
-        manager.start_all().await.unwrap();
+        let failures = manager.start_all().await;
+        assert!(failures.is_empty(), "Expected no failures, got {:?}", failures);
 
         manager.kill_all().await.unwrap();
 
@@ -524,7 +546,8 @@ mod tests {
         let mut manager = ProcessManager::new();
         manager.add_process("slow".to_string(), "sleep 10".to_string(), None);
 
-        manager.start_all().await.unwrap();
+        let failures = manager.start_all().await;
+        assert!(failures.is_empty(), "Expected no failures, got {:?}", failures);
         manager.set_all_terminating();
 
         let start = tokio::time::Instant::now();
@@ -538,5 +561,53 @@ mod tests {
         );
 
         manager.kill_all().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_start_all_continues_after_failure() {
+        // Note: Commands run through sh -c, so they always "spawn" successfully
+        // even if the command inside doesn't exist. The failure happens at runtime.
+        // This test verifies that all processes are started regardless of any
+        // individual failures.
+        let mut manager = ProcessManager::new();
+        manager.add_process("proc1".to_string(), "sleep 10".to_string(), None);
+        manager.add_process("proc2".to_string(), "sleep 10".to_string(), None);
+        manager.add_process("proc3".to_string(), "sleep 10".to_string(), None);
+
+        let failures = manager.start_all().await;
+
+        // All should succeed spawning (sh -c always spawns successfully)
+        assert!(failures.is_empty());
+
+        // All processes should be running
+        assert_eq!(manager.get_status("proc1"), Some(ProcessStatus::Running));
+        assert_eq!(manager.get_status("proc2"), Some(ProcessStatus::Running));
+        assert_eq!(manager.get_status("proc3"), Some(ProcessStatus::Running));
+
+        manager.kill_all().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_check_all_status_detects_failed_processes() {
+        let mut manager = ProcessManager::new();
+        // Use a command that exits immediately with an error
+        manager.add_process("failing".to_string(), "exit 1".to_string(), None);
+
+        let failures = manager.start_all().await;
+        assert!(failures.is_empty()); // spawn succeeds, command fails later
+
+        // Wait for the process to exit
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+        // Check status - should detect the failure
+        let newly_failed = manager.check_all_status().await;
+
+        // The process should now have Failed status
+        let status = manager.get_status("failing");
+        assert!(
+            matches!(status, Some(ProcessStatus::Failed(_))),
+            "Expected Failed status, got {:?}",
+            status
+        );
     }
 }

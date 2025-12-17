@@ -1,3 +1,4 @@
 web: ruby web_server.rb
 worker: ruby worker.rb
 monitor: ruby monitor.rb
+broken: ./nonexistent_command_that_will_fail

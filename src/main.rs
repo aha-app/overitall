@@ -94,8 +94,8 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
-    // Start all processes
-    manager.start_all().await?;
+    // Start all processes (collect failures, don't crash)
+    let start_failures = manager.start_all().await;
 
     // Setup terminal
     enable_raw_mode()?;
@@ -128,6 +128,12 @@ async fn main() -> anyhow::Result<()> {
         app.compact_mode = compact_mode;
     }
 
+    // Show startup failures in status bar
+    if !start_failures.is_empty() {
+        let failure_names: Vec<&str> = start_failures.iter().map(|(n, _)| n.as_str()).collect();
+        app.set_status_error(format!("Failed to start: {}", failure_names.join(", ")));
+    }
+
     // TUI event loop
     let result = run_app(&mut terminal, &mut app, &mut manager, &mut config).await;
 
@@ -154,6 +160,16 @@ async fn run_app(
     loop {
         // Process logs from all sources
         manager.process_logs();
+
+        // Check for newly failed processes (not during shutdown)
+        if !app.shutting_down {
+            let newly_failed = manager.check_all_status().await;
+            if !newly_failed.is_empty() {
+                // Show the first failure in status bar (to avoid overwhelming)
+                let (name, msg) = &newly_failed[0];
+                app.set_status_error(format!("{}: {}", name, msg));
+            }
+        }
 
         // Draw UI
         terminal.draw(|f| {
