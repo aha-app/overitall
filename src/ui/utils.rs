@@ -57,19 +57,56 @@ static TIMESTAMP_BRACKET_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^\[\d{1,2}:\d{2}:\d{2}(?:\.\d+)?\]$").unwrap()
 });
 
-/// Condense log line content by collapsing consecutive [key:value] metadata tags
-/// into a single [+N] indicator, preserving the first timestamp-like bracket.
+// Regex for ISO8601 timestamps that should be removed from log content
+// Matches: 2025-12-17T16:16:14+13:00, 2025-12-17T16:16:14.123+13:00, 2025-12-17T16:16:14Z, etc.
+static ISO8601_TIMESTAMP_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?"
+    ).unwrap()
+});
+
+/// Remove ISO8601 timestamps from log content and clean up surrounding whitespace.
+/// Since we display arrival time in the log view, embedded timestamps are redundant.
+fn remove_iso8601_timestamps(content: &str) -> String {
+    let result = ISO8601_TIMESTAMP_REGEX.replace_all(content, "");
+    // Clean up any double spaces left behind and trim leading/trailing spaces
+    let mut cleaned = String::with_capacity(result.len());
+    let mut prev_was_space = true; // Start true to skip leading spaces
+    for ch in result.chars() {
+        if ch == ' ' {
+            if !prev_was_space {
+                cleaned.push(ch);
+            }
+            prev_was_space = true;
+        } else {
+            cleaned.push(ch);
+            prev_was_space = false;
+        }
+    }
+    // Trim trailing space if present
+    if cleaned.ends_with(' ') {
+        cleaned.pop();
+    }
+    cleaned
+}
+
+/// Condense log line content by:
+/// 1. Removing ISO8601 timestamps (e.g., 2025-12-17T16:16:14+13:00) since we display arrival time
+/// 2. Collapsing consecutive [key:value] metadata tags into a single [+N] indicator
 ///
 /// Example:
-///   Input:  "[23:47:16] web: [user_id:0] [account_id:0] [request_uuid:abc] Processing..."
-///   Output: "[23:47:16] web: [+3] Processing..."
+///   Input:  "[23:47:16] web: 2025-12-17T16:16:14+13:00 [user_id:0] Processing..."
+///   Output: "[23:47:16] web: [+1] Processing..."
 pub fn condense_log_line(content: &str) -> String {
+    // First pass: remove ISO8601 timestamps
+    let content = remove_iso8601_timestamps(content);
+
     let mut result = String::with_capacity(content.len());
     let mut last_end = 0;
     let mut pending_metadata_count = 0;
     let mut pending_metadata_start: Option<usize> = None;
 
-    for mat in BRACKET_METADATA_REGEX.find_iter(content) {
+    for mat in BRACKET_METADATA_REGEX.find_iter(&content) {
         let matched_text = mat.as_str();
 
         // Check if this looks like a timestamp - preserve it
@@ -192,5 +229,53 @@ mod tests {
     fn test_condense_only_timestamp() {
         let input = "[12:00:00] Just a timestamp and message";
         assert_eq!(condense_log_line(input), input);
+    }
+
+    #[test]
+    fn test_condense_removes_iso8601_with_timezone() {
+        let input = "web: 2025-12-17T16:16:14+13:00 [WEB] POST /api/users - 500";
+        assert_eq!(condense_log_line(input), "web: [WEB] POST /api/users - 500");
+    }
+
+    #[test]
+    fn test_condense_removes_iso8601_with_z() {
+        let input = "2025-12-17T16:16:14Z Processing request";
+        assert_eq!(condense_log_line(input), "Processing request");
+    }
+
+    #[test]
+    fn test_condense_removes_iso8601_with_milliseconds() {
+        let input = "web: 2025-12-17T16:16:14.123+00:00 Starting up";
+        assert_eq!(condense_log_line(input), "web: Starting up");
+    }
+
+    #[test]
+    fn test_condense_removes_iso8601_without_timezone() {
+        let input = "2025-12-17T16:16:14 Local time event";
+        assert_eq!(condense_log_line(input), "Local time event");
+    }
+
+    #[test]
+    fn test_condense_removes_iso8601_negative_offset() {
+        let input = "2025-12-17T08:16:14-08:00 Pacific time";
+        assert_eq!(condense_log_line(input), "Pacific time");
+    }
+
+    #[test]
+    fn test_condense_combined_iso8601_and_metadata() {
+        let input = "[23:47:16] web: 2025-12-17T23:47:16+13:00 [user_id:0] [account_id:0] Processing";
+        assert_eq!(condense_log_line(input), "[23:47:16] web: [+2] Processing");
+    }
+
+    #[test]
+    fn test_condense_multiple_iso8601_timestamps() {
+        let input = "Start: 2025-12-17T10:00:00Z End: 2025-12-17T11:00:00Z Done";
+        assert_eq!(condense_log_line(input), "Start: End: Done");
+    }
+
+    #[test]
+    fn test_remove_iso8601_cleans_double_spaces() {
+        let result = remove_iso8601_timestamps("before 2025-12-17T10:00:00Z after");
+        assert_eq!(result, "before after");
     }
 }
