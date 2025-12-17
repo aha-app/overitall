@@ -37,15 +37,15 @@ echo "Bumping version: ${CARGO_VERSION} -> ${NEW_VERSION} (${BUMP_TYPE})"
 
 sed -i '' "s/^version = \".*\"/version = \"${NEW_VERSION}\"/" Cargo.toml
 
-echo "Committing version bump..."
-git add Cargo.toml
-git commit -m "Bump version to ${NEW_VERSION}"
-git push
-
 BINARY_NAME="oit-macos-arm64"
 
 echo "Building release binary..."
 cargo build --release
+
+echo "Committing version bump..."
+git add Cargo.toml Cargo.lock
+git commit -m "Bump version to ${NEW_VERSION}"
+git push
 
 echo "Creating release archive..."
 cd target/release
