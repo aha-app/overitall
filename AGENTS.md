@@ -3,6 +3,8 @@
 ## Project
 Rust TUI combining overmind (process management) + lnav (log viewing).
 
+**Read ARCHITECTURE.md** for code patterns and structure.
+
 ## Architecture
 - Separation of concerns: log sources, parsing, storage, filtering, display are separate
 - Trait-based extensibility for future log sources and parsers
