@@ -24,6 +24,7 @@ pub enum Command {
     Show(String),
     HideAll,
     ShowAll,
+    Only(String),
     Traces,
     Unknown(String),
 }
@@ -121,6 +122,13 @@ pub fn parse_command(input: &str) -> Command {
                 Command::Show(parts[1].to_string())
             }
         }
+        "only" => {
+            if parts.len() < 2 {
+                Command::Unknown("Usage: :only <process>".to_string())
+            } else {
+                Command::Only(parts[1].to_string())
+            }
+        }
         "traces" => Command::Traces,
         _ => Command::Unknown(format!("Unknown command: {}", parts[0])),
     }
@@ -190,6 +198,9 @@ impl<'a> CommandExecutor<'a> {
             }
             Command::ShowAll => {
                 self.execute_show_all();
+            }
+            Command::Only(process) => {
+                self.execute_only(process);
             }
             Command::Traces => {
                 self.execute_traces();
@@ -298,6 +309,13 @@ impl<'a> CommandExecutor<'a> {
     fn execute_show_all(&mut self) {
         let count = visibility::show_all(self.app, self.config);
         self.app.set_status_success(format!("Shown all processes ({} were hidden)", count));
+    }
+
+    fn execute_only(&mut self, process: String) {
+        match visibility::only_process(self.app, self.manager, self.config, &process) {
+            Ok(()) => self.app.set_status_success(format!("Showing only: {}", process)),
+            Err(msg) => self.app.set_status_error(msg),
+        }
     }
 
     fn execute_traces(&mut self) {
@@ -421,6 +439,37 @@ mod tests {
         match parse_command("bw") {
             Command::ShowBatchWindow => {},
             _ => panic!("Expected ShowBatchWindow"),
+        }
+    }
+
+    #[test]
+    fn test_parse_only_command() {
+        match parse_command("only web") {
+            Command::Only(name) => assert_eq!(name, "web"),
+            _ => panic!("Expected Only(\"web\")"),
+        }
+
+        match parse_command("only worker") {
+            Command::Only(name) => assert_eq!(name, "worker"),
+            _ => panic!("Expected Only(\"worker\")"),
+        }
+    }
+
+    #[test]
+    fn test_parse_only_command_missing_argument() {
+        match parse_command("only") {
+            Command::Unknown(msg) => {
+                assert!(msg.contains("Usage"), "Expected usage message, got: {}", msg);
+            }
+            _ => panic!("Expected Unknown command for missing argument"),
+        }
+    }
+
+    #[test]
+    fn test_parse_only_command_with_whitespace() {
+        match parse_command("  only  web  ") {
+            Command::Only(name) => assert_eq!(name, "web"),
+            _ => panic!("Expected Only(\"web\") with surrounding whitespace"),
         }
     }
 }

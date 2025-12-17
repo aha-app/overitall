@@ -53,6 +53,30 @@ pub fn show_all(app: &mut App, config: &mut Config) -> usize {
     count
 }
 
+/// Show only a single process, hiding all others.
+/// Returns an error message if the process doesn't exist.
+pub fn only_process(
+    app: &mut App,
+    manager: &ProcessManager,
+    config: &mut Config,
+    process: &str,
+) -> Result<(), String> {
+    if !manager.has_process(process) {
+        return Err(format!("Process not found: {}", process));
+    }
+
+    let all_processes: Vec<String> = manager.get_processes().keys().cloned().collect();
+    app.hidden_processes.clear();
+    for p in all_processes {
+        if p != process {
+            app.hidden_processes.insert(p);
+        }
+    }
+    sync_hidden_processes_to_config(app, config);
+    save_config_with_error(config, app);
+    Ok(())
+}
+
 /// Sync the app's hidden_processes set to the config.
 fn sync_hidden_processes_to_config(app: &App, config: &mut Config) {
     config.hidden_processes = app.hidden_processes.iter().cloned().collect();

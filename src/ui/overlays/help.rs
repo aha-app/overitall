@@ -185,6 +185,10 @@ pub fn draw_help_overlay(f: &mut Frame, scroll_offset: u16) {
             Span::styled("  :show all", Style::default().fg(Color::Yellow)),
             Span::raw("    Show all process logs"),
         ]),
+        Line::from(vec![
+            Span::styled("  :only <proc>", Style::default().fg(Color::Yellow)),
+            Span::raw(" Show only one process, hide all others"),
+        ]),
         Line::from(""),
         Line::from(vec![
             Span::styled("Trace Detection:", Style::default().add_modifier(Modifier::BOLD)),
