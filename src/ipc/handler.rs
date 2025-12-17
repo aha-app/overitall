@@ -41,6 +41,9 @@ impl IpcCommandHandler {
             "restart" => self.handle_restart(&request.args),
             "kill" => self.handle_kill(&request.args),
             "start" => self.handle_start(&request.args),
+            "errors" => IpcHandlerResult::response_only(self.handle_errors(&request.args, state)),
+            "summary" => IpcHandlerResult::response_only(self.handle_summary(state)),
+            "batch" => self.handle_batch(&request.args, state),
             "help" => IpcHandlerResult::response_only(self.handle_help()),
             "trace" => IpcHandlerResult::response_only(self.handle_trace(state)),
             _ => IpcHandlerResult::response_only(IpcResponse::err(format!(
@@ -850,6 +853,28 @@ impl IpcCommandHandler {
                     "args": [
                         {"name": "name", "type": "string", "required": true, "description": "Process name to start"}
                     ]
+                },
+                {
+                    "name": "errors",
+                    "description": "Get recent log lines containing error or warning patterns",
+                    "args": [
+                        {"name": "limit", "type": "number", "default": 50, "description": "Maximum lines to return"},
+                        {"name": "level", "type": "string", "default": "error", "description": "Level filter: error, warning, or error_or_warning"},
+                        {"name": "process", "type": "string", "required": false, "description": "Filter by process name"}
+                    ]
+                },
+                {
+                    "name": "summary",
+                    "description": "Get comprehensive AI-friendly summary of current state",
+                    "args": []
+                },
+                {
+                    "name": "batch",
+                    "description": "Get all log lines from a specific batch",
+                    "args": [
+                        {"name": "id", "type": "number", "required": true, "description": "Batch ID to retrieve"},
+                        {"name": "scroll", "type": "boolean", "default": false, "description": "Scroll TUI to first line of batch"}
+                    ]
                 }
             ],
             "version": self.version
@@ -876,6 +901,331 @@ impl IpcCommandHandler {
             }
         }
     }
+
+    fn handle_errors(&self, args: &Value, state: Option<&StateSnapshot>) -> IpcResponse {
+        let limit = args
+            .get("limit")
+            .and_then(|v| v.as_u64())
+            .map(|v| v as usize)
+            .unwrap_or(50);
+
+        let level_filter = args
+            .get("level")
+            .and_then(|v| v.as_str())
+            .unwrap_or("error");
+
+        let process_filter = args.get("process").and_then(|v| v.as_str());
+
+        match state {
+            Some(snapshot) => {
+                let errors: Vec<Value> = snapshot
+                    .recent_logs
+                    .iter()
+                    .rev() // Newest first
+                    .filter(|log| {
+                        // Filter by process if specified
+                        if let Some(proc) = process_filter {
+                            if log.process != proc {
+                                return false;
+                            }
+                        }
+
+                        // Check for error/warning patterns
+                        if let Some(level) = detect_log_level(&log.content) {
+                            match level_filter {
+                                "error" => level == "error",
+                                "warning" => level == "warning",
+                                "error_or_warning" => true,
+                                _ => level == "error",
+                            }
+                        } else {
+                            false
+                        }
+                    })
+                    .take(limit)
+                    .map(|log| {
+                        let level = detect_log_level(&log.content).unwrap_or("error");
+                        json!({
+                            "id": log.id,
+                            "process": log.process,
+                            "content": log.content,
+                            "timestamp": log.timestamp,
+                            "level": level
+                        })
+                    })
+                    .collect();
+
+                let count = errors.len();
+
+                IpcResponse::ok(json!({
+                    "errors": errors,
+                    "count": count,
+                    "limit": limit,
+                    "level_filter": level_filter
+                }))
+            }
+            None => IpcResponse::ok(json!({
+                "errors": [],
+                "count": 0,
+                "limit": limit,
+                "level_filter": level_filter
+            })),
+        }
+    }
+
+    fn handle_summary(&self, state: Option<&StateSnapshot>) -> IpcResponse {
+        match state {
+            Some(snapshot) => {
+                // Count process statuses
+                let running_count = snapshot
+                    .processes
+                    .iter()
+                    .filter(|p| p.status == "running")
+                    .count();
+                let stopped_count = snapshot
+                    .processes
+                    .iter()
+                    .filter(|p| p.status == "stopped")
+                    .count();
+                let failed_count = snapshot
+                    .processes
+                    .iter()
+                    .filter(|p| p.status == "failed")
+                    .count();
+
+                // Build process details
+                let process_details: Vec<Value> = snapshot
+                    .processes
+                    .iter()
+                    .map(|p| {
+                        let mut obj = json!({
+                            "name": p.name,
+                            "status": p.status
+                        });
+                        if let Some(err) = &p.error {
+                            obj["error"] = json!(err);
+                        }
+                        obj
+                    })
+                    .collect();
+
+                // Count recent errors (scan last 100 logs)
+                let error_logs: Vec<_> = snapshot
+                    .recent_logs
+                    .iter()
+                    .rev()
+                    .take(100)
+                    .filter(|log| detect_log_level(&log.content) == Some("error"))
+                    .collect();
+
+                let recent_error_count = error_logs.len();
+                let last_error = error_logs.first().map(|log| {
+                    json!({
+                        "id": log.id,
+                        "process": log.process,
+                        "content": log.content,
+                        "timestamp": log.timestamp
+                    })
+                });
+
+                // Format filters as human-readable strings
+                let filter_strings: Vec<String> = snapshot
+                    .active_filters
+                    .iter()
+                    .map(|f| format!("{} ({})", f.pattern, f.filter_type))
+                    .collect();
+
+                IpcResponse::ok(json!({
+                    "status": {
+                        "version": self.version,
+                        "running": true
+                    },
+                    "processes": {
+                        "total": snapshot.processes.len(),
+                        "running": running_count,
+                        "stopped": stopped_count,
+                        "failed": failed_count,
+                        "details": process_details
+                    },
+                    "logs": {
+                        "total_lines": snapshot.total_log_lines,
+                        "buffer_bytes": snapshot.buffer_stats.buffer_bytes,
+                        "buffer_usage_percent": snapshot.buffer_stats.usage_percent
+                    },
+                    "errors": {
+                        "recent_count": recent_error_count,
+                        "last_error": last_error
+                    },
+                    "filters": {
+                        "count": snapshot.filter_count,
+                        "active": filter_strings
+                    },
+                    "view": {
+                        "frozen": snapshot.view_mode.frozen,
+                        "auto_scroll": snapshot.auto_scroll,
+                        "compact": snapshot.view_mode.compact,
+                        "trace_recording": snapshot.trace_recording
+                    }
+                }))
+            }
+            None => IpcResponse::ok(json!({
+                "status": {
+                    "version": self.version,
+                    "running": true
+                },
+                "processes": {
+                    "total": 0,
+                    "running": 0,
+                    "stopped": 0,
+                    "failed": 0,
+                    "details": []
+                },
+                "logs": {
+                    "total_lines": 0,
+                    "buffer_bytes": 0,
+                    "buffer_usage_percent": 0.0
+                },
+                "errors": {
+                    "recent_count": 0,
+                    "last_error": null
+                },
+                "filters": {
+                    "count": 0,
+                    "active": []
+                },
+                "view": {
+                    "frozen": false,
+                    "auto_scroll": true,
+                    "compact": false,
+                    "trace_recording": false
+                }
+            })),
+        }
+    }
+
+    fn handle_batch(&self, args: &Value, state: Option<&StateSnapshot>) -> IpcHandlerResult {
+        // Batch ID is required
+        let batch_id: usize = match args.get("id").and_then(|v| v.as_u64()) {
+            Some(id) => id as usize,
+            None => {
+                return IpcHandlerResult::response_only(IpcResponse::err(
+                    "missing required argument: id".to_string(),
+                ));
+            }
+        };
+
+        let scroll = args
+            .get("scroll")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
+        match state {
+            Some(snapshot) => {
+                // Filter logs by batch_id (chronological order - oldest first within batch)
+                let batch_lines: Vec<Value> = snapshot
+                    .recent_logs
+                    .iter()
+                    .filter(|log| log.batch_id == Some(batch_id))
+                    .map(|log| {
+                        json!({
+                            "id": log.id,
+                            "process": log.process,
+                            "content": log.content,
+                            "timestamp": log.timestamp
+                        })
+                    })
+                    .collect();
+
+                if batch_lines.is_empty() {
+                    return IpcHandlerResult::response_only(IpcResponse::err(format!(
+                        "batch with id {} not found",
+                        batch_id
+                    )));
+                }
+
+                let count = batch_lines.len();
+                let process = snapshot
+                    .recent_logs
+                    .iter()
+                    .find(|log| log.batch_id == Some(batch_id))
+                    .map(|log| log.process.clone())
+                    .unwrap_or_default();
+
+                let first_line_id = snapshot
+                    .recent_logs
+                    .iter()
+                    .find(|log| log.batch_id == Some(batch_id))
+                    .map(|log| log.id);
+
+                let response = IpcResponse::ok(json!({
+                    "batch_id": batch_id,
+                    "lines": batch_lines,
+                    "count": count,
+                    "process": process
+                }));
+
+                if scroll {
+                    if let Some(id) = first_line_id {
+                        IpcHandlerResult::with_actions(
+                            response,
+                            vec![
+                                IpcAction::ScrollToLine { id },
+                                IpcAction::SetAutoScroll { enabled: false },
+                            ],
+                        )
+                    } else {
+                        IpcHandlerResult::response_only(response)
+                    }
+                } else {
+                    IpcHandlerResult::response_only(response)
+                }
+            }
+            None => IpcHandlerResult::response_only(IpcResponse::err(
+                "no state available".to_string(),
+            )),
+        }
+    }
+}
+
+/// Detect if a log line contains error or warning patterns
+fn detect_log_level(content: &str) -> Option<&'static str> {
+    let content_lower = content.to_lowercase();
+
+    // Check for error patterns first (higher priority)
+    let error_patterns = [
+        "error", "fail", "failed", "panic", "exception", "fatal",
+    ];
+    let error_prefixes = ["[error]", "error:", "[err]", "err:"];
+
+    for prefix in &error_prefixes {
+        if content_lower.starts_with(prefix) {
+            return Some("error");
+        }
+    }
+
+    for pattern in &error_patterns {
+        if content_lower.contains(pattern) {
+            return Some("error");
+        }
+    }
+
+    // Check for warning patterns
+    let warning_patterns = ["warn", "warning"];
+    let warning_prefixes = ["[warn]", "warn:", "[warning]", "warning:"];
+
+    for prefix in &warning_prefixes {
+        if content_lower.starts_with(prefix) {
+            return Some("warning");
+        }
+    }
+
+    for pattern in &warning_patterns {
+        if content_lower.contains(pattern) {
+            return Some("warning");
+        }
+    }
+
+    None
 }
 
 #[cfg(test)]
@@ -2615,5 +2965,661 @@ mod tests {
         assert_eq!(args.len(), 1);
         assert_eq!(args[0]["name"], "name");
         assert_eq!(args[0]["required"], true);
+    }
+
+    // Tests for detect_log_level helper function
+
+    #[test]
+    fn detect_log_level_finds_error_patterns() {
+        assert_eq!(detect_log_level("Error: connection failed"), Some("error"));
+        assert_eq!(detect_log_level("FATAL: out of memory"), Some("error"));
+        assert_eq!(detect_log_level("panic at line 42"), Some("error"));
+        assert_eq!(detect_log_level("exception thrown"), Some("error"));
+        assert_eq!(detect_log_level("Job failed with exit code 1"), Some("error"));
+        assert_eq!(detect_log_level("[ERROR] Something went wrong"), Some("error"));
+    }
+
+    #[test]
+    fn detect_log_level_finds_warning_patterns() {
+        assert_eq!(detect_log_level("Warning: deprecated function"), Some("warning"));
+        assert_eq!(detect_log_level("WARN: low memory"), Some("warning"));
+        assert_eq!(detect_log_level("[WARN] Resource usage high"), Some("warning"));
+        assert_eq!(detect_log_level("[WARNING] Connection unstable"), Some("warning"));
+    }
+
+    #[test]
+    fn detect_log_level_returns_none_for_normal_logs() {
+        assert_eq!(detect_log_level("Server started on port 3000"), None);
+        assert_eq!(detect_log_level("Processing job 123"), None);
+        assert_eq!(detect_log_level("Request completed in 42ms"), None);
+    }
+
+    #[test]
+    fn detect_log_level_error_takes_priority_over_warning() {
+        // If a line contains both error and warning patterns, error wins
+        assert_eq!(
+            detect_log_level("Error occurred, please check warnings"),
+            Some("error")
+        );
+    }
+
+    // Tests for handle_errors
+
+    #[test]
+    fn errors_without_state_returns_empty_list() {
+        let handler = test_handler();
+        let request = IpcRequest::new("errors");
+        let result = handler.handle(&request, None);
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        let errors = data["errors"].as_array().unwrap();
+        assert!(errors.is_empty());
+        assert_eq!(data["count"], 0);
+        assert_eq!(data["limit"], 50);
+        assert_eq!(data["level_filter"], "error");
+        assert!(result.actions.is_empty());
+    }
+
+    #[test]
+    fn errors_with_state_finds_error_logs() {
+        use super::super::state::{BufferStats, LogLineInfo, ViewModeInfo};
+
+        let handler = test_handler();
+        let request = IpcRequest::new("errors");
+
+        let snapshot = StateSnapshot {
+            processes: vec![],
+            filter_count: 0,
+            active_filters: vec![],
+            search_pattern: None,
+            view_mode: ViewModeInfo::default(),
+            auto_scroll: true,
+            log_count: 0,
+            buffer_stats: BufferStats::default(),
+            trace_recording: false,
+            active_trace_id: None,
+            recent_logs: vec![
+                LogLineInfo {
+                    id: 1,
+                    process: "web".to_string(),
+                    content: "Server started".to_string(),
+                    timestamp: "2025-12-17T10:00:00Z".to_string(),
+                    batch_id: None,
+                },
+                LogLineInfo {
+                    id: 2,
+                    process: "web".to_string(),
+                    content: "Error: connection failed".to_string(),
+                    timestamp: "2025-12-17T10:00:01Z".to_string(),
+                    batch_id: None,
+                },
+                LogLineInfo {
+                    id: 3,
+                    process: "worker".to_string(),
+                    content: "Warning: low memory".to_string(),
+                    timestamp: "2025-12-17T10:00:02Z".to_string(),
+                    batch_id: None,
+                },
+            ],
+            total_log_lines: 3,
+            hidden_processes: Vec::new(),
+        };
+
+        let result = handler.handle(&request, Some(&snapshot));
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        let errors = data["errors"].as_array().unwrap();
+
+        // Should only find error, not warning (default level_filter is "error")
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0]["id"], 2);
+        assert_eq!(errors[0]["content"], "Error: connection failed");
+        assert_eq!(errors[0]["level"], "error");
+    }
+
+    #[test]
+    fn errors_with_warning_filter() {
+        use super::super::state::{BufferStats, LogLineInfo, ViewModeInfo};
+
+        let handler = test_handler();
+        let request = IpcRequest::with_args("errors", json!({"level": "warning"}));
+
+        let snapshot = StateSnapshot {
+            processes: vec![],
+            filter_count: 0,
+            active_filters: vec![],
+            search_pattern: None,
+            view_mode: ViewModeInfo::default(),
+            auto_scroll: true,
+            log_count: 0,
+            buffer_stats: BufferStats::default(),
+            trace_recording: false,
+            active_trace_id: None,
+            recent_logs: vec![
+                LogLineInfo {
+                    id: 1,
+                    process: "web".to_string(),
+                    content: "Error: connection failed".to_string(),
+                    timestamp: "2025-12-17T10:00:00Z".to_string(),
+                    batch_id: None,
+                },
+                LogLineInfo {
+                    id: 2,
+                    process: "worker".to_string(),
+                    content: "Warning: low memory".to_string(),
+                    timestamp: "2025-12-17T10:00:01Z".to_string(),
+                    batch_id: None,
+                },
+            ],
+            total_log_lines: 2,
+            hidden_processes: Vec::new(),
+        };
+
+        let result = handler.handle(&request, Some(&snapshot));
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        let errors = data["errors"].as_array().unwrap();
+
+        // Should only find warning
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0]["id"], 2);
+        assert_eq!(errors[0]["level"], "warning");
+        assert_eq!(data["level_filter"], "warning");
+    }
+
+    #[test]
+    fn errors_with_error_or_warning_filter() {
+        use super::super::state::{BufferStats, LogLineInfo, ViewModeInfo};
+
+        let handler = test_handler();
+        let request = IpcRequest::with_args("errors", json!({"level": "error_or_warning"}));
+
+        let snapshot = StateSnapshot {
+            processes: vec![],
+            filter_count: 0,
+            active_filters: vec![],
+            search_pattern: None,
+            view_mode: ViewModeInfo::default(),
+            auto_scroll: true,
+            log_count: 0,
+            buffer_stats: BufferStats::default(),
+            trace_recording: false,
+            active_trace_id: None,
+            recent_logs: vec![
+                LogLineInfo {
+                    id: 1,
+                    process: "web".to_string(),
+                    content: "Error: connection failed".to_string(),
+                    timestamp: "2025-12-17T10:00:00Z".to_string(),
+                    batch_id: None,
+                },
+                LogLineInfo {
+                    id: 2,
+                    process: "worker".to_string(),
+                    content: "Warning: low memory".to_string(),
+                    timestamp: "2025-12-17T10:00:01Z".to_string(),
+                    batch_id: None,
+                },
+            ],
+            total_log_lines: 2,
+            hidden_processes: Vec::new(),
+        };
+
+        let result = handler.handle(&request, Some(&snapshot));
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        let errors = data["errors"].as_array().unwrap();
+
+        // Should find both error and warning
+        assert_eq!(errors.len(), 2);
+    }
+
+    #[test]
+    fn errors_with_process_filter() {
+        use super::super::state::{BufferStats, LogLineInfo, ViewModeInfo};
+
+        let handler = test_handler();
+        let request = IpcRequest::with_args("errors", json!({"process": "web"}));
+
+        let snapshot = StateSnapshot {
+            processes: vec![],
+            filter_count: 0,
+            active_filters: vec![],
+            search_pattern: None,
+            view_mode: ViewModeInfo::default(),
+            auto_scroll: true,
+            log_count: 0,
+            buffer_stats: BufferStats::default(),
+            trace_recording: false,
+            active_trace_id: None,
+            recent_logs: vec![
+                LogLineInfo {
+                    id: 1,
+                    process: "web".to_string(),
+                    content: "Error: web error".to_string(),
+                    timestamp: "2025-12-17T10:00:00Z".to_string(),
+                    batch_id: None,
+                },
+                LogLineInfo {
+                    id: 2,
+                    process: "worker".to_string(),
+                    content: "Error: worker error".to_string(),
+                    timestamp: "2025-12-17T10:00:01Z".to_string(),
+                    batch_id: None,
+                },
+            ],
+            total_log_lines: 2,
+            hidden_processes: Vec::new(),
+        };
+
+        let result = handler.handle(&request, Some(&snapshot));
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        let errors = data["errors"].as_array().unwrap();
+
+        // Should only find web errors
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0]["process"], "web");
+    }
+
+    #[test]
+    fn errors_with_limit() {
+        use super::super::state::{BufferStats, LogLineInfo, ViewModeInfo};
+
+        let handler = test_handler();
+        let request = IpcRequest::with_args("errors", json!({"limit": 1}));
+
+        let snapshot = StateSnapshot {
+            processes: vec![],
+            filter_count: 0,
+            active_filters: vec![],
+            search_pattern: None,
+            view_mode: ViewModeInfo::default(),
+            auto_scroll: true,
+            log_count: 0,
+            buffer_stats: BufferStats::default(),
+            trace_recording: false,
+            active_trace_id: None,
+            recent_logs: vec![
+                LogLineInfo {
+                    id: 1,
+                    process: "web".to_string(),
+                    content: "Error: first".to_string(),
+                    timestamp: "2025-12-17T10:00:00Z".to_string(),
+                    batch_id: None,
+                },
+                LogLineInfo {
+                    id: 2,
+                    process: "web".to_string(),
+                    content: "Error: second".to_string(),
+                    timestamp: "2025-12-17T10:00:01Z".to_string(),
+                    batch_id: None,
+                },
+            ],
+            total_log_lines: 2,
+            hidden_processes: Vec::new(),
+        };
+
+        let result = handler.handle(&request, Some(&snapshot));
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        let errors = data["errors"].as_array().unwrap();
+
+        // Should only return 1 (newest first)
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0]["id"], 2); // Most recent
+        assert_eq!(data["limit"], 1);
+    }
+
+    // Tests for handle_summary
+
+    #[test]
+    fn summary_without_state_returns_defaults() {
+        let handler = test_handler();
+        let request = IpcRequest::new("summary");
+        let result = handler.handle(&request, None);
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+
+        assert_eq!(data["status"]["version"], "0.1.0-test");
+        assert_eq!(data["status"]["running"], true);
+        assert_eq!(data["processes"]["total"], 0);
+        assert_eq!(data["logs"]["total_lines"], 0);
+        assert_eq!(data["errors"]["recent_count"], 0);
+        assert!(data["errors"]["last_error"].is_null());
+        assert_eq!(data["filters"]["count"], 0);
+        assert_eq!(data["view"]["frozen"], false);
+        assert!(result.actions.is_empty());
+    }
+
+    #[test]
+    fn summary_with_state_returns_comprehensive_data() {
+        use super::super::state::{BufferStats, FilterInfo, LogLineInfo, ProcessInfo, ViewModeInfo};
+
+        let handler = test_handler();
+        let request = IpcRequest::new("summary");
+
+        let snapshot = StateSnapshot {
+            processes: vec![
+                ProcessInfo {
+                    name: "web".to_string(),
+                    status: "running".to_string(),
+                    error: None,
+                },
+                ProcessInfo {
+                    name: "worker".to_string(),
+                    status: "failed".to_string(),
+                    error: Some("Exit code: 1".to_string()),
+                },
+            ],
+            filter_count: 1,
+            active_filters: vec![FilterInfo {
+                pattern: "debug".to_string(),
+                filter_type: "exclude".to_string(),
+            }],
+            search_pattern: None,
+            view_mode: ViewModeInfo {
+                frozen: true,
+                batch_view: false,
+                trace_filter: false,
+                trace_selection: false,
+                compact: true,
+            },
+            auto_scroll: false,
+            log_count: 100,
+            buffer_stats: BufferStats {
+                buffer_bytes: 5000000,
+                max_buffer_bytes: 52428800,
+                usage_percent: 9.54,
+            },
+            trace_recording: true,
+            active_trace_id: Some("abc123".to_string()),
+            recent_logs: vec![
+                LogLineInfo {
+                    id: 1,
+                    process: "web".to_string(),
+                    content: "Server started".to_string(),
+                    timestamp: "2025-12-17T10:00:00Z".to_string(),
+                    batch_id: None,
+                },
+                LogLineInfo {
+                    id: 2,
+                    process: "web".to_string(),
+                    content: "Error: connection failed".to_string(),
+                    timestamp: "2025-12-17T10:00:01Z".to_string(),
+                    batch_id: None,
+                },
+            ],
+            total_log_lines: 1500,
+            hidden_processes: Vec::new(),
+        };
+
+        let result = handler.handle(&request, Some(&snapshot));
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+
+        // Status
+        assert_eq!(data["status"]["version"], "0.1.0-test");
+
+        // Processes
+        assert_eq!(data["processes"]["total"], 2);
+        assert_eq!(data["processes"]["running"], 1);
+        assert_eq!(data["processes"]["failed"], 1);
+        let details = data["processes"]["details"].as_array().unwrap();
+        assert_eq!(details[1]["error"], "Exit code: 1");
+
+        // Logs
+        assert_eq!(data["logs"]["total_lines"], 1500);
+        assert_eq!(data["logs"]["buffer_bytes"], 5000000);
+
+        // Errors
+        assert_eq!(data["errors"]["recent_count"], 1);
+        assert_eq!(data["errors"]["last_error"]["id"], 2);
+
+        // Filters
+        assert_eq!(data["filters"]["count"], 1);
+        let active = data["filters"]["active"].as_array().unwrap();
+        assert_eq!(active[0], "debug (exclude)");
+
+        // View
+        assert_eq!(data["view"]["frozen"], true);
+        assert_eq!(data["view"]["auto_scroll"], false);
+        assert_eq!(data["view"]["compact"], true);
+        assert_eq!(data["view"]["trace_recording"], true);
+    }
+
+    // Tests for handle_batch
+
+    #[test]
+    fn batch_without_id_returns_error() {
+        let handler = test_handler();
+        let request = IpcRequest::new("batch");
+        let result = handler.handle(&request, None);
+
+        assert!(!result.response.success);
+        assert!(result.response.error.is_some());
+        assert!(result.response.error.unwrap().contains("id"));
+        assert!(result.actions.is_empty());
+    }
+
+    #[test]
+    fn batch_without_state_returns_error() {
+        let handler = test_handler();
+        let request = IpcRequest::with_args("batch", json!({"id": 1}));
+        let result = handler.handle(&request, None);
+
+        assert!(!result.response.success);
+        assert!(result.response.error.unwrap().contains("no state"));
+        assert!(result.actions.is_empty());
+    }
+
+    #[test]
+    fn batch_with_nonexistent_id_returns_error() {
+        use super::super::state::{BufferStats, LogLineInfo, ViewModeInfo};
+
+        let handler = test_handler();
+        let request = IpcRequest::with_args("batch", json!({"id": 999}));
+
+        let snapshot = StateSnapshot {
+            processes: vec![],
+            filter_count: 0,
+            active_filters: vec![],
+            search_pattern: None,
+            view_mode: ViewModeInfo::default(),
+            auto_scroll: true,
+            log_count: 0,
+            buffer_stats: BufferStats::default(),
+            trace_recording: false,
+            active_trace_id: None,
+            recent_logs: vec![LogLineInfo {
+                id: 1,
+                process: "web".to_string(),
+                content: "Test log".to_string(),
+                timestamp: "2025-12-17T10:00:00Z".to_string(),
+                batch_id: Some(1),
+            }],
+            total_log_lines: 1,
+            hidden_processes: Vec::new(),
+        };
+
+        let result = handler.handle(&request, Some(&snapshot));
+
+        assert!(!result.response.success);
+        assert!(result.response.error.unwrap().contains("not found"));
+        assert!(result.actions.is_empty());
+    }
+
+    #[test]
+    fn batch_with_valid_id_returns_batch_lines() {
+        use super::super::state::{BufferStats, LogLineInfo, ViewModeInfo};
+
+        let handler = test_handler();
+        let request = IpcRequest::with_args("batch", json!({"id": 5}));
+
+        let snapshot = StateSnapshot {
+            processes: vec![],
+            filter_count: 0,
+            active_filters: vec![],
+            search_pattern: None,
+            view_mode: ViewModeInfo::default(),
+            auto_scroll: true,
+            log_count: 0,
+            buffer_stats: BufferStats::default(),
+            trace_recording: false,
+            active_trace_id: None,
+            recent_logs: vec![
+                LogLineInfo {
+                    id: 1,
+                    process: "web".to_string(),
+                    content: "Other batch".to_string(),
+                    timestamp: "2025-12-17T10:00:00Z".to_string(),
+                    batch_id: Some(4),
+                },
+                LogLineInfo {
+                    id: 2,
+                    process: "web".to_string(),
+                    content: "Batch 5 line 1".to_string(),
+                    timestamp: "2025-12-17T10:00:01Z".to_string(),
+                    batch_id: Some(5),
+                },
+                LogLineInfo {
+                    id: 3,
+                    process: "web".to_string(),
+                    content: "Batch 5 line 2".to_string(),
+                    timestamp: "2025-12-17T10:00:02Z".to_string(),
+                    batch_id: Some(5),
+                },
+            ],
+            total_log_lines: 3,
+            hidden_processes: Vec::new(),
+        };
+
+        let result = handler.handle(&request, Some(&snapshot));
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+
+        assert_eq!(data["batch_id"], 5);
+        assert_eq!(data["count"], 2);
+        assert_eq!(data["process"], "web");
+
+        let lines = data["lines"].as_array().unwrap();
+        assert_eq!(lines.len(), 2);
+        assert_eq!(lines[0]["id"], 2);
+        assert_eq!(lines[1]["id"], 3);
+
+        // No actions by default
+        assert!(result.actions.is_empty());
+    }
+
+    #[test]
+    fn batch_with_scroll_emits_scroll_action() {
+        use super::super::state::{BufferStats, LogLineInfo, ViewModeInfo};
+
+        let handler = test_handler();
+        let request = IpcRequest::with_args("batch", json!({"id": 5, "scroll": true}));
+
+        let snapshot = StateSnapshot {
+            processes: vec![],
+            filter_count: 0,
+            active_filters: vec![],
+            search_pattern: None,
+            view_mode: ViewModeInfo::default(),
+            auto_scroll: true,
+            log_count: 0,
+            buffer_stats: BufferStats::default(),
+            trace_recording: false,
+            active_trace_id: None,
+            recent_logs: vec![LogLineInfo {
+                id: 42,
+                process: "web".to_string(),
+                content: "Batch line".to_string(),
+                timestamp: "2025-12-17T10:00:00Z".to_string(),
+                batch_id: Some(5),
+            }],
+            total_log_lines: 1,
+            hidden_processes: Vec::new(),
+        };
+
+        let result = handler.handle(&request, Some(&snapshot));
+
+        assert!(result.response.success);
+
+        // Should emit ScrollToLine and SetAutoScroll actions
+        assert_eq!(result.actions.len(), 2);
+        assert!(matches!(
+            &result.actions[0],
+            IpcAction::ScrollToLine { id } if *id == 42
+        ));
+        assert_eq!(result.actions[1], IpcAction::SetAutoScroll { enabled: false });
+    }
+
+    // Help command includes new commands
+
+    #[test]
+    fn help_includes_errors_summary_batch_commands() {
+        let handler = test_handler();
+        let request = IpcRequest::new("help");
+        let result = handler.handle(&request, None);
+
+        let data = result.response.result.unwrap();
+        let commands = data["commands"].as_array().unwrap();
+
+        let command_names: Vec<&str> = commands
+            .iter()
+            .filter_map(|c| c["name"].as_str())
+            .collect();
+        assert!(command_names.contains(&"errors"));
+        assert!(command_names.contains(&"summary"));
+        assert!(command_names.contains(&"batch"));
+    }
+
+    #[test]
+    fn errors_command_has_correct_args() {
+        let handler = test_handler();
+        let request = IpcRequest::new("help");
+        let result = handler.handle(&request, None);
+
+        let data = result.response.result.unwrap();
+        let commands = data["commands"].as_array().unwrap();
+
+        let errors_cmd = commands
+            .iter()
+            .find(|c| c["name"].as_str() == Some("errors"))
+            .unwrap();
+
+        let args = errors_cmd["args"].as_array().unwrap();
+        let arg_names: Vec<&str> = args.iter().filter_map(|a| a["name"].as_str()).collect();
+        assert!(arg_names.contains(&"limit"));
+        assert!(arg_names.contains(&"level"));
+        assert!(arg_names.contains(&"process"));
+    }
+
+    #[test]
+    fn batch_command_has_correct_args() {
+        let handler = test_handler();
+        let request = IpcRequest::new("help");
+        let result = handler.handle(&request, None);
+
+        let data = result.response.result.unwrap();
+        let commands = data["commands"].as_array().unwrap();
+
+        let batch_cmd = commands
+            .iter()
+            .find(|c| c["name"].as_str() == Some("batch"))
+            .unwrap();
+
+        let args = batch_cmd["args"].as_array().unwrap();
+        let arg_names: Vec<&str> = args.iter().filter_map(|a| a["name"].as_str()).collect();
+        assert!(arg_names.contains(&"id"));
+        assert!(arg_names.contains(&"scroll"));
     }
 }
