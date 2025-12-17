@@ -11,9 +11,10 @@ mod traces;
 mod ui;
 mod updater;
 
-use cli::{Cli, Commands, init_config, run_ipc_command};
+use cli::{get_socket_path, Cli, Commands, init_config, run_ipc_command};
 use config::Config;
 use event_handler::EventHandler;
+use ipc::{IpcCommandHandler, IpcServer};
 use procfile::Procfile;
 use process::ProcessManager;
 use ui::App;
@@ -141,8 +142,23 @@ async fn main() -> anyhow::Result<()> {
         app.set_status_error(format!("Failed to start: {}", failure_names.join(", ")));
     }
 
+    // Create IPC server for remote control
+    let socket_path = get_socket_path();
+    let mut ipc_server = match IpcServer::new(&socket_path) {
+        Ok(server) => Some(server),
+        Err(e) => {
+            eprintln!("Warning: Could not create IPC server at {:?}: {}", socket_path, e);
+            None
+        }
+    };
+
     // TUI event loop
-    let result = run_app(&mut terminal, &mut app, &mut manager, &mut config).await;
+    let result = run_app(&mut terminal, &mut app, &mut manager, &mut config, &mut ipc_server).await;
+
+    // Cleanup IPC socket
+    if let Some(ref server) = ipc_server {
+        let _ = server.cleanup();
+    }
 
     // Cleanup terminal
     disable_raw_mode()?;
@@ -160,13 +176,29 @@ async fn run_app(
     app: &mut App,
     manager: &mut ProcessManager,
     config: &mut Config,
+    ipc_server: &mut Option<IpcServer>,
 ) -> anyhow::Result<()> {
     let mut shutdown_ui_shown = false;
     let mut kill_signals_sent = false;
+    let ipc_handler = IpcCommandHandler::new(VERSION);
 
     loop {
         // Process logs from all sources
         manager.process_logs();
+
+        // Handle IPC requests from CLI clients
+        if let Some(server) = ipc_server.as_mut() {
+            // Accept any pending new connections
+            let _ = server.accept_pending();
+
+            // Poll for incoming commands
+            if let Ok(requests) = server.poll_commands() {
+                for (conn_id, request) in requests {
+                    let response = ipc_handler.handle(&request);
+                    let _ = server.send_response(conn_id, response).await;
+                }
+            }
+        }
 
         // Check for newly failed processes (not during shutdown)
         if !app.shutting_down {
