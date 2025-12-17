@@ -495,8 +495,9 @@ fn test_parse_commands_missing_args() {
     let cmd = parse_command("s");
     assert!(matches!(cmd, overitall::command::Command::Unknown(_)));
 
+    // :r without arg now means "restart all" - it's valid
     let cmd = parse_command("r");
-    assert!(matches!(cmd, overitall::command::Command::Unknown(_)));
+    assert!(matches!(cmd, overitall::command::Command::Restart(None)));
 
     let cmd = parse_command("k");
     assert!(matches!(cmd, overitall::command::Command::Unknown(_)));

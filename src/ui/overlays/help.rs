@@ -58,8 +58,8 @@ pub fn draw_help_overlay(f: &mut Frame, scroll_offset: u16) {
             Span::raw(" Start process"),
         ]),
         Line::from(vec![
-            Span::styled("  :r <proc>", Style::default().fg(Color::Yellow)),
-            Span::raw(" Restart process"),
+            Span::styled("  :r [proc]", Style::default().fg(Color::Yellow)),
+            Span::raw(" Restart process (or all if no arg)"),
         ]),
         Line::from(vec![
             Span::styled("  :k <proc>", Style::default().fg(Color::Yellow)),

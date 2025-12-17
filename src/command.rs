@@ -9,7 +9,7 @@ use anyhow::Result;
 pub enum Command {
     Quit,
     Start(String),
-    Restart(String),
+    Restart(Option<String>),
     Kill(String),
     FilterInclude(String),
     FilterExclude(String),
@@ -50,11 +50,11 @@ pub fn parse_command(input: &str) -> Command {
                 Command::Start(parts[1].to_string())
             }
         }
-        "r" => {
+        "r" | "restart" => {
             if parts.len() < 2 {
-                Command::Unknown("Usage: :r <process>".to_string())
+                Command::Restart(None)
             } else {
-                Command::Restart(parts[1].to_string())
+                Command::Restart(Some(parts[1].to_string()))
             }
         }
         "k" => {
@@ -154,8 +154,11 @@ impl<'a> CommandExecutor<'a> {
             Command::Start(name) => {
                 self.execute_start(&name).await?;
             }
-            Command::Restart(name) => {
+            Command::Restart(Some(name)) => {
                 self.execute_restart(&name).await?;
+            }
+            Command::Restart(None) => {
+                self.execute_restart_all().await?;
             }
             Command::Kill(name) => {
                 self.execute_kill(&name).await?;
@@ -222,6 +225,14 @@ impl<'a> CommandExecutor<'a> {
 
     async fn execute_restart(&mut self, name: &str) -> Result<()> {
         match process::restart_process(self.manager, name).await {
+            Ok(msg) => self.app.set_status_success(msg),
+            Err(msg) => self.app.set_status_error(msg),
+        }
+        Ok(())
+    }
+
+    async fn execute_restart_all(&mut self) -> Result<()> {
+        match process::restart_all_processes(self.manager).await {
             Ok(msg) => self.app.set_status_success(msg),
             Err(msg) => self.app.set_status_error(msg),
         }
@@ -470,6 +481,45 @@ mod tests {
         match parse_command("  only  web  ") {
             Command::Only(name) => assert_eq!(name, "web"),
             _ => panic!("Expected Only(\"web\") with surrounding whitespace"),
+        }
+    }
+
+    #[test]
+    fn test_parse_restart_with_process() {
+        match parse_command("r web") {
+            Command::Restart(Some(name)) => assert_eq!(name, "web"),
+            _ => panic!("Expected Restart(Some(\"web\"))"),
+        }
+
+        match parse_command("restart worker") {
+            Command::Restart(Some(name)) => assert_eq!(name, "worker"),
+            _ => panic!("Expected Restart(Some(\"worker\"))"),
+        }
+    }
+
+    #[test]
+    fn test_parse_restart_without_process() {
+        match parse_command("r") {
+            Command::Restart(None) => {}
+            _ => panic!("Expected Restart(None)"),
+        }
+
+        match parse_command("restart") {
+            Command::Restart(None) => {}
+            _ => panic!("Expected Restart(None)"),
+        }
+    }
+
+    #[test]
+    fn test_parse_restart_with_whitespace() {
+        match parse_command("  r  web  ") {
+            Command::Restart(Some(name)) => assert_eq!(name, "web"),
+            _ => panic!("Expected Restart(Some(\"web\")) with whitespace"),
+        }
+
+        match parse_command("  restart  ") {
+            Command::Restart(None) => {}
+            _ => panic!("Expected Restart(None) with whitespace"),
         }
     }
 }
