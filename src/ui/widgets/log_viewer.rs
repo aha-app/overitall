@@ -140,6 +140,9 @@ pub fn draw_log_viewer(
     );
     let batches = app.batch_cache.get_or_compute(&filtered_logs, app.batch_window_ms, cache_key).clone();
 
+    // Update cached batch count for status bar (avoids duplicate batch detection)
+    app.cached_batch_count = batches.len();
+
     // Build a map from each log index to its batch number (before consuming filtered_logs)
     let filtered_log_to_batch: Vec<Option<usize>> = if !batches.is_empty() {
         let mut map = vec![None; filtered_logs.len()];
@@ -184,11 +187,16 @@ pub fn draw_log_viewer(
     let (display_logs_source, display_start_in_filtered): (Vec<&LogLine>, usize) = if let Some(batch_idx) = current_batch_validated {
         if !batches.is_empty() && batch_idx < batches.len() {
             let (start, end) = batches[batch_idx];
+            let line_count = end - start + 1;
+            // Update cached batch info for status bar
+            app.cached_batch_info = Some((batch_idx, batches.len(), line_count));
             (filtered_logs[start..=end].to_vec(), start)
         } else {
+            app.cached_batch_info = None;
             (filtered_logs, 0)
         }
     } else {
+        app.cached_batch_info = None;
         (filtered_logs, 0)
     };
 

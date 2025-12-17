@@ -97,6 +97,12 @@ pub struct App {
     pub batch_cache: BatchCache,
     /// Cache for ANSI parsing results
     pub ansi_cache: AnsiCache,
+
+    // Cached render info (computed by log_viewer, used by status_bar)
+    /// Cached batch count from last render
+    pub cached_batch_count: usize,
+    /// Cached batch info for status bar display: (batch_index, total_batches, line_count_in_batch)
+    pub cached_batch_info: Option<(usize, usize, usize)>,
 }
 
 impl App {
@@ -151,6 +157,10 @@ impl App {
             // Performance
             batch_cache: BatchCache::new(),
             ansi_cache: AnsiCache::new(2000), // Cache up to 2000 parsed lines
+
+            // Cached render info
+            cached_batch_count: 0,
+            cached_batch_info: None,
         }
     }
 

@@ -9,52 +9,16 @@ use ratatui::{
 
 use crate::process::ProcessManager;
 use crate::ui::app::App;
-use crate::ui::batch::detect_batches_from_logs;
-use crate::ui::filter::FilterType;
 
 /// Draw the status bar showing buffer stats and batch info
+///
+/// Uses cached batch info from log_viewer to avoid duplicate O(n) batch detection.
 pub fn draw_status_bar(
     f: &mut Frame,
     area: Rect,
     manager: &ProcessManager,
     app: &App,
 ) {
-    let logs = manager.get_all_logs();
-
-    // Apply filters to get filtered logs
-    let filtered_logs: Vec<&crate::log::LogLine> = if app.filters.is_empty() {
-        logs
-    } else {
-        logs.into_iter()
-            .filter(|log| {
-                let line_text = &log.line;
-
-                for filter in &app.filters {
-                    if matches!(filter.filter_type, FilterType::Exclude) {
-                        if filter.matches(line_text) {
-                            return false;
-                        }
-                    }
-                }
-
-                let include_filters: Vec<_> = app
-                    .filters
-                    .iter()
-                    .filter(|f| matches!(f.filter_type, FilterType::Include))
-                    .collect();
-
-                if include_filters.is_empty() {
-                    return true;
-                }
-
-                include_filters.iter().any(|filter| filter.matches(line_text))
-            })
-            .collect()
-    };
-
-    // Detect batches from filtered logs
-    let batches = detect_batches_from_logs(&filtered_logs, app.batch_window_ms);
-
     // Build status text with buffer stats and batch info
     let buffer_stats = manager.get_buffer_stats();
     let mut status_parts = vec![
@@ -67,17 +31,13 @@ pub fn draw_status_bar(
         )
     ];
 
-    // Add batch info
+    // Add batch info (using cached values from log_viewer)
     if app.batch_view_mode {
-        if let Some(batch_idx) = app.current_batch {
-            if batch_idx < batches.len() {
-                let (start, end) = batches[batch_idx];
-                let line_count = end - start + 1;
-                status_parts.push(format!("Batch {}/{}, {} lines", batch_idx + 1, batches.len(), line_count));
-            }
+        if let Some((batch_idx, total_batches, line_count)) = app.cached_batch_info {
+            status_parts.push(format!("Batch {}/{}, {} lines", batch_idx + 1, total_batches, line_count));
         }
-    } else if !batches.is_empty() {
-        status_parts.push(format!("{} batches", batches.len()));
+    } else if app.cached_batch_count > 0 {
+        status_parts.push(format!("{} batches", app.cached_batch_count));
     }
 
     let status_text = status_parts.join(" | ");

@@ -40,5 +40,5 @@ web [Hidden] | worker [Hidden]
                                                                                                                         
                                                                                                                         
                                                                                                                         
-Buffer: 0.0/50 MB (0%) | 8 lines | 1 batches [TAIL]                                                                     
+Buffer: 0.0/50 MB (0%) | 8 lines [TAIL]                                                                                 
 Press : for commands, / to search, q to quit
