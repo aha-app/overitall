@@ -82,13 +82,27 @@ pub fn draw_status_bar(
 
     let status_text = status_parts.join(" | ");
 
-    // Auto-scroll indicator
-    let scroll_indicator = if app.auto_scroll {
+    // Mode/scroll indicator - show mode when in a special view, otherwise show tail/scroll state
+    let mode_indicator = if app.trace_filter_mode {
+        // In trace view - logs are frozen to a specific trace
+        Span::styled(
+            "[TRACE]",
+            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+        )
+    } else if app.batch_view_mode {
+        // In batch view - viewing a specific batch
+        Span::styled(
+            "[BATCH]",
+            Style::default().fg(Color::Blue).add_modifier(Modifier::BOLD)
+        )
+    } else if app.auto_scroll {
+        // Normal mode, following new logs
         Span::styled(
             "[TAIL]",
             Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
         )
     } else {
+        // Normal mode, viewing history
         Span::styled(
             "[SCROLL]",
             Style::default().fg(Color::Yellow)
@@ -107,9 +121,9 @@ pub fn draw_status_bar(
             Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
         );
         let status_span = Span::raw(format!("{} ", status_text));
-        Line::from(vec![rec_span, status_span, scroll_indicator])
+        Line::from(vec![rec_span, status_span, mode_indicator])
     } else {
-        Line::from(vec![Span::raw(format!("{} ", status_text)), scroll_indicator])
+        Line::from(vec![Span::raw(format!("{} ", status_text)), mode_indicator])
     };
 
     let paragraph = Paragraph::new(line)

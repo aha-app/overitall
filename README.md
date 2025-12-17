@@ -288,7 +288,11 @@ The status bar at the bottom of the screen shows:
 - **Buffer usage**: Current memory usage and percentage
 - **Line count**: Total number of log lines in buffer
 - **Batch count**: Number of detected batches (or current batch info in batch view)
-- **Scroll indicator**: `[TAIL]` (green) when following new logs, `[SCROLL]` (yellow) when viewing history
+- **Mode indicator**: Shows the current viewing mode:
+  - `[TAIL]` (green) - Following new logs in real-time
+  - `[SCROLL]` (yellow) - Viewing history (scrolled up from bottom)
+  - `[BATCH]` (blue) - Viewing a specific batch
+  - `[TRACE]` (cyan) - Viewing a captured trace
 
 When recording a manual trace, the status bar also shows a red `● REC` indicator with elapsed time.
 

@@ -40,5 +40,5 @@ web [Stopped] | worker [Stopped]
                                                                                                                         
                                                                                                                         
                                                                                                                         
-Buffer: 0.0/50 MB (0%) | 6 lines | Batch 2/3, 2 lines [SCROLL]                                                          
+Buffer: 0.0/50 MB (0%) | 6 lines | Batch 2/3, 2 lines [BATCH]                                                           
 Press : for commands, / to search, q to quit
