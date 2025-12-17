@@ -21,11 +21,13 @@ use ui::App;
 
 use clap::Parser;
 use crossterm::{
-    event::{self, Event},
+    event::{Event, EventStream, KeyEventKind},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use futures::StreamExt;
 use ratatui::{backend::CrosstermBackend, Terminal};
+use tokio::signal::unix::{signal, SignalKind};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -182,6 +184,15 @@ async fn run_app(
     let mut kill_signals_sent = false;
     let ipc_handler = IpcCommandHandler::new(VERSION);
 
+    // Set up signal handlers for graceful shutdown on SIGINT/SIGTERM
+    // SIGINT is typically Ctrl+C when not in raw mode, or sent via `kill -INT <pid>`
+    // SIGTERM is sent by `kill <pid>` without arguments
+    let mut sigint = signal(SignalKind::interrupt())?;
+    let mut sigterm = signal(SignalKind::terminate())?;
+
+    // Create async event stream for terminal events
+    let mut event_stream = EventStream::new();
+
     loop {
         // Process logs from all sources
         manager.process_logs();
@@ -255,30 +266,39 @@ async fn run_app(
             break;
         }
 
-        // Handle input - drain ALL pending events before next redraw
-        // This prevents input lag when keys are held down (terminal key repeat)
-        // Note: In raw mode, Ctrl+C is captured as a keyboard event, not a signal
-
-        // First, wait for at least one event (with timeout for log updates)
-        if event::poll(std::time::Duration::from_millis(100))? {
-            // Process all pending events before redrawing
-            loop {
-                if let Event::Key(key) = event::read()? {
-                    let mut event_handler = EventHandler::new(app, manager, config);
-                    if event_handler.handle_key_event(key).await? {
-                        return Ok(()); // Quit was requested
+        // Use tokio::select! to handle terminal events, signals, and timeouts concurrently
+        // This ensures we can respond to SIGINT/SIGTERM even while waiting for terminal input
+        tokio::select! {
+            // Handle Unix signals for graceful shutdown
+            _ = sigint.recv() => {
+                // SIGINT received (e.g., kill -INT <pid>)
+                // Note: In raw terminal mode, Ctrl+C is captured as a keyboard event,
+                // so this branch handles external SIGINT only
+                app.start_shutdown();
+            }
+            _ = sigterm.recv() => {
+                // SIGTERM received (e.g., kill <pid>)
+                app.start_shutdown();
+            }
+            // Handle terminal events (keyboard, mouse, resize)
+            maybe_event = event_stream.next() => {
+                if let Some(Ok(event)) = maybe_event {
+                    // Only process key press events (not release/repeat)
+                    if let Event::Key(key) = event {
+                        if key.kind == KeyEventKind::Press {
+                            let mut event_handler = EventHandler::new(app, manager, config);
+                            if event_handler.handle_key_event(key).await? {
+                                return Ok(()); // Quit was requested
+                            }
+                        }
                     }
                 }
-
-                // Check if more events are immediately available
-                if !event::poll(std::time::Duration::ZERO)? {
-                    break;
-                }
+            }
+            // Timeout for periodic updates (log processing, IPC polling)
+            _ = tokio::time::sleep(tokio::time::Duration::from_millis(50)) => {
+                // Just continue to process logs and redraw
             }
         }
-
-        // Small delay to prevent busy-looping when no events
-        tokio::time::sleep(tokio::time::Duration::from_millis(16)).await;
     }
 
     Ok(())

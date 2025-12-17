@@ -130,12 +130,10 @@ pub fn init_config(config_path: &str) -> anyhow::Result<()> {
 
 /// Get the default IPC socket path
 pub fn get_socket_path() -> std::path::PathBuf {
-    // Use XDG_RUNTIME_DIR if available, otherwise /tmp
-    if let Ok(runtime_dir) = std::env::var("XDG_RUNTIME_DIR") {
-        std::path::PathBuf::from(runtime_dir).join("oit.sock")
-    } else {
-        std::path::PathBuf::from("/tmp/oit.sock")
-    }
+    // Use current directory to allow multiple instances in different directories
+    std::env::current_dir()
+        .unwrap_or_else(|_| std::path::PathBuf::from("."))
+        .join(".oit.sock")
 }
 
 /// Run an IPC command and print the result
@@ -352,45 +350,19 @@ mod tests {
     }
 
     #[test]
-    fn test_get_socket_path_without_xdg() {
-        // Clear XDG_RUNTIME_DIR if set
-        let original = std::env::var("XDG_RUNTIME_DIR").ok();
-        // SAFETY: This is a test running in isolation
-        unsafe {
-            std::env::remove_var("XDG_RUNTIME_DIR");
-        }
-
+    fn test_get_socket_path_uses_current_dir() {
         let path = get_socket_path();
-        assert_eq!(path, std::path::PathBuf::from("/tmp/oit.sock"));
-
-        // Restore original value
-        // SAFETY: This is a test running in isolation
-        unsafe {
-            if let Some(val) = original {
-                std::env::set_var("XDG_RUNTIME_DIR", val);
-            }
-        }
+        let expected = std::env::current_dir()
+            .unwrap()
+            .join(".oit.sock");
+        assert_eq!(path, expected);
     }
 
     #[test]
-    fn test_get_socket_path_with_xdg() {
-        let original = std::env::var("XDG_RUNTIME_DIR").ok();
-        // SAFETY: This is a test running in isolation
-        unsafe {
-            std::env::set_var("XDG_RUNTIME_DIR", "/run/user/1000");
-        }
-
+    fn test_get_socket_path_filename_is_hidden() {
         let path = get_socket_path();
-        assert_eq!(path, std::path::PathBuf::from("/run/user/1000/oit.sock"));
-
-        // Restore original value
-        // SAFETY: This is a test running in isolation
-        unsafe {
-            if let Some(val) = original {
-                std::env::set_var("XDG_RUNTIME_DIR", val);
-            } else {
-                std::env::remove_var("XDG_RUNTIME_DIR");
-            }
-        }
+        let filename = path.file_name().unwrap().to_str().unwrap();
+        assert!(filename.starts_with('.'), "Socket filename should be hidden (start with .)");
+        assert_eq!(filename, ".oit.sock");
     }
 }
