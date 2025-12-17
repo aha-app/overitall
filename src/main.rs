@@ -205,7 +205,7 @@ async fn run_app(
             // Poll for incoming commands
             if let Ok(requests) = server.poll_commands() {
                 for (conn_id, request) in requests {
-                    let response = ipc_handler.handle(&request);
+                    let response = ipc_handler.handle(&request, None);
                     let _ = server.send_response(conn_id, response).await;
                 }
             }

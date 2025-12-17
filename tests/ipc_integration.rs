@@ -34,7 +34,7 @@ async fn test_ping_integration() {
     assert_eq!(requests[0].1.command, "ping");
 
     let conn_id = requests[0].0;
-    let response = handler.handle(&requests[0].1);
+    let response = handler.handle(&requests[0].1, None);
 
     // Server sends response back
     server.send_response(conn_id, response).await.unwrap();
@@ -66,7 +66,7 @@ async fn test_status_returns_version() {
     assert_eq!(requests.len(), 1);
 
     let conn_id = requests[0].0;
-    let response = handler.handle(&requests[0].1);
+    let response = handler.handle(&requests[0].1, None);
     server.send_response(conn_id, response).await.unwrap();
 
     // Verify response
@@ -107,7 +107,7 @@ async fn test_multiple_clients() {
 
     // Process and send responses to all
     for (conn_id, req) in &requests {
-        let response = handler.handle(req);
+        let response = handler.handle(req, None);
         server.send_response(*conn_id, response).await.unwrap();
     }
 
@@ -177,7 +177,7 @@ async fn test_unknown_command_returns_error() {
     assert_eq!(requests.len(), 1);
 
     let conn_id = requests[0].0;
-    let response = handler.handle(&requests[0].1);
+    let response = handler.handle(&requests[0].1, None);
     server.send_response(conn_id, response).await.unwrap();
 
     let received = client.recv_response().await.unwrap();
@@ -210,7 +210,7 @@ async fn test_request_with_args() {
     assert_eq!(requests[0].1.args["format"], "json");
 
     let conn_id = requests[0].0;
-    let response = handler.handle(&requests[0].1);
+    let response = handler.handle(&requests[0].1, None);
     server.send_response(conn_id, response).await.unwrap();
 
     let received = client.recv_response().await.unwrap();

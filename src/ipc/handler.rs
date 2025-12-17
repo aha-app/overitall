@@ -1,6 +1,7 @@
 use serde_json::{json, Value};
 
 use super::protocol::{IpcRequest, IpcResponse};
+use super::state::StateSnapshot;
 
 /// Handles IPC commands from CLI clients
 ///
@@ -17,7 +18,7 @@ impl IpcCommandHandler {
         }
     }
 
-    pub fn handle(&self, request: &IpcRequest) -> IpcResponse {
+    pub fn handle(&self, request: &IpcRequest, _state: Option<&StateSnapshot>) -> IpcResponse {
         match request.command.as_str() {
             "ping" => self.handle_ping(),
             "status" => self.handle_status(&request.args),
@@ -49,7 +50,7 @@ mod tests {
     fn ping_returns_pong() {
         let handler = test_handler();
         let request = IpcRequest::new("ping");
-        let response = handler.handle(&request);
+        let response = handler.handle(&request, None);
 
         assert!(response.success);
         assert_eq!(response.result, Some(json!({"pong": true})));
@@ -60,7 +61,7 @@ mod tests {
     fn status_returns_version_and_running() {
         let handler = test_handler();
         let request = IpcRequest::new("status");
-        let response = handler.handle(&request);
+        let response = handler.handle(&request, None);
 
         assert!(response.success);
         let result = response.result.unwrap();
@@ -73,7 +74,7 @@ mod tests {
     fn unknown_command_returns_error() {
         let handler = test_handler();
         let request = IpcRequest::new("nonexistent");
-        let response = handler.handle(&request);
+        let response = handler.handle(&request, None);
 
         assert!(!response.success);
         assert!(response.result.is_none());
@@ -84,7 +85,7 @@ mod tests {
     fn handler_uses_provided_version() {
         let handler = IpcCommandHandler::new("1.2.3");
         let request = IpcRequest::new("status");
-        let response = handler.handle(&request);
+        let response = handler.handle(&request, None);
 
         let result = response.result.unwrap();
         assert_eq!(result["version"], "1.2.3");
@@ -94,7 +95,7 @@ mod tests {
     fn ping_with_args_ignores_args() {
         let handler = test_handler();
         let request = IpcRequest::with_args("ping", json!({"ignored": "data"}));
-        let response = handler.handle(&request);
+        let response = handler.handle(&request, None);
 
         assert!(response.success);
         assert_eq!(response.result, Some(json!({"pong": true})));
@@ -104,7 +105,7 @@ mod tests {
     fn status_with_args_ignores_args() {
         let handler = test_handler();
         let request = IpcRequest::with_args("status", json!({"verbose": true}));
-        let response = handler.handle(&request);
+        let response = handler.handle(&request, None);
 
         assert!(response.success);
         let result = response.result.unwrap();
