@@ -33,16 +33,13 @@ pub enum Command {
 pub fn parse_command(input: &str) -> Command {
     let input = input.trim();
 
-    if input == "q" {
-        return Command::Quit;
-    }
-
     let parts: Vec<&str> = input.split_whitespace().collect();
     if parts.is_empty() {
         return Command::Unknown("Empty command".to_string());
     }
 
     match parts[0] {
+        "q" | "quit" | "exit" => Command::Quit,
         "s" => {
             if parts.len() < 2 {
                 Command::Unknown("Usage: :s <process>".to_string())
@@ -521,5 +518,19 @@ mod tests {
             Command::Restart(None) => {}
             _ => panic!("Expected Restart(None) with whitespace"),
         }
+    }
+
+    #[test]
+    fn test_parse_quit_command() {
+        assert_eq!(parse_command("q"), Command::Quit);
+        assert_eq!(parse_command("quit"), Command::Quit);
+        assert_eq!(parse_command("exit"), Command::Quit);
+    }
+
+    #[test]
+    fn test_parse_quit_command_with_whitespace() {
+        assert_eq!(parse_command("  q  "), Command::Quit);
+        assert_eq!(parse_command("  quit  "), Command::Quit);
+        assert_eq!(parse_command("  exit  "), Command::Quit);
     }
 }

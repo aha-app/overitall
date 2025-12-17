@@ -66,8 +66,8 @@ pub fn draw_help_overlay(f: &mut Frame, scroll_offset: u16) {
             Span::raw(" Kill process"),
         ]),
         Line::from(vec![
-            Span::styled("  :q", Style::default().fg(Color::Yellow)),
-            Span::raw("       Quit"),
+            Span::styled("  :q/:quit/:exit", Style::default().fg(Color::Yellow)),
+            Span::raw("  Quit"),
         ]),
         Line::from(""),
         Line::from(vec![
