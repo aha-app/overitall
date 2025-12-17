@@ -14,6 +14,12 @@ pub enum IpcAction {
     SelectAndExpandLine { id: u64 },
     /// Scroll to a specific log line by ID (without opening expanded view)
     ScrollToLine { id: u64 },
+    /// Scroll up by N lines
+    ScrollUp { lines: usize },
+    /// Scroll down by N lines
+    ScrollDown { lines: usize },
+    /// Scroll to the top of the log
+    ScrollToTop,
 }
 
 /// Result of handling an IPC command: response to send + actions to apply
@@ -114,5 +120,30 @@ mod tests {
         let a3 = IpcAction::ScrollToLine { id: 99 };
         assert_eq!(a1, a2);
         assert_ne!(a1, a3);
+    }
+
+    #[test]
+    fn scroll_up_action_stores_lines() {
+        let action = IpcAction::ScrollUp { lines: 20 };
+        match action {
+            IpcAction::ScrollUp { lines } => assert_eq!(lines, 20),
+            _ => panic!("expected ScrollUp"),
+        }
+    }
+
+    #[test]
+    fn scroll_down_action_stores_lines() {
+        let action = IpcAction::ScrollDown { lines: 50 };
+        match action {
+            IpcAction::ScrollDown { lines } => assert_eq!(lines, 50),
+            _ => panic!("expected ScrollDown"),
+        }
+    }
+
+    #[test]
+    fn scroll_to_top_action_equality() {
+        let a1 = IpcAction::ScrollToTop;
+        let a2 = IpcAction::ScrollToTop;
+        assert_eq!(a1, a2);
     }
 }

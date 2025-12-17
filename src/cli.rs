@@ -96,6 +96,14 @@ pub enum Commands {
         /// The log line ID to scroll to (from search or logs output)
         id: u64,
     },
+    /// Scroll the log view up, down, to top, or to bottom
+    Scroll {
+        /// Scroll direction: up, down, top, or bottom
+        direction: String,
+        /// Number of lines to scroll (for up/down, default: 20)
+        #[arg(long, default_value = "20")]
+        lines: u64,
+    },
 }
 
 /// Initialize a new config file from an existing Procfile
@@ -228,6 +236,10 @@ pub async fn run_ipc_command(command: &Commands) -> anyhow::Result<()> {
         Commands::IpcHelp => IpcRequest::new("help"),
         Commands::Trace => IpcRequest::new("trace"),
         Commands::Goto { id } => IpcRequest::with_args("goto", serde_json::json!({"id": id})),
+        Commands::Scroll { direction, lines } => IpcRequest::with_args(
+            "scroll",
+            serde_json::json!({"direction": direction, "lines": lines}),
+        ),
     };
 
     let response = client.call(&request).await.with_context(|| {
@@ -524,6 +536,52 @@ mod tests {
                 assert_eq!(id, 42);
             }
             _ => panic!("Expected Goto command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_scroll_subcommand() {
+        let cli = Cli::parse_from(["oit", "scroll", "up"]);
+        match cli.command {
+            Some(Commands::Scroll { direction, lines }) => {
+                assert_eq!(direction, "up");
+                assert_eq!(lines, 20); // default
+            }
+            _ => panic!("Expected Scroll command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_scroll_with_lines() {
+        let cli = Cli::parse_from(["oit", "scroll", "down", "--lines", "50"]);
+        match cli.command {
+            Some(Commands::Scroll { direction, lines }) => {
+                assert_eq!(direction, "down");
+                assert_eq!(lines, 50);
+            }
+            _ => panic!("Expected Scroll command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_scroll_top() {
+        let cli = Cli::parse_from(["oit", "scroll", "top"]);
+        match cli.command {
+            Some(Commands::Scroll { direction, lines: _ }) => {
+                assert_eq!(direction, "top");
+            }
+            _ => panic!("Expected Scroll command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_scroll_bottom() {
+        let cli = Cli::parse_from(["oit", "scroll", "bottom"]);
+        match cli.command {
+            Some(Commands::Scroll { direction, lines: _ }) => {
+                assert_eq!(direction, "bottom");
+            }
+            _ => panic!("Expected Scroll command"),
         }
     }
 }

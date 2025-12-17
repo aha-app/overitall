@@ -416,6 +416,17 @@ fn apply_ipc_action(app: &mut App, action: IpcAction) {
             // Set the selected line - log_viewer will auto-scroll to show it
             app.selected_line_id = Some(id);
         }
+        IpcAction::ScrollUp { lines } => {
+            app.scroll_up(lines);
+        }
+        IpcAction::ScrollDown { lines } => {
+            // Use saturating_add since we don't have max_offset here
+            // The log_viewer will clamp during rendering
+            app.scroll_offset = app.scroll_offset.saturating_add(lines);
+        }
+        IpcAction::ScrollToTop => {
+            app.scroll_to_top();
+        }
     }
 }
 

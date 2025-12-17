@@ -29,6 +29,7 @@ impl IpcCommandHandler {
             "select" => self.handle_select(&request.args, state),
             "context" => self.handle_context(&request.args, state),
             "goto" => self.handle_goto(&request.args, state),
+            "scroll" => self.handle_scroll(&request.args, state),
             "help" => IpcHandlerResult::response_only(self.handle_help()),
             "trace" => IpcHandlerResult::response_only(self.handle_trace(state)),
             _ => IpcHandlerResult::response_only(IpcResponse::err(format!(
@@ -383,6 +384,55 @@ impl IpcCommandHandler {
         )
     }
 
+    fn handle_scroll(&self, args: &Value, _state: Option<&StateSnapshot>) -> IpcHandlerResult {
+        // Direction is required
+        let direction = match args.get("direction").and_then(|v| v.as_str()) {
+            Some(d) => d,
+            None => {
+                return IpcHandlerResult::response_only(IpcResponse::err(
+                    "missing required argument: direction".to_string(),
+                ));
+            }
+        };
+
+        // Parse optional lines count (default: 20)
+        let lines = args
+            .get("lines")
+            .and_then(|v| v.as_u64())
+            .map(|v| v as usize)
+            .unwrap_or(20);
+
+        // Determine action and auto_scroll setting based on direction
+        let (action, auto_scroll) = match direction {
+            "up" => (IpcAction::ScrollUp { lines }, false),
+            "down" => (IpcAction::ScrollDown { lines }, false),
+            "top" => (IpcAction::ScrollToTop, false),
+            "bottom" => (IpcAction::SetAutoScroll { enabled: true }, true),
+            _ => {
+                return IpcHandlerResult::response_only(IpcResponse::err(format!(
+                    "invalid direction: {}. Valid options: up, down, top, bottom",
+                    direction
+                )));
+            }
+        };
+
+        let response = IpcResponse::ok(json!({
+            "direction": direction,
+            "lines": lines,
+            "auto_scroll": auto_scroll
+        }));
+
+        // For bottom, we only emit SetAutoScroll. For others, emit the scroll action + disable auto-scroll
+        if auto_scroll {
+            IpcHandlerResult::with_actions(response, vec![action])
+        } else {
+            IpcHandlerResult::with_actions(
+                response,
+                vec![action, IpcAction::SetAutoScroll { enabled: false }],
+            )
+        }
+    }
+
     fn handle_help(&self) -> IpcResponse {
         IpcResponse::ok(json!({
             "commands": [
@@ -439,6 +489,14 @@ impl IpcCommandHandler {
                     "description": "Jump to a specific log line by ID (scrolls view without expanding)",
                     "args": [
                         {"name": "id", "type": "number", "required": true, "description": "Log line ID to scroll to"}
+                    ]
+                },
+                {
+                    "name": "scroll",
+                    "description": "Scroll the log view up, down, to top, or to bottom",
+                    "args": [
+                        {"name": "direction", "type": "string", "required": true, "description": "Scroll direction: up, down, top, or bottom"},
+                        {"name": "lines", "type": "number", "default": 20, "description": "Number of lines to scroll (for up/down)"}
                     ]
                 },
                 {
@@ -1402,5 +1460,128 @@ mod tests {
             .filter_map(|a| a["name"].as_str())
             .collect();
         assert!(arg_names.contains(&"id"));
+    }
+
+    #[test]
+    fn scroll_without_direction_returns_error() {
+        let handler = test_handler();
+        let request = IpcRequest::new("scroll");
+        let result = handler.handle(&request, None);
+
+        assert!(!result.response.success);
+        assert!(result.response.error.is_some());
+        assert!(result.response.error.unwrap().contains("direction"));
+        assert!(result.actions.is_empty());
+    }
+
+    #[test]
+    fn scroll_with_invalid_direction_returns_error() {
+        let handler = test_handler();
+        let request = IpcRequest::with_args("scroll", json!({"direction": "sideways"}));
+        let result = handler.handle(&request, None);
+
+        assert!(!result.response.success);
+        assert!(result.response.error.unwrap().contains("invalid direction"));
+        assert!(result.actions.is_empty());
+    }
+
+    #[test]
+    fn scroll_up_returns_success_and_actions() {
+        let handler = test_handler();
+        let request = IpcRequest::with_args("scroll", json!({"direction": "up"}));
+        let result = handler.handle(&request, None);
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        assert_eq!(data["direction"], "up");
+        assert_eq!(data["lines"], 20); // default
+        assert_eq!(data["auto_scroll"], false);
+
+        assert_eq!(result.actions.len(), 2);
+        assert!(matches!(
+            &result.actions[0],
+            IpcAction::ScrollUp { lines } if *lines == 20
+        ));
+        assert_eq!(result.actions[1], IpcAction::SetAutoScroll { enabled: false });
+    }
+
+    #[test]
+    fn scroll_down_with_custom_lines() {
+        let handler = test_handler();
+        let request = IpcRequest::with_args("scroll", json!({"direction": "down", "lines": 50}));
+        let result = handler.handle(&request, None);
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        assert_eq!(data["direction"], "down");
+        assert_eq!(data["lines"], 50);
+
+        assert_eq!(result.actions.len(), 2);
+        assert!(matches!(
+            &result.actions[0],
+            IpcAction::ScrollDown { lines } if *lines == 50
+        ));
+    }
+
+    #[test]
+    fn scroll_top_returns_scroll_to_top_action() {
+        let handler = test_handler();
+        let request = IpcRequest::with_args("scroll", json!({"direction": "top"}));
+        let result = handler.handle(&request, None);
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        assert_eq!(data["direction"], "top");
+
+        assert_eq!(result.actions.len(), 2);
+        assert!(matches!(&result.actions[0], IpcAction::ScrollToTop));
+        assert_eq!(result.actions[1], IpcAction::SetAutoScroll { enabled: false });
+    }
+
+    #[test]
+    fn scroll_bottom_enables_auto_scroll() {
+        let handler = test_handler();
+        let request = IpcRequest::with_args("scroll", json!({"direction": "bottom"}));
+        let result = handler.handle(&request, None);
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        assert_eq!(data["direction"], "bottom");
+        assert_eq!(data["auto_scroll"], true);
+
+        // Bottom only emits SetAutoScroll, not a separate scroll action
+        assert_eq!(result.actions.len(), 1);
+        assert_eq!(result.actions[0], IpcAction::SetAutoScroll { enabled: true });
+    }
+
+    #[test]
+    fn help_includes_scroll_command() {
+        let handler = test_handler();
+        let request = IpcRequest::new("help");
+        let result = handler.handle(&request, None);
+
+        let data = result.response.result.unwrap();
+        let commands = data["commands"].as_array().unwrap();
+
+        let command_names: Vec<&str> = commands
+            .iter()
+            .filter_map(|c| c["name"].as_str())
+            .collect();
+        assert!(command_names.contains(&"scroll"));
+
+        // Check that scroll has the correct structure
+        let scroll_cmd = commands
+            .iter()
+            .find(|c| c["name"].as_str() == Some("scroll"))
+            .unwrap();
+
+        assert!(scroll_cmd["description"].as_str().unwrap().len() > 0);
+        let args = scroll_cmd["args"].as_array().unwrap();
+        let arg_names: Vec<&str> = args
+            .iter()
+            .filter_map(|a| a["name"].as_str())
+            .collect();
+        assert!(arg_names.contains(&"direction"));
+        assert!(arg_names.contains(&"lines"));
     }
 }
