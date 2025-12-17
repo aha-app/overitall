@@ -300,6 +300,12 @@ impl App {
         self.filters.clear();
     }
 
+    pub fn remove_filter(&mut self, pattern: &str) -> bool {
+        let original_len = self.filters.len();
+        self.filters.retain(|f| f.pattern != pattern);
+        self.filters.len() < original_len
+    }
+
     pub fn filter_count(&self) -> usize {
         self.filters.len()
     }

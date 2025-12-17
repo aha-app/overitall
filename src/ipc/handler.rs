@@ -31,6 +31,10 @@ impl IpcCommandHandler {
             "goto" => self.handle_goto(&request.args, state),
             "scroll" => self.handle_scroll(&request.args, state),
             "freeze" => self.handle_freeze(&request.args, state),
+            "filters" => IpcHandlerResult::response_only(self.handle_filters(state)),
+            "filter_add" => self.handle_filter_add(&request.args),
+            "filter_remove" => self.handle_filter_remove(&request.args),
+            "filter_clear" => self.handle_filter_clear(),
             "help" => IpcHandlerResult::response_only(self.handle_help()),
             "trace" => IpcHandlerResult::response_only(self.handle_trace(state)),
             _ => IpcHandlerResult::response_only(IpcResponse::err(format!(
@@ -465,6 +469,93 @@ impl IpcCommandHandler {
         )
     }
 
+    fn handle_filters(&self, state: Option<&StateSnapshot>) -> IpcResponse {
+        match state {
+            Some(snapshot) => {
+                let filters: Vec<Value> = snapshot
+                    .active_filters
+                    .iter()
+                    .map(|f| {
+                        json!({
+                            "pattern": f.pattern,
+                            "type": f.filter_type
+                        })
+                    })
+                    .collect();
+
+                IpcResponse::ok(json!({
+                    "filters": filters,
+                    "count": filters.len()
+                }))
+            }
+            None => IpcResponse::ok(json!({
+                "filters": [],
+                "count": 0
+            })),
+        }
+    }
+
+    fn handle_filter_add(&self, args: &Value) -> IpcHandlerResult {
+        // Pattern is required
+        let pattern = match args.get("pattern").and_then(|v| v.as_str()) {
+            Some(p) => p.to_string(),
+            None => {
+                return IpcHandlerResult::response_only(IpcResponse::err(
+                    "missing required argument: pattern".to_string(),
+                ));
+            }
+        };
+
+        // Check for --exclude flag (default: false = include filter)
+        let is_exclude = args
+            .get("exclude")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
+        let filter_type = if is_exclude { "exclude" } else { "include" };
+
+        IpcHandlerResult::with_actions(
+            IpcResponse::ok(json!({
+                "added": true,
+                "pattern": pattern,
+                "type": filter_type
+            })),
+            vec![IpcAction::AddFilter {
+                pattern,
+                is_exclude,
+            }],
+        )
+    }
+
+    fn handle_filter_remove(&self, args: &Value) -> IpcHandlerResult {
+        // Pattern is required
+        let pattern = match args.get("pattern").and_then(|v| v.as_str()) {
+            Some(p) => p.to_string(),
+            None => {
+                return IpcHandlerResult::response_only(IpcResponse::err(
+                    "missing required argument: pattern".to_string(),
+                ));
+            }
+        };
+
+        IpcHandlerResult::with_actions(
+            IpcResponse::ok(json!({
+                "removed": true,
+                "pattern": pattern
+            })),
+            vec![IpcAction::RemoveFilter { pattern }],
+        )
+    }
+
+    fn handle_filter_clear(&self) -> IpcHandlerResult {
+        IpcHandlerResult::with_actions(
+            IpcResponse::ok(json!({
+                "cleared": true
+            })),
+            vec![IpcAction::ClearFilters],
+        )
+    }
+
     fn handle_help(&self) -> IpcResponse {
         IpcResponse::ok(json!({
             "commands": [
@@ -546,6 +637,31 @@ impl IpcCommandHandler {
                 {
                     "name": "trace",
                     "description": "Get trace recording status and active trace info",
+                    "args": []
+                },
+                {
+                    "name": "filters",
+                    "description": "List current filters",
+                    "args": []
+                },
+                {
+                    "name": "filter_add",
+                    "description": "Add a new filter (persists to config file)",
+                    "args": [
+                        {"name": "pattern", "type": "string", "required": true, "description": "Filter pattern to match"},
+                        {"name": "exclude", "type": "boolean", "default": false, "description": "Exclude matching lines instead of including"}
+                    ]
+                },
+                {
+                    "name": "filter_remove",
+                    "description": "Remove a filter by pattern (persists to config file)",
+                    "args": [
+                        {"name": "pattern", "type": "string", "required": true, "description": "Filter pattern to remove"}
+                    ]
+                },
+                {
+                    "name": "filter_clear",
+                    "description": "Remove all filters (persists to config file)",
                     "args": []
                 }
             ],
@@ -1799,5 +1915,179 @@ mod tests {
             .filter_map(|a| a["name"].as_str())
             .collect();
         assert!(arg_names.contains(&"mode"));
+    }
+
+    #[test]
+    fn filters_without_state_returns_empty_list() {
+        let handler = test_handler();
+        let request = IpcRequest::new("filters");
+        let result = handler.handle(&request, None);
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        let filters = data["filters"].as_array().unwrap();
+        assert!(filters.is_empty());
+        assert_eq!(data["count"], 0);
+        assert!(result.actions.is_empty());
+    }
+
+    #[test]
+    fn filters_with_state_returns_filter_list() {
+        use super::super::state::{BufferStats, FilterInfo, ViewModeInfo};
+
+        let handler = test_handler();
+        let request = IpcRequest::new("filters");
+
+        let snapshot = StateSnapshot {
+            processes: vec![],
+            filter_count: 2,
+            active_filters: vec![
+                FilterInfo {
+                    pattern: "error".to_string(),
+                    filter_type: "include".to_string(),
+                },
+                FilterInfo {
+                    pattern: "debug".to_string(),
+                    filter_type: "exclude".to_string(),
+                },
+            ],
+            search_pattern: None,
+            view_mode: ViewModeInfo::default(),
+            auto_scroll: true,
+            log_count: 0,
+            buffer_stats: BufferStats::default(),
+            trace_recording: false,
+            active_trace_id: None,
+            recent_logs: Vec::new(),
+            total_log_lines: 0,
+        };
+
+        let result = handler.handle(&request, Some(&snapshot));
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        let filters = data["filters"].as_array().unwrap();
+
+        assert_eq!(filters.len(), 2);
+        assert_eq!(data["count"], 2);
+        assert_eq!(filters[0]["pattern"], "error");
+        assert_eq!(filters[0]["type"], "include");
+        assert_eq!(filters[1]["pattern"], "debug");
+        assert_eq!(filters[1]["type"], "exclude");
+        assert!(result.actions.is_empty());
+    }
+
+    #[test]
+    fn filter_add_without_pattern_returns_error() {
+        let handler = test_handler();
+        let request = IpcRequest::new("filter_add");
+        let result = handler.handle(&request, None);
+
+        assert!(!result.response.success);
+        assert!(result.response.error.is_some());
+        assert!(result.response.error.unwrap().contains("pattern"));
+        assert!(result.actions.is_empty());
+    }
+
+    #[test]
+    fn filter_add_include_returns_action() {
+        let handler = test_handler();
+        let request = IpcRequest::with_args("filter_add", json!({"pattern": "error"}));
+        let result = handler.handle(&request, None);
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        assert_eq!(data["added"], true);
+        assert_eq!(data["pattern"], "error");
+        assert_eq!(data["type"], "include");
+
+        assert_eq!(result.actions.len(), 1);
+        assert!(matches!(
+            &result.actions[0],
+            IpcAction::AddFilter { pattern, is_exclude } if pattern == "error" && !is_exclude
+        ));
+    }
+
+    #[test]
+    fn filter_add_exclude_returns_action() {
+        let handler = test_handler();
+        let request =
+            IpcRequest::with_args("filter_add", json!({"pattern": "debug", "exclude": true}));
+        let result = handler.handle(&request, None);
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        assert_eq!(data["added"], true);
+        assert_eq!(data["pattern"], "debug");
+        assert_eq!(data["type"], "exclude");
+
+        assert_eq!(result.actions.len(), 1);
+        assert!(matches!(
+            &result.actions[0],
+            IpcAction::AddFilter { pattern, is_exclude } if pattern == "debug" && *is_exclude
+        ));
+    }
+
+    #[test]
+    fn filter_remove_without_pattern_returns_error() {
+        let handler = test_handler();
+        let request = IpcRequest::new("filter_remove");
+        let result = handler.handle(&request, None);
+
+        assert!(!result.response.success);
+        assert!(result.response.error.is_some());
+        assert!(result.response.error.unwrap().contains("pattern"));
+        assert!(result.actions.is_empty());
+    }
+
+    #[test]
+    fn filter_remove_returns_action() {
+        let handler = test_handler();
+        let request = IpcRequest::with_args("filter_remove", json!({"pattern": "error"}));
+        let result = handler.handle(&request, None);
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        assert_eq!(data["removed"], true);
+        assert_eq!(data["pattern"], "error");
+
+        assert_eq!(result.actions.len(), 1);
+        assert!(matches!(
+            &result.actions[0],
+            IpcAction::RemoveFilter { pattern } if pattern == "error"
+        ));
+    }
+
+    #[test]
+    fn filter_clear_returns_action() {
+        let handler = test_handler();
+        let request = IpcRequest::new("filter_clear");
+        let result = handler.handle(&request, None);
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        assert_eq!(data["cleared"], true);
+
+        assert_eq!(result.actions.len(), 1);
+        assert!(matches!(&result.actions[0], IpcAction::ClearFilters));
+    }
+
+    #[test]
+    fn help_includes_filter_commands() {
+        let handler = test_handler();
+        let request = IpcRequest::new("help");
+        let result = handler.handle(&request, None);
+
+        let data = result.response.result.unwrap();
+        let commands = data["commands"].as_array().unwrap();
+
+        let command_names: Vec<&str> = commands
+            .iter()
+            .filter_map(|c| c["name"].as_str())
+            .collect();
+        assert!(command_names.contains(&"filters"));
+        assert!(command_names.contains(&"filter_add"));
+        assert!(command_names.contains(&"filter_remove"));
+        assert!(command_names.contains(&"filter_clear"));
     }
 }

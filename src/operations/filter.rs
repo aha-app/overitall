@@ -25,6 +25,16 @@ pub fn clear_filters(app: &mut App, config: &mut Config) -> usize {
     count
 }
 
+/// Remove a filter by pattern and save to config. Returns true if a filter was removed.
+pub fn remove_filter(app: &mut App, config: &mut Config, pattern: &str) -> bool {
+    let removed = app.remove_filter(pattern);
+    if removed {
+        config.update_filters(&app.filters);
+        save_config_with_error(config, app);
+    }
+    removed
+}
+
 /// Format the list of current filters for display.
 /// Returns None if there are no filters, otherwise returns a formatted string.
 pub fn list_filters(app: &App) -> Option<String> {

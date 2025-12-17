@@ -22,6 +22,12 @@ pub enum IpcAction {
     ScrollToTop,
     /// Set the frozen (paused) state of the display
     SetFrozen { frozen: bool },
+    /// Add a filter (include or exclude)
+    AddFilter { pattern: String, is_exclude: bool },
+    /// Remove a filter by pattern
+    RemoveFilter { pattern: String },
+    /// Clear all filters
+    ClearFilters,
 }
 
 /// Result of handling an IPC command: response to send + actions to apply
@@ -165,5 +171,78 @@ mod tests {
         let a3 = IpcAction::SetFrozen { frozen: false };
         assert_eq!(a1, a2);
         assert_ne!(a1, a3);
+    }
+
+    #[test]
+    fn add_filter_action_stores_pattern_and_type() {
+        let action = IpcAction::AddFilter {
+            pattern: "error".to_string(),
+            is_exclude: false,
+        };
+        match action {
+            IpcAction::AddFilter { pattern, is_exclude } => {
+                assert_eq!(pattern, "error");
+                assert!(!is_exclude);
+            }
+            _ => panic!("expected AddFilter"),
+        }
+    }
+
+    #[test]
+    fn add_filter_action_equality() {
+        let a1 = IpcAction::AddFilter {
+            pattern: "error".to_string(),
+            is_exclude: false,
+        };
+        let a2 = IpcAction::AddFilter {
+            pattern: "error".to_string(),
+            is_exclude: false,
+        };
+        let a3 = IpcAction::AddFilter {
+            pattern: "error".to_string(),
+            is_exclude: true,
+        };
+        let a4 = IpcAction::AddFilter {
+            pattern: "warn".to_string(),
+            is_exclude: false,
+        };
+        assert_eq!(a1, a2);
+        assert_ne!(a1, a3);
+        assert_ne!(a1, a4);
+    }
+
+    #[test]
+    fn remove_filter_action_stores_pattern() {
+        let action = IpcAction::RemoveFilter {
+            pattern: "debug".to_string(),
+        };
+        match action {
+            IpcAction::RemoveFilter { pattern } => {
+                assert_eq!(pattern, "debug");
+            }
+            _ => panic!("expected RemoveFilter"),
+        }
+    }
+
+    #[test]
+    fn remove_filter_action_equality() {
+        let a1 = IpcAction::RemoveFilter {
+            pattern: "error".to_string(),
+        };
+        let a2 = IpcAction::RemoveFilter {
+            pattern: "error".to_string(),
+        };
+        let a3 = IpcAction::RemoveFilter {
+            pattern: "warn".to_string(),
+        };
+        assert_eq!(a1, a2);
+        assert_ne!(a1, a3);
+    }
+
+    #[test]
+    fn clear_filters_action_equality() {
+        let a1 = IpcAction::ClearFilters;
+        let a2 = IpcAction::ClearFilters;
+        assert_eq!(a1, a2);
     }
 }

@@ -110,6 +110,23 @@ pub enum Commands {
         #[arg(default_value = "toggle")]
         mode: String,
     },
+    /// List current filters
+    Filters,
+    /// Add a new filter (persists to config file)
+    FilterAdd {
+        /// The filter pattern to match
+        pattern: String,
+        /// Exclude matching lines instead of including them
+        #[arg(long)]
+        exclude: bool,
+    },
+    /// Remove a filter by pattern (persists to config file)
+    FilterRemove {
+        /// The filter pattern to remove
+        pattern: String,
+    },
+    /// Clear all filters (persists to config file)
+    FilterClear,
 }
 
 /// Initialize a new config file from an existing Procfile
@@ -249,6 +266,15 @@ pub async fn run_ipc_command(command: &Commands) -> anyhow::Result<()> {
         Commands::Freeze { mode } => {
             IpcRequest::with_args("freeze", serde_json::json!({"mode": mode}))
         }
+        Commands::Filters => IpcRequest::new("filters"),
+        Commands::FilterAdd { pattern, exclude } => IpcRequest::with_args(
+            "filter_add",
+            serde_json::json!({"pattern": pattern, "exclude": exclude}),
+        ),
+        Commands::FilterRemove { pattern } => {
+            IpcRequest::with_args("filter_remove", serde_json::json!({"pattern": pattern}))
+        }
+        Commands::FilterClear => IpcRequest::new("filter_clear"),
     };
 
     let response = client.call(&request).await.with_context(|| {
@@ -636,5 +662,52 @@ mod tests {
             }
             _ => panic!("Expected Freeze command"),
         }
+    }
+
+    #[test]
+    fn test_cli_parses_filters_subcommand() {
+        let cli = Cli::parse_from(["oit", "filters"]);
+        assert!(matches!(cli.command, Some(Commands::Filters)));
+    }
+
+    #[test]
+    fn test_cli_parses_filter_add_subcommand() {
+        let cli = Cli::parse_from(["oit", "filter-add", "error"]);
+        match cli.command {
+            Some(Commands::FilterAdd { pattern, exclude }) => {
+                assert_eq!(pattern, "error");
+                assert!(!exclude);
+            }
+            _ => panic!("Expected FilterAdd command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_filter_add_with_exclude() {
+        let cli = Cli::parse_from(["oit", "filter-add", "debug", "--exclude"]);
+        match cli.command {
+            Some(Commands::FilterAdd { pattern, exclude }) => {
+                assert_eq!(pattern, "debug");
+                assert!(exclude);
+            }
+            _ => panic!("Expected FilterAdd command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_filter_remove_subcommand() {
+        let cli = Cli::parse_from(["oit", "filter-remove", "error"]);
+        match cli.command {
+            Some(Commands::FilterRemove { pattern }) => {
+                assert_eq!(pattern, "error");
+            }
+            _ => panic!("Expected FilterRemove command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_filter_clear_subcommand() {
+        let cli = Cli::parse_from(["oit", "filter-clear"]);
+        assert!(matches!(cli.command, Some(Commands::FilterClear)));
     }
 }

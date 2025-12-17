@@ -211,7 +211,7 @@ async fn run_app(
 
                     // Process any actions from the handler
                     for action in handler_result.actions {
-                        apply_ipc_action(app, action);
+                        apply_ipc_action(app, config, action);
                     }
 
                     let _ = server.send_response(conn_id, handler_result.response).await;
@@ -397,7 +397,7 @@ fn create_state_snapshot(app: &App, manager: &ProcessManager) -> StateSnapshot {
 }
 
 /// Apply an IPC action to the App state
-fn apply_ipc_action(app: &mut App, action: IpcAction) {
+fn apply_ipc_action(app: &mut App, config: &mut Config, action: IpcAction) {
     match action {
         IpcAction::SetSearch { pattern } => {
             app.perform_search(pattern);
@@ -433,6 +433,19 @@ fn apply_ipc_action(app: &mut App, action: IpcAction) {
             } else {
                 app.unfreeze_display();
             }
+        }
+        IpcAction::AddFilter { pattern, is_exclude } => {
+            if is_exclude {
+                operations::filter::add_exclude_filter(app, config, pattern);
+            } else {
+                operations::filter::add_include_filter(app, config, pattern);
+            }
+        }
+        IpcAction::RemoveFilter { pattern } => {
+            operations::filter::remove_filter(app, config, &pattern);
+        }
+        IpcAction::ClearFilters => {
+            operations::filter::clear_filters(app, config);
         }
     }
 }
