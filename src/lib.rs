@@ -4,6 +4,7 @@
 pub mod clipboard;
 pub mod command;
 pub mod config;
+pub mod ipc;
 pub mod log;
 pub mod operations;
 pub mod process;

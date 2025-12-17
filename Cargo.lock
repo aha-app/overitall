@@ -1000,7 +1000,7 @@ checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 
 [[package]]
 name = "overitall"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "ansi-to-tui",
  "anyhow",
@@ -1015,6 +1015,7 @@ dependencies = [
  "ratatui",
  "regex",
  "serde",
+ "serde_json",
  "strip-ansi-escapes",
  "tempfile",
  "tokio",
@@ -1255,6 +1256,19 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "serde_json"
+version = "1.0.145"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "402a6f66d8c709116cf22f558eab210f5a50187f702eb4d7e5ef38d9a7f1c79c"
+dependencies = [
+ "itoa",
+ "memchr",
+ "ryu",
+ "serde",
+ "serde_core",
 ]
 
 [[package]]
