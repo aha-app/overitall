@@ -1,13 +1,18 @@
 procfile = "example/Procfile"
 batch_window_ms = 5000
 max_log_buffer_mb = 50
-hidden_processes = []
-
-[processes.web]
-log_file = "web.log"
+hidden_processes = [
+    "web",
+    "monitor",
+    "worker",
+]
+compact_mode = true
 
 [processes.worker]
 log_file = "worker.log"
+
+[processes.web]
+log_file = "web.log"
 
 [filters]
 include = []

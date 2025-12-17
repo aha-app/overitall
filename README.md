@@ -338,21 +338,7 @@ cargo insta review
 
 ## Architecture
 
-Overitall is built with a modular architecture:
-
-- **Log System**: Extensible log sources, parsing, buffering, and filtering
-- **Process Manager**: Manages process lifecycle and delegates log handling to log module
-- **Configuration**: TOML-based configuration with auto-save for filters
-- **TUI**: Built with ratatui, testable with TestBackend for snapshot testing
-
-### Key Dependencies
-
-- **ratatui** - Terminal UI framework
-- **tokio** - Async runtime for process management
-- **crossterm** - Terminal manipulation
-- **serde/toml** - Configuration parsing
-- **chrono** - Timestamp tracking
-- **regex** - Pattern matching for filters and search
+See [ARCHITECTURE.md](ARCHITECTURE.md) for code structure and how to add features.
 
 ## Project Status
 
@@ -402,13 +388,6 @@ Capture logs during a specific time window without needing correlation IDs:
 - `[` / `]` - Expand time window backward/forward (same as auto-detected traces)
 
 This is useful when you want to isolate logs for a specific action (like clicking a button or running a command) without needing correlation IDs in your logs.
-
-Planned features:
-
-- Rails-specific log format parsing
-- Additional log sources (syslog, HTTP endpoints)
-- Performance optimizations for large log volumes
-- Extended metadata display
 
 ## License
 

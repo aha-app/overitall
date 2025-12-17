@@ -1,36 +1,54 @@
 # Architecture
 
-## Operations Pattern
+## Overview
 
-Commands and events delegate to `src/operations/` modules instead of inline logic. This enables testability, extensibility (API/scripting), and consistency.
+Overitall is a TUI with three main components:
+- **App** (`ui/app.rs`) - UI state: selection, filters, overlays, view mode
+- **ProcessManager** (`process.rs`) - spawns processes, collects logs into a shared buffer
+- **Config** (`config.rs`) - persistent settings, loaded at startup, saved on changes
 
-**Pattern:**
-```rust
-// operations/batch.rs
-pub fn next_batch(app: &mut App, manager: &ProcessManager) -> bool { ... }
+The main loop in `main.rs` polls for terminal events and log updates, then redraws.
 
-// event_handler.rs - just routes to operation
-fn handle_next_batch(&mut self) {
-    batch::next_batch(self.app, self.manager);
-}
+## Data Flow
+
+```
+Terminal Events → EventHandler → Operations → App/ProcessManager/Config
+                                     ↓
+Log Files → ProcessManager → LogBuffer → App (for display)
+                                     ↓
+                              UI Draw ← App state
 ```
 
-**Guidelines:**
-1. New features: create operation first, wire to commands/events
-2. Handlers should only call operations and set status messages
-3. Operations return Result<T, String> for errors
+## Operations Pattern
 
-## Module Structure
+All business logic lives in `operations/` modules. Event handlers and commands just route to operations.
 
-- `main.rs` - Entry point, event loop
-- `command.rs` - Command parsing, CommandExecutor
-- `event_handler.rs` - Keyboard routing
-- `config.rs` / `procfile.rs` - Configuration
-- `process.rs` - ProcessManager
-- `ui.rs` - App state, TUI rendering
-- `log/` - Log sources, parsing, buffering
-- `operations/` - Business logic
+**To add a new feature:**
+1. Create an operation in `operations/` that modifies App/ProcessManager/Config
+2. Wire it to a command in `command.rs` or key handler in `event_handler.rs`
+3. Update help overlay if user-facing
+
+**To add a new command:**
+1. Add variant to `Command` enum in `command.rs`
+2. Add parsing in `parse_command()`
+3. Handle in `CommandExecutor::execute()` by calling an operation
+
+**To add a new key binding:**
+1. Add handler method in `event_handler.rs`
+2. Call an operation from the handler
+
+## Log System
+
+- **LogBuffer** (`log/buffer.rs`) - circular buffer with memory limit, FIFO eviction
+- **Dual timestamps** - each LogLine has parsed timestamp (from content) + arrival timestamp (when received)
+- **Batch grouping** - lines arriving within `batch_window_ms` are grouped for navigation
+
+## UI Layer
+
+- **Overlays** (`ui/overlays/`) - modal views (help, expanded line, trace selection)
+- **Widgets** (`ui/widgets/`) - stateless rendering (log viewer, process list, status bar)
+- **App state** drives what's rendered; widgets read from App
 
 ## Testing
 
-Use `TestBackend` for TUI tests, `insta` for snapshots.
+Use `TestBackend` for TUI tests, `insta` for snapshots. Run `cargo test`, review with `cargo insta review`.
