@@ -12,7 +12,7 @@ mod traces;
 mod ui;
 mod updater;
 
-use cli::{get_socket_path, Cli, init_config, run_ipc_command};
+use cli::{check_already_running, get_socket_path, Cli, init_config, run_ipc_command};
 use config::Config;
 use event_handler::EventHandler;
 use ipc::state::{BufferStats, FilterInfo, LogLineInfo, ProcessInfo, StateSnapshot, ViewModeInfo};
@@ -70,6 +70,13 @@ async fn main() -> anyhow::Result<()> {
         eprintln!("  3. Run 'oit' to start the TUI\n");
         eprintln!("Or specify a config file with: oit --config <path>\n");
         eprintln!("For more help, run: oit --help");
+        std::process::exit(1);
+    }
+
+    // Check if another instance is already running in this directory
+    if check_already_running().await? {
+        eprintln!("Error: oit is already running in this directory.");
+        eprintln!("Use 'oit ping' to verify, or remove .oit.sock if the previous instance crashed.");
         std::process::exit(1);
     }
 

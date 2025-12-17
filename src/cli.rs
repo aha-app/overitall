@@ -304,6 +304,57 @@ pub fn get_socket_path() -> std::path::PathBuf {
         .join(".oit.sock")
 }
 
+/// Check if another oit instance is already running.
+/// Returns Ok(true) if running, Ok(false) if not running (stale socket removed),
+/// or Err if there was an unexpected error.
+pub async fn check_already_running() -> anyhow::Result<bool> {
+    use crate::ipc::{IpcClient, IpcRequest};
+    use std::time::Duration;
+
+    let socket_path = get_socket_path();
+
+    // If socket file doesn't exist, nothing is running
+    if !socket_path.exists() {
+        return Ok(false);
+    }
+
+    // Try to connect and send a ping with a short timeout
+    let connect_result = tokio::time::timeout(
+        Duration::from_millis(500),
+        IpcClient::connect(&socket_path),
+    )
+    .await;
+
+    match connect_result {
+        Ok(Ok(mut client)) => {
+            // Connected, try to ping
+            let request = IpcRequest::new("ping");
+            let ping_result = tokio::time::timeout(
+                Duration::from_millis(500),
+                client.call(&request),
+            )
+            .await;
+
+            match ping_result {
+                Ok(Ok(response)) if response.success => {
+                    // Server responded to ping - it's running
+                    Ok(true)
+                }
+                _ => {
+                    // Connected but no valid response - stale socket
+                    let _ = std::fs::remove_file(&socket_path);
+                    Ok(false)
+                }
+            }
+        }
+        Ok(Err(_)) | Err(_) => {
+            // Connection failed or timed out - stale socket
+            let _ = std::fs::remove_file(&socket_path);
+            Ok(false)
+        }
+    }
+}
+
 /// Run an IPC command and print the result
 pub async fn run_ipc_command(command: &Commands) -> anyhow::Result<()> {
     use crate::ipc::{IpcClient, IpcRequest};
