@@ -14,7 +14,7 @@ mod updater;
 use cli::{get_socket_path, Cli, init_config, run_ipc_command};
 use config::Config;
 use event_handler::EventHandler;
-use ipc::state::{BufferStats, FilterInfo, ProcessInfo, StateSnapshot, ViewModeInfo};
+use ipc::state::{BufferStats, FilterInfo, LogLineInfo, ProcessInfo, StateSnapshot, ViewModeInfo};
 use ipc::{IpcCommandHandler, IpcServer};
 use procfile::Procfile;
 use process::{ProcessManager, ProcessStatus};
@@ -349,6 +349,21 @@ fn create_state_snapshot(app: &App, manager: &ProcessManager) -> StateSnapshot {
         usage_percent: stats.percent,
     };
 
+    // Get recent logs (last 1000 for IPC - callers can use limit/offset)
+    let recent_logs: Vec<LogLineInfo> = manager
+        .get_recent_logs(1000)
+        .iter()
+        .map(|log| LogLineInfo {
+            id: log.id,
+            process: log.source.process_name().to_string(),
+            content: log.line.clone(),
+            timestamp: log.timestamp.to_rfc3339(),
+            batch_id: None, // Batch detection is expensive; skip for now
+        })
+        .collect();
+
+    let total_log_lines = stats.line_count;
+
     StateSnapshot {
         processes,
         filter_count: app.filters.len(),
@@ -370,6 +385,8 @@ fn create_state_snapshot(app: &App, manager: &ProcessManager) -> StateSnapshot {
         buffer_stats,
         trace_recording: app.manual_trace_recording,
         active_trace_id: app.active_trace_id.clone(),
+        recent_logs,
+        total_log_lines,
     }
 }
 

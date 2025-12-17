@@ -35,6 +35,12 @@ pub struct StateSnapshot {
 
     /// Active trace ID if any
     pub active_trace_id: Option<String>,
+
+    /// Recent log lines for IPC logs command
+    pub recent_logs: Vec<LogLineInfo>,
+
+    /// Total number of log lines (may be more than recent_logs.len())
+    pub total_log_lines: usize,
 }
 
 /// Information about a single process
@@ -79,6 +85,25 @@ pub struct ViewModeInfo {
     pub compact: bool,
 }
 
+/// Information about a log line for IPC responses
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LogLineInfo {
+    /// Unique log line ID
+    pub id: u64,
+
+    /// Process name that produced this log
+    pub process: String,
+
+    /// The log line content
+    pub content: String,
+
+    /// Timestamp in ISO8601 format
+    pub timestamp: String,
+
+    /// Batch ID if available
+    pub batch_id: Option<usize>,
+}
+
 /// Buffer statistics
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BufferStats {
@@ -105,6 +130,8 @@ impl Default for StateSnapshot {
             buffer_stats: BufferStats::default(),
             trace_recording: false,
             active_trace_id: None,
+            recent_logs: Vec::new(),
+            total_log_lines: 0,
         }
     }
 }
@@ -260,6 +287,14 @@ mod tests {
             },
             trace_recording: true,
             active_trace_id: Some("abc123".to_string()),
+            recent_logs: vec![LogLineInfo {
+                id: 1,
+                process: "web".to_string(),
+                content: "Server started".to_string(),
+                timestamp: "2025-12-17T10:00:00Z".to_string(),
+                batch_id: Some(1),
+            }],
+            total_log_lines: 1523,
         };
 
         let json = serde_json::to_string(&snapshot).unwrap();
@@ -277,6 +312,9 @@ mod tests {
         assert_eq!(parsed.buffer_stats.buffer_bytes, 5120000);
         assert!(parsed.trace_recording);
         assert_eq!(parsed.active_trace_id, Some("abc123".to_string()));
+        assert_eq!(parsed.recent_logs.len(), 1);
+        assert_eq!(parsed.recent_logs[0].content, "Server started");
+        assert_eq!(parsed.total_log_lines, 1523);
     }
 
     #[test]
@@ -293,6 +331,8 @@ mod tests {
         assert_eq!(snapshot.buffer_stats.buffer_bytes, 0);
         assert!(!snapshot.trace_recording);
         assert!(snapshot.active_trace_id.is_none());
+        assert!(snapshot.recent_logs.is_empty());
+        assert_eq!(snapshot.total_log_lines, 0);
     }
 
     #[test]
@@ -319,6 +359,8 @@ mod tests {
             },
             trace_recording: false,
             active_trace_id: None,
+            recent_logs: Vec::new(),
+            total_log_lines: 100,
         };
 
         let json = serde_json::to_string_pretty(&snapshot).unwrap();
@@ -332,5 +374,44 @@ mod tests {
         assert!(json.contains("\"log_count\""));
         assert!(json.contains("\"buffer_stats\""));
         assert!(json.contains("\"trace_recording\""));
+        assert!(json.contains("\"recent_logs\""));
+        assert!(json.contains("\"total_log_lines\""));
+    }
+
+    #[test]
+    fn test_log_line_info_serialization() {
+        let log = LogLineInfo {
+            id: 42,
+            process: "web".to_string(),
+            content: "Server started on port 3000".to_string(),
+            timestamp: "2025-12-17T10:00:00Z".to_string(),
+            batch_id: Some(5),
+        };
+
+        let json = serde_json::to_string(&log).unwrap();
+        let parsed: LogLineInfo = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(parsed.id, 42);
+        assert_eq!(parsed.process, "web");
+        assert_eq!(parsed.content, "Server started on port 3000");
+        assert_eq!(parsed.timestamp, "2025-12-17T10:00:00Z");
+        assert_eq!(parsed.batch_id, Some(5));
+    }
+
+    #[test]
+    fn test_log_line_info_without_batch() {
+        let log = LogLineInfo {
+            id: 1,
+            process: "worker".to_string(),
+            content: "Processing job".to_string(),
+            timestamp: "2025-12-17T10:01:00Z".to_string(),
+            batch_id: None,
+        };
+
+        let json = serde_json::to_string(&log).unwrap();
+        let parsed: LogLineInfo = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(parsed.id, 1);
+        assert!(parsed.batch_id.is_none());
     }
 }

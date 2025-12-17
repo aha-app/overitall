@@ -23,6 +23,7 @@ impl IpcCommandHandler {
             "ping" => self.handle_ping(),
             "status" => self.handle_status(&request.args, state),
             "processes" => self.handle_processes(state),
+            "logs" => self.handle_logs(&request.args, state),
             _ => IpcResponse::err(format!("unknown command: {}", request.command)),
         }
     }
@@ -85,6 +86,57 @@ impl IpcCommandHandler {
             None => {
                 // No state available - return empty list
                 IpcResponse::ok(json!({ "processes": [] }))
+            }
+        }
+    }
+
+    fn handle_logs(&self, args: &Value, state: Option<&StateSnapshot>) -> IpcResponse {
+        // Parse optional limit and offset from args
+        let limit = args
+            .get("limit")
+            .and_then(|v| v.as_u64())
+            .map(|v| v as usize)
+            .unwrap_or(100);
+        let offset = args
+            .get("offset")
+            .and_then(|v| v.as_u64())
+            .map(|v| v as usize)
+            .unwrap_or(0);
+
+        match state {
+            Some(snapshot) => {
+                // Apply offset and limit to recent_logs
+                let logs: Vec<Value> = snapshot
+                    .recent_logs
+                    .iter()
+                    .skip(offset)
+                    .take(limit)
+                    .map(|log| {
+                        json!({
+                            "id": log.id,
+                            "process": log.process,
+                            "content": log.content,
+                            "timestamp": log.timestamp,
+                            "batch_id": log.batch_id
+                        })
+                    })
+                    .collect();
+
+                IpcResponse::ok(json!({
+                    "logs": logs,
+                    "total": snapshot.total_log_lines,
+                    "offset": offset,
+                    "limit": limit
+                }))
+            }
+            None => {
+                // No state available - return empty list
+                IpcResponse::ok(json!({
+                    "logs": [],
+                    "total": 0,
+                    "offset": offset,
+                    "limit": limit
+                }))
             }
         }
     }
@@ -203,6 +255,8 @@ mod tests {
             },
             trace_recording: true,
             active_trace_id: Some("abc123".to_string()),
+            recent_logs: Vec::new(),
+            total_log_lines: 1500,
         };
 
         let response = handler.handle(&request, Some(&snapshot));
@@ -273,6 +327,8 @@ mod tests {
             buffer_stats: BufferStats::default(),
             trace_recording: false,
             active_trace_id: None,
+            recent_logs: Vec::new(),
+            total_log_lines: 0,
         };
 
         let response = handler.handle(&request, Some(&snapshot));
@@ -290,5 +346,136 @@ mod tests {
         assert_eq!(processes[1]["name"], "worker");
         assert_eq!(processes[1]["status"], "failed");
         assert_eq!(processes[1]["error"], "Exit code: 1");
+    }
+
+    #[test]
+    fn logs_without_state_returns_empty_list() {
+        let handler = test_handler();
+        let request = IpcRequest::new("logs");
+        let response = handler.handle(&request, None);
+
+        assert!(response.success);
+        let result = response.result.unwrap();
+        let logs = result["logs"].as_array().unwrap();
+        assert!(logs.is_empty());
+        assert_eq!(result["total"], 0);
+        assert_eq!(result["offset"], 0);
+        assert_eq!(result["limit"], 100);
+    }
+
+    #[test]
+    fn logs_with_state_returns_log_list() {
+        use super::super::state::{BufferStats, LogLineInfo, ViewModeInfo};
+
+        let handler = test_handler();
+        let request = IpcRequest::new("logs");
+
+        let snapshot = StateSnapshot {
+            processes: vec![],
+            filter_count: 0,
+            active_filters: vec![],
+            search_pattern: None,
+            view_mode: ViewModeInfo::default(),
+            auto_scroll: true,
+            log_count: 0,
+            buffer_stats: BufferStats::default(),
+            trace_recording: false,
+            active_trace_id: None,
+            recent_logs: vec![
+                LogLineInfo {
+                    id: 1,
+                    process: "web".to_string(),
+                    content: "Server started".to_string(),
+                    timestamp: "2025-12-17T10:00:00Z".to_string(),
+                    batch_id: Some(1),
+                },
+                LogLineInfo {
+                    id: 2,
+                    process: "worker".to_string(),
+                    content: "Processing job".to_string(),
+                    timestamp: "2025-12-17T10:00:01Z".to_string(),
+                    batch_id: None,
+                },
+            ],
+            total_log_lines: 1500,
+        };
+
+        let response = handler.handle(&request, Some(&snapshot));
+
+        assert!(response.success);
+        let result = response.result.unwrap();
+        let logs = result["logs"].as_array().unwrap();
+
+        assert_eq!(logs.len(), 2);
+        assert_eq!(result["total"], 1500);
+        assert_eq!(result["offset"], 0);
+        assert_eq!(result["limit"], 100);
+
+        assert_eq!(logs[0]["id"], 1);
+        assert_eq!(logs[0]["process"], "web");
+        assert_eq!(logs[0]["content"], "Server started");
+        assert_eq!(logs[0]["timestamp"], "2025-12-17T10:00:00Z");
+        assert_eq!(logs[0]["batch_id"], 1);
+
+        assert_eq!(logs[1]["id"], 2);
+        assert_eq!(logs[1]["process"], "worker");
+        assert!(logs[1]["batch_id"].is_null());
+    }
+
+    #[test]
+    fn logs_with_limit_and_offset() {
+        use super::super::state::{BufferStats, LogLineInfo, ViewModeInfo};
+
+        let handler = test_handler();
+        let request = IpcRequest::with_args("logs", json!({"limit": 1, "offset": 1}));
+
+        let snapshot = StateSnapshot {
+            processes: vec![],
+            filter_count: 0,
+            active_filters: vec![],
+            search_pattern: None,
+            view_mode: ViewModeInfo::default(),
+            auto_scroll: true,
+            log_count: 0,
+            buffer_stats: BufferStats::default(),
+            trace_recording: false,
+            active_trace_id: None,
+            recent_logs: vec![
+                LogLineInfo {
+                    id: 1,
+                    process: "web".to_string(),
+                    content: "First log".to_string(),
+                    timestamp: "2025-12-17T10:00:00Z".to_string(),
+                    batch_id: None,
+                },
+                LogLineInfo {
+                    id: 2,
+                    process: "web".to_string(),
+                    content: "Second log".to_string(),
+                    timestamp: "2025-12-17T10:00:01Z".to_string(),
+                    batch_id: None,
+                },
+                LogLineInfo {
+                    id: 3,
+                    process: "web".to_string(),
+                    content: "Third log".to_string(),
+                    timestamp: "2025-12-17T10:00:02Z".to_string(),
+                    batch_id: None,
+                },
+            ],
+            total_log_lines: 3,
+        };
+
+        let response = handler.handle(&request, Some(&snapshot));
+
+        assert!(response.success);
+        let result = response.result.unwrap();
+        let logs = result["logs"].as_array().unwrap();
+
+        assert_eq!(logs.len(), 1);
+        assert_eq!(result["offset"], 1);
+        assert_eq!(result["limit"], 1);
+        assert_eq!(logs[0]["id"], 2);
+        assert_eq!(logs[0]["content"], "Second log");
     }
 }

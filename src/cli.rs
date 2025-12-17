@@ -50,6 +50,15 @@ pub enum Commands {
     Status,
     /// List all processes and their current status
     Processes,
+    /// Get recent log lines from the TUI
+    Logs {
+        /// Maximum number of log lines to return (default: 100)
+        #[arg(long, default_value = "100")]
+        limit: u64,
+        /// Number of log lines to skip (default: 0)
+        #[arg(long, default_value = "0")]
+        offset: u64,
+    },
 }
 
 /// Initialize a new config file from an existing Procfile
@@ -157,6 +166,9 @@ pub async fn run_ipc_command(command: &Commands) -> anyhow::Result<()> {
         Commands::Ping => IpcRequest::new("ping"),
         Commands::Status => IpcRequest::new("status"),
         Commands::Processes => IpcRequest::new("processes"),
+        Commands::Logs { limit, offset } => {
+            IpcRequest::with_args("logs", serde_json::json!({"limit": limit, "offset": offset}))
+        }
     };
 
     let response = client.call(&request).await.with_context(|| {
@@ -350,6 +362,30 @@ mod tests {
     fn test_cli_parses_processes_subcommand() {
         let cli = Cli::parse_from(["oit", "processes"]);
         assert!(matches!(cli.command, Some(Commands::Processes)));
+    }
+
+    #[test]
+    fn test_cli_parses_logs_subcommand() {
+        let cli = Cli::parse_from(["oit", "logs"]);
+        match cli.command {
+            Some(Commands::Logs { limit, offset }) => {
+                assert_eq!(limit, 100);
+                assert_eq!(offset, 0);
+            }
+            _ => panic!("Expected Logs command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_logs_with_limit_and_offset() {
+        let cli = Cli::parse_from(["oit", "logs", "--limit", "50", "--offset", "10"]);
+        match cli.command {
+            Some(Commands::Logs { limit, offset }) => {
+                assert_eq!(limit, 50);
+                assert_eq!(offset, 10);
+            }
+            _ => panic!("Expected Logs command"),
+        }
     }
 
     #[test]
