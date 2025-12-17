@@ -28,6 +28,7 @@ impl IpcCommandHandler {
             "search" => self.handle_search(&request.args, state),
             "select" => self.handle_select(&request.args, state),
             "context" => self.handle_context(&request.args, state),
+            "goto" => self.handle_goto(&request.args, state),
             "help" => IpcHandlerResult::response_only(self.handle_help()),
             "trace" => IpcHandlerResult::response_only(self.handle_trace(state)),
             _ => IpcHandlerResult::response_only(IpcResponse::err(format!(
@@ -345,6 +346,43 @@ impl IpcCommandHandler {
         }
     }
 
+    fn handle_goto(&self, args: &Value, state: Option<&StateSnapshot>) -> IpcHandlerResult {
+        // ID is required
+        let id = match args.get("id").and_then(|v| v.as_u64()) {
+            Some(id) => id,
+            None => {
+                return IpcHandlerResult::response_only(IpcResponse::err(
+                    "missing required argument: id".to_string(),
+                ));
+            }
+        };
+
+        // Verify the log line exists in current state
+        let line_exists = state
+            .map(|s| s.recent_logs.iter().any(|log| log.id == id))
+            .unwrap_or(false);
+
+        if !line_exists {
+            return IpcHandlerResult::response_only(IpcResponse::err(format!(
+                "log line with id {} not found",
+                id
+            )));
+        }
+
+        // Emit actions to scroll to line and disable auto-scroll
+        let actions = vec![
+            IpcAction::ScrollToLine { id },
+            IpcAction::SetAutoScroll { enabled: false },
+        ];
+
+        IpcHandlerResult::with_actions(
+            IpcResponse::ok(json!({
+                "scrolled_to": id
+            })),
+            actions,
+        )
+    }
+
     fn handle_help(&self) -> IpcResponse {
         IpcResponse::ok(json!({
             "commands": [
@@ -394,6 +432,13 @@ impl IpcCommandHandler {
                         {"name": "id", "type": "number", "required": true, "description": "Log line ID"},
                         {"name": "before", "type": "number", "default": 5, "description": "Lines before target"},
                         {"name": "after", "type": "number", "default": 5, "description": "Lines after target"}
+                    ]
+                },
+                {
+                    "name": "goto",
+                    "description": "Jump to a specific log line by ID (scrolls view without expanding)",
+                    "args": [
+                        {"name": "id", "type": "number", "required": true, "description": "Log line ID to scroll to"}
                     ]
                 },
                 {
@@ -1228,5 +1273,134 @@ mod tests {
         assert_eq!(data["trace_selection_active"], false);
 
         assert!(result.actions.is_empty());
+    }
+
+    #[test]
+    fn goto_without_id_returns_error() {
+        let handler = test_handler();
+        let request = IpcRequest::new("goto");
+        let result = handler.handle(&request, None);
+
+        assert!(!result.response.success);
+        assert!(result.response.error.is_some());
+        assert!(result.response.error.unwrap().contains("id"));
+        assert!(result.actions.is_empty());
+    }
+
+    #[test]
+    fn goto_with_nonexistent_id_returns_error() {
+        use super::super::state::{BufferStats, LogLineInfo, ViewModeInfo};
+
+        let handler = test_handler();
+        let request = IpcRequest::with_args("goto", json!({"id": 999}));
+
+        let snapshot = StateSnapshot {
+            processes: vec![],
+            filter_count: 0,
+            active_filters: vec![],
+            search_pattern: None,
+            view_mode: ViewModeInfo::default(),
+            auto_scroll: true,
+            log_count: 0,
+            buffer_stats: BufferStats::default(),
+            trace_recording: false,
+            active_trace_id: None,
+            recent_logs: vec![LogLineInfo {
+                id: 1,
+                process: "web".to_string(),
+                content: "Test log".to_string(),
+                timestamp: "2025-12-17T10:00:00Z".to_string(),
+                batch_id: None,
+            }],
+            total_log_lines: 1,
+        };
+
+        let result = handler.handle(&request, Some(&snapshot));
+
+        assert!(!result.response.success);
+        assert!(result.response.error.unwrap().contains("not found"));
+        assert!(result.actions.is_empty());
+    }
+
+    #[test]
+    fn goto_with_valid_id_returns_success_and_actions() {
+        use super::super::state::{BufferStats, LogLineInfo, ViewModeInfo};
+
+        let handler = test_handler();
+        let request = IpcRequest::with_args("goto", json!({"id": 42}));
+
+        let snapshot = StateSnapshot {
+            processes: vec![],
+            filter_count: 0,
+            active_filters: vec![],
+            search_pattern: None,
+            view_mode: ViewModeInfo::default(),
+            auto_scroll: true,
+            log_count: 0,
+            buffer_stats: BufferStats::default(),
+            trace_recording: false,
+            active_trace_id: None,
+            recent_logs: vec![
+                LogLineInfo {
+                    id: 42,
+                    process: "web".to_string(),
+                    content: "Target log line".to_string(),
+                    timestamp: "2025-12-17T10:00:00Z".to_string(),
+                    batch_id: None,
+                },
+                LogLineInfo {
+                    id: 43,
+                    process: "worker".to_string(),
+                    content: "Another log".to_string(),
+                    timestamp: "2025-12-17T10:00:01Z".to_string(),
+                    batch_id: None,
+                },
+            ],
+            total_log_lines: 2,
+        };
+
+        let result = handler.handle(&request, Some(&snapshot));
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        assert_eq!(data["scrolled_to"], 42);
+
+        // Should emit ScrollToLine and SetAutoScroll actions
+        assert_eq!(result.actions.len(), 2);
+        assert!(matches!(
+            &result.actions[0],
+            IpcAction::ScrollToLine { id } if *id == 42
+        ));
+        assert_eq!(result.actions[1], IpcAction::SetAutoScroll { enabled: false });
+    }
+
+    #[test]
+    fn help_includes_goto_command() {
+        let handler = test_handler();
+        let request = IpcRequest::new("help");
+        let result = handler.handle(&request, None);
+
+        let data = result.response.result.unwrap();
+        let commands = data["commands"].as_array().unwrap();
+
+        let command_names: Vec<&str> = commands
+            .iter()
+            .filter_map(|c| c["name"].as_str())
+            .collect();
+        assert!(command_names.contains(&"goto"));
+
+        // Check that goto has the correct structure
+        let goto_cmd = commands
+            .iter()
+            .find(|c| c["name"].as_str() == Some("goto"))
+            .unwrap();
+
+        assert!(goto_cmd["description"].as_str().unwrap().len() > 0);
+        let args = goto_cmd["args"].as_array().unwrap();
+        let arg_names: Vec<&str> = args
+            .iter()
+            .filter_map(|a| a["name"].as_str())
+            .collect();
+        assert!(arg_names.contains(&"id"));
     }
 }

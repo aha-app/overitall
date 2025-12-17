@@ -91,6 +91,11 @@ pub enum Commands {
     IpcHelp,
     /// Get trace recording status and active trace info
     Trace,
+    /// Jump to a specific log line by ID (scrolls view without expanding)
+    Goto {
+        /// The log line ID to scroll to (from search or logs output)
+        id: u64,
+    },
 }
 
 /// Initialize a new config file from an existing Procfile
@@ -222,6 +227,7 @@ pub async fn run_ipc_command(command: &Commands) -> anyhow::Result<()> {
         ),
         Commands::IpcHelp => IpcRequest::new("help"),
         Commands::Trace => IpcRequest::new("trace"),
+        Commands::Goto { id } => IpcRequest::with_args("goto", serde_json::json!({"id": id})),
     };
 
     let response = client.call(&request).await.with_context(|| {
@@ -508,5 +514,16 @@ mod tests {
     fn test_cli_parses_trace_subcommand() {
         let cli = Cli::parse_from(["oit", "trace"]);
         assert!(matches!(cli.command, Some(Commands::Trace)));
+    }
+
+    #[test]
+    fn test_cli_parses_goto_subcommand() {
+        let cli = Cli::parse_from(["oit", "goto", "42"]);
+        match cli.command {
+            Some(Commands::Goto { id }) => {
+                assert_eq!(id, 42);
+            }
+            _ => panic!("Expected Goto command"),
+        }
     }
 }

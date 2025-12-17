@@ -412,6 +412,10 @@ fn apply_ipc_action(app: &mut App, action: IpcAction) {
             app.selected_line_id = Some(id);
             app.expanded_line_view = true;
         }
+        IpcAction::ScrollToLine { id } => {
+            // Set the selected line - log_viewer will auto-scroll to show it
+            app.selected_line_id = Some(id);
+        }
     }
 }
 

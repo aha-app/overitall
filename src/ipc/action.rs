@@ -12,6 +12,8 @@ pub enum IpcAction {
     SetAutoScroll { enabled: bool },
     /// Select a log line by ID and open the expanded view
     SelectAndExpandLine { id: u64 },
+    /// Scroll to a specific log line by ID (without opening expanded view)
+    ScrollToLine { id: u64 },
 }
 
 /// Result of handling an IPC command: response to send + actions to apply
@@ -92,6 +94,24 @@ mod tests {
         let a3 = IpcAction::SetSearch {
             pattern: "bar".to_string(),
         };
+        assert_eq!(a1, a2);
+        assert_ne!(a1, a3);
+    }
+
+    #[test]
+    fn scroll_to_line_action_stores_id() {
+        let action = IpcAction::ScrollToLine { id: 42 };
+        match action {
+            IpcAction::ScrollToLine { id } => assert_eq!(id, 42),
+            _ => panic!("expected ScrollToLine"),
+        }
+    }
+
+    #[test]
+    fn scroll_to_line_action_equality() {
+        let a1 = IpcAction::ScrollToLine { id: 42 };
+        let a2 = IpcAction::ScrollToLine { id: 42 };
+        let a3 = IpcAction::ScrollToLine { id: 99 };
         assert_eq!(a1, a2);
         assert_ne!(a1, a3);
     }
