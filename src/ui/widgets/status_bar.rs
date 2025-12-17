@@ -82,7 +82,20 @@ pub fn draw_status_bar(
 
     let status_text = status_parts.join(" | ");
 
-    // Build styled line with optional recording indicator
+    // Auto-scroll indicator
+    let scroll_indicator = if app.auto_scroll {
+        Span::styled(
+            "[TAIL]",
+            Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+        )
+    } else {
+        Span::styled(
+            "[SCROLL]",
+            Style::default().fg(Color::Yellow)
+        )
+    };
+
+    // Build styled line with optional recording indicator and scroll state
     let line = if app.manual_trace_recording {
         // Show red recording indicator with elapsed time
         let elapsed_secs = app.manual_trace_start
@@ -93,10 +106,10 @@ pub fn draw_status_bar(
             format!("● REC {}s ", elapsed_secs),
             Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
         );
-        let status_span = Span::raw(status_text);
-        Line::from(vec![rec_span, status_span])
+        let status_span = Span::raw(format!("{} ", status_text));
+        Line::from(vec![rec_span, status_span, scroll_indicator])
     } else {
-        Line::from(status_text)
+        Line::from(vec![Span::raw(format!("{} ", status_text)), scroll_indicator])
     };
 
     let paragraph = Paragraph::new(line)

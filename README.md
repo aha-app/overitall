@@ -282,6 +282,16 @@ max_log_buffer_mb = 100  # Allow up to 100 MB of logs
 
 The status bar shows current buffer usage and warns when eviction occurs. This prevents memory issues with long-running processes and high-volume logs.
 
+### Status Bar Indicators
+
+The status bar at the bottom of the screen shows:
+- **Buffer usage**: Current memory usage and percentage
+- **Line count**: Total number of log lines in buffer
+- **Batch count**: Number of detected batches (or current batch info in batch view)
+- **Scroll indicator**: `[TAIL]` (green) when following new logs, `[SCROLL]` (yellow) when viewing history
+
+When recording a manual trace, the status bar also shows a red `● REC` indicator with elapsed time.
+
 ## Example Setup
 
 An example configuration is provided in the `example/` directory:
