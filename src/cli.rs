@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Context};
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -35,6 +35,19 @@ pub struct Cli {
     /// Skip auto-update check on startup
     #[arg(long)]
     pub no_update: bool,
+
+    /// Subcommand for IPC client operations
+    #[command(subcommand)]
+    pub command: Option<Commands>,
+}
+
+/// CLI subcommands for communicating with a running TUI instance
+#[derive(Subcommand, Debug, Clone)]
+pub enum Commands {
+    /// Check if TUI is running (returns pong on success)
+    Ping,
+    /// Get status from running TUI (version, running state)
+    Status,
 }
 
 /// Initialize a new config file from an existing Procfile
@@ -111,6 +124,53 @@ pub fn init_config(config_path: &str) -> anyhow::Result<()> {
     println!("\nNext steps:");
     println!("  1. Edit {} to configure log file paths", config_path);
     println!("  2. Run 'oit' to start the TUI");
+
+    Ok(())
+}
+
+/// Get the default IPC socket path
+pub fn get_socket_path() -> std::path::PathBuf {
+    // Use XDG_RUNTIME_DIR if available, otherwise /tmp
+    if let Ok(runtime_dir) = std::env::var("XDG_RUNTIME_DIR") {
+        std::path::PathBuf::from(runtime_dir).join("oit.sock")
+    } else {
+        std::path::PathBuf::from("/tmp/oit.sock")
+    }
+}
+
+/// Run an IPC command and print the result
+pub async fn run_ipc_command(command: &Commands) -> anyhow::Result<()> {
+    use crate::ipc::{IpcClient, IpcRequest};
+
+    let socket_path = get_socket_path();
+
+    let mut client = IpcClient::connect(&socket_path)
+        .await
+        .with_context(|| {
+            format!(
+                "Could not connect to TUI at {:?}. Is 'oit' running?",
+                socket_path
+            )
+        })?;
+
+    let request = match command {
+        Commands::Ping => IpcRequest::new("ping"),
+        Commands::Status => IpcRequest::new("status"),
+    };
+
+    let response = client.call(&request).await.with_context(|| {
+        format!("Failed to communicate with TUI at {:?}", socket_path)
+    })?;
+
+    // Print response as JSON
+    let json = serde_json::to_string_pretty(&response)
+        .with_context(|| "Failed to serialize response")?;
+    println!("{}", json);
+
+    // Exit with error code if command failed
+    if !response.success {
+        std::process::exit(1);
+    }
 
     Ok(())
 }
@@ -271,5 +331,66 @@ mod tests {
     fn test_cli_default_no_update_is_false() {
         let cli = Cli::parse_from(["oit"]);
         assert!(!cli.no_update);
+    }
+
+    #[test]
+    fn test_cli_parses_ping_subcommand() {
+        let cli = Cli::parse_from(["oit", "ping"]);
+        assert!(matches!(cli.command, Some(Commands::Ping)));
+    }
+
+    #[test]
+    fn test_cli_parses_status_subcommand() {
+        let cli = Cli::parse_from(["oit", "status"]);
+        assert!(matches!(cli.command, Some(Commands::Status)));
+    }
+
+    #[test]
+    fn test_cli_no_subcommand_by_default() {
+        let cli = Cli::parse_from(["oit"]);
+        assert!(cli.command.is_none());
+    }
+
+    #[test]
+    fn test_get_socket_path_without_xdg() {
+        // Clear XDG_RUNTIME_DIR if set
+        let original = std::env::var("XDG_RUNTIME_DIR").ok();
+        // SAFETY: This is a test running in isolation
+        unsafe {
+            std::env::remove_var("XDG_RUNTIME_DIR");
+        }
+
+        let path = get_socket_path();
+        assert_eq!(path, std::path::PathBuf::from("/tmp/oit.sock"));
+
+        // Restore original value
+        // SAFETY: This is a test running in isolation
+        unsafe {
+            if let Some(val) = original {
+                std::env::set_var("XDG_RUNTIME_DIR", val);
+            }
+        }
+    }
+
+    #[test]
+    fn test_get_socket_path_with_xdg() {
+        let original = std::env::var("XDG_RUNTIME_DIR").ok();
+        // SAFETY: This is a test running in isolation
+        unsafe {
+            std::env::set_var("XDG_RUNTIME_DIR", "/run/user/1000");
+        }
+
+        let path = get_socket_path();
+        assert_eq!(path, std::path::PathBuf::from("/run/user/1000/oit.sock"));
+
+        // Restore original value
+        // SAFETY: This is a test running in isolation
+        unsafe {
+            if let Some(val) = original {
+                std::env::set_var("XDG_RUNTIME_DIR", val);
+            } else {
+                std::env::remove_var("XDG_RUNTIME_DIR");
+            }
+        }
     }
 }

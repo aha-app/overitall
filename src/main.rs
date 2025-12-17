@@ -2,6 +2,7 @@ mod cli;
 mod command;
 mod config;
 mod event_handler;
+mod ipc;
 mod log;
 mod operations;
 mod procfile;
@@ -10,7 +11,7 @@ mod traces;
 mod ui;
 mod updater;
 
-use cli::{Cli, init_config};
+use cli::{Cli, Commands, init_config, run_ipc_command};
 use config::Config;
 use event_handler::EventHandler;
 use procfile::Procfile;
@@ -47,6 +48,12 @@ async fn main() -> anyhow::Result<()> {
     // Handle --init flag
     if cli.init {
         return init_config(config_path);
+    }
+
+    // Handle IPC subcommands (ping, status, etc.)
+    // These communicate with a running TUI instance and exit
+    if let Some(ref command) = cli.command {
+        return run_ipc_command(command).await;
     }
 
     // Check if config file exists and provide helpful error if not
