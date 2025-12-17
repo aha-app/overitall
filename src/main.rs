@@ -11,13 +11,14 @@ mod traces;
 mod ui;
 mod updater;
 
-use cli::{get_socket_path, Cli, Commands, init_config, run_ipc_command};
+use cli::{get_socket_path, Cli, init_config, run_ipc_command};
 use config::Config;
 use event_handler::EventHandler;
+use ipc::state::{BufferStats, FilterInfo, ProcessInfo, StateSnapshot, ViewModeInfo};
 use ipc::{IpcCommandHandler, IpcServer};
 use procfile::Procfile;
-use process::ProcessManager;
-use ui::App;
+use process::{ProcessManager, ProcessStatus};
+use ui::{App, FilterType};
 
 use clap::Parser;
 use crossterm::{
@@ -205,7 +206,8 @@ async fn run_app(
             // Poll for incoming commands
             if let Ok(requests) = server.poll_commands() {
                 for (conn_id, request) in requests {
-                    let response = ipc_handler.handle(&request, None);
+                    let snapshot = create_state_snapshot(app, manager);
+                    let response = ipc_handler.handle(&request, Some(&snapshot));
                     let _ = server.send_response(conn_id, response).await;
                 }
             }
@@ -302,5 +304,72 @@ async fn run_app(
     }
 
     Ok(())
+}
+
+/// Create a StateSnapshot from current App and ProcessManager state for IPC commands
+fn create_state_snapshot(app: &App, manager: &ProcessManager) -> StateSnapshot {
+    // Build process info list
+    let processes: Vec<ProcessInfo> = manager
+        .get_processes()
+        .iter()
+        .map(|(name, handle)| {
+            let (status, error) = match &handle.status {
+                ProcessStatus::Running => ("running".to_string(), None),
+                ProcessStatus::Stopped => ("stopped".to_string(), None),
+                ProcessStatus::Terminating => ("terminating".to_string(), None),
+                ProcessStatus::Restarting => ("restarting".to_string(), None),
+                ProcessStatus::Failed(msg) => ("failed".to_string(), Some(msg.clone())),
+            };
+            ProcessInfo {
+                name: name.clone(),
+                status,
+                error,
+            }
+        })
+        .collect();
+
+    // Build filter info list
+    let active_filters: Vec<FilterInfo> = app
+        .filters
+        .iter()
+        .map(|f| FilterInfo {
+            pattern: f.pattern.clone(),
+            filter_type: match f.filter_type {
+                FilterType::Include => "include".to_string(),
+                FilterType::Exclude => "exclude".to_string(),
+            },
+        })
+        .collect();
+
+    // Get buffer stats
+    let stats = manager.get_buffer_stats();
+    let buffer_stats = BufferStats {
+        buffer_bytes: (stats.memory_mb * 1024.0 * 1024.0) as usize,
+        max_buffer_bytes: stats.limit_mb * 1024 * 1024,
+        usage_percent: stats.percent,
+    };
+
+    StateSnapshot {
+        processes,
+        filter_count: app.filters.len(),
+        active_filters,
+        search_pattern: if app.search_pattern.is_empty() {
+            None
+        } else {
+            Some(app.search_pattern.clone())
+        },
+        view_mode: ViewModeInfo {
+            frozen: app.frozen,
+            batch_view: app.batch_view_mode,
+            trace_filter: app.trace_filter_mode,
+            trace_selection: app.trace_selection_mode,
+            compact: app.compact_mode,
+        },
+        auto_scroll: app.auto_scroll,
+        log_count: stats.line_count,
+        buffer_stats,
+        trace_recording: app.manual_trace_recording,
+        active_trace_id: app.active_trace_id.clone(),
+    }
 }
 
