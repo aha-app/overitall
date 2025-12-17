@@ -38,6 +38,9 @@ impl IpcCommandHandler {
             "visibility" => IpcHandlerResult::response_only(self.handle_visibility(state)),
             "hide" => self.handle_hide(&request.args),
             "show" => self.handle_show(&request.args),
+            "restart" => self.handle_restart(&request.args),
+            "kill" => self.handle_kill(&request.args),
+            "start" => self.handle_start(&request.args),
             "help" => IpcHandlerResult::response_only(self.handle_help()),
             "trace" => IpcHandlerResult::response_only(self.handle_trace(state)),
             _ => IpcHandlerResult::response_only(IpcResponse::err(format!(
@@ -630,6 +633,76 @@ impl IpcCommandHandler {
         )
     }
 
+    fn handle_restart(&self, args: &Value) -> IpcHandlerResult {
+        // Name is optional - if not provided, restart all processes
+        let name = args.get("name").and_then(|v| v.as_str());
+
+        match name {
+            Some(name) => {
+                // Restart specific process
+                IpcHandlerResult::with_actions(
+                    IpcResponse::ok(json!({
+                        "restarting": true,
+                        "process": name
+                    })),
+                    vec![IpcAction::RestartProcess {
+                        name: name.to_string(),
+                    }],
+                )
+            }
+            None => {
+                // Restart all processes
+                IpcHandlerResult::with_actions(
+                    IpcResponse::ok(json!({
+                        "restarting": true,
+                        "process": "all"
+                    })),
+                    vec![IpcAction::RestartAllProcesses],
+                )
+            }
+        }
+    }
+
+    fn handle_kill(&self, args: &Value) -> IpcHandlerResult {
+        // Process name is required
+        let name = match args.get("name").and_then(|v| v.as_str()) {
+            Some(n) => n.to_string(),
+            None => {
+                return IpcHandlerResult::response_only(IpcResponse::err(
+                    "missing required argument: name".to_string(),
+                ));
+            }
+        };
+
+        IpcHandlerResult::with_actions(
+            IpcResponse::ok(json!({
+                "killed": true,
+                "name": name
+            })),
+            vec![IpcAction::KillProcess { name }],
+        )
+    }
+
+    fn handle_start(&self, args: &Value) -> IpcHandlerResult {
+        // Process name is required
+        let name = match args.get("name").and_then(|v| v.as_str()) {
+            Some(n) => n.to_string(),
+            None => {
+                return IpcHandlerResult::response_only(IpcResponse::err(
+                    "missing required argument: name".to_string(),
+                ));
+            }
+        };
+
+        IpcHandlerResult::with_actions(
+            IpcResponse::ok(json!({
+                "started": true,
+                "name": name
+            })),
+            vec![IpcAction::StartProcess { name }],
+        )
+    }
+
     fn handle_help(&self) -> IpcResponse {
         IpcResponse::ok(json!({
             "commands": [
@@ -755,6 +828,27 @@ impl IpcCommandHandler {
                     "description": "Show a hidden process (runtime only, does not persist)",
                     "args": [
                         {"name": "name", "type": "string", "required": true, "description": "Process name to show"}
+                    ]
+                },
+                {
+                    "name": "restart",
+                    "description": "Restart a process or all processes",
+                    "args": [
+                        {"name": "name", "type": "string", "required": false, "description": "Process name to restart (restarts all if omitted)"}
+                    ]
+                },
+                {
+                    "name": "kill",
+                    "description": "Kill a running process",
+                    "args": [
+                        {"name": "name", "type": "string", "required": true, "description": "Process name to kill"}
+                    ]
+                },
+                {
+                    "name": "start",
+                    "description": "Start a stopped process",
+                    "args": [
+                        {"name": "name", "type": "string", "required": true, "description": "Process name to start"}
                     ]
                 }
             ],
@@ -2347,5 +2441,179 @@ mod tests {
         assert!(command_names.contains(&"visibility"));
         assert!(command_names.contains(&"hide"));
         assert!(command_names.contains(&"show"));
+    }
+
+    #[test]
+    fn restart_without_name_returns_restart_all() {
+        let handler = test_handler();
+        let request = IpcRequest::new("restart");
+        let result = handler.handle(&request, None);
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        assert_eq!(data["restarting"], true);
+        assert_eq!(data["process"], "all");
+
+        assert_eq!(result.actions.len(), 1);
+        assert!(matches!(
+            &result.actions[0],
+            IpcAction::RestartAllProcesses
+        ));
+    }
+
+    #[test]
+    fn restart_with_name_returns_restart_process() {
+        let handler = test_handler();
+        let request = IpcRequest::with_args("restart", json!({"name": "web"}));
+        let result = handler.handle(&request, None);
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        assert_eq!(data["restarting"], true);
+        assert_eq!(data["process"], "web");
+
+        assert_eq!(result.actions.len(), 1);
+        assert!(matches!(
+            &result.actions[0],
+            IpcAction::RestartProcess { name } if name == "web"
+        ));
+    }
+
+    #[test]
+    fn kill_without_name_returns_error() {
+        let handler = test_handler();
+        let request = IpcRequest::new("kill");
+        let result = handler.handle(&request, None);
+
+        assert!(!result.response.success);
+        assert!(result.response.error.is_some());
+        assert!(result.response.error.unwrap().contains("name"));
+        assert!(result.actions.is_empty());
+    }
+
+    #[test]
+    fn kill_with_name_returns_kill_action() {
+        let handler = test_handler();
+        let request = IpcRequest::with_args("kill", json!({"name": "worker"}));
+        let result = handler.handle(&request, None);
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        assert_eq!(data["killed"], true);
+        assert_eq!(data["name"], "worker");
+
+        assert_eq!(result.actions.len(), 1);
+        assert!(matches!(
+            &result.actions[0],
+            IpcAction::KillProcess { name } if name == "worker"
+        ));
+    }
+
+    #[test]
+    fn start_without_name_returns_error() {
+        let handler = test_handler();
+        let request = IpcRequest::new("start");
+        let result = handler.handle(&request, None);
+
+        assert!(!result.response.success);
+        assert!(result.response.error.is_some());
+        assert!(result.response.error.unwrap().contains("name"));
+        assert!(result.actions.is_empty());
+    }
+
+    #[test]
+    fn start_with_name_returns_start_action() {
+        let handler = test_handler();
+        let request = IpcRequest::with_args("start", json!({"name": "web"}));
+        let result = handler.handle(&request, None);
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        assert_eq!(data["started"], true);
+        assert_eq!(data["name"], "web");
+
+        assert_eq!(result.actions.len(), 1);
+        assert!(matches!(
+            &result.actions[0],
+            IpcAction::StartProcess { name } if name == "web"
+        ));
+    }
+
+    #[test]
+    fn help_includes_process_control_commands() {
+        let handler = test_handler();
+        let request = IpcRequest::new("help");
+        let result = handler.handle(&request, None);
+
+        let data = result.response.result.unwrap();
+        let commands = data["commands"].as_array().unwrap();
+
+        let command_names: Vec<&str> = commands
+            .iter()
+            .filter_map(|c| c["name"].as_str())
+            .collect();
+        assert!(command_names.contains(&"restart"));
+        assert!(command_names.contains(&"kill"));
+        assert!(command_names.contains(&"start"));
+    }
+
+    #[test]
+    fn restart_command_has_optional_name_arg() {
+        let handler = test_handler();
+        let request = IpcRequest::new("help");
+        let result = handler.handle(&request, None);
+
+        let data = result.response.result.unwrap();
+        let commands = data["commands"].as_array().unwrap();
+
+        let restart_cmd = commands
+            .iter()
+            .find(|c| c["name"].as_str() == Some("restart"))
+            .unwrap();
+
+        let args = restart_cmd["args"].as_array().unwrap();
+        assert_eq!(args.len(), 1);
+        assert_eq!(args[0]["name"], "name");
+        assert_eq!(args[0]["required"], false);
+    }
+
+    #[test]
+    fn kill_command_has_required_name_arg() {
+        let handler = test_handler();
+        let request = IpcRequest::new("help");
+        let result = handler.handle(&request, None);
+
+        let data = result.response.result.unwrap();
+        let commands = data["commands"].as_array().unwrap();
+
+        let kill_cmd = commands
+            .iter()
+            .find(|c| c["name"].as_str() == Some("kill"))
+            .unwrap();
+
+        let args = kill_cmd["args"].as_array().unwrap();
+        assert_eq!(args.len(), 1);
+        assert_eq!(args[0]["name"], "name");
+        assert_eq!(args[0]["required"], true);
+    }
+
+    #[test]
+    fn start_command_has_required_name_arg() {
+        let handler = test_handler();
+        let request = IpcRequest::new("help");
+        let result = handler.handle(&request, None);
+
+        let data = result.response.result.unwrap();
+        let commands = data["commands"].as_array().unwrap();
+
+        let start_cmd = commands
+            .iter()
+            .find(|c| c["name"].as_str() == Some("start"))
+            .unwrap();
+
+        let args = start_cmd["args"].as_array().unwrap();
+        assert_eq!(args.len(), 1);
+        assert_eq!(args[0]["name"], "name");
+        assert_eq!(args[0]["required"], true);
     }
 }
