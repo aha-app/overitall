@@ -456,6 +456,18 @@ fn apply_ipc_action(app: &mut App, config: &mut Config, action: IpcAction) {
             // Runtime only - directly modify hidden_processes without saving to config
             app.hidden_processes.remove(&name);
         }
+        IpcAction::RestartProcess { name: _ } => {
+            // TODO: Step 4 - call manager.set_restarting(&name)
+        }
+        IpcAction::RestartAllProcesses => {
+            // TODO: Step 4 - call manager.set_all_restarting()
+        }
+        IpcAction::KillProcess { name: _ } => {
+            // TODO: Step 4 - call operations::process::kill_process()
+        }
+        IpcAction::StartProcess { name: _ } => {
+            // TODO: Step 4 - call operations::process::start_process()
+        }
     }
 }
 

@@ -32,6 +32,14 @@ pub enum IpcAction {
     HideProcess { name: String },
     /// Show a hidden process (runtime only, does not persist to config)
     ShowProcess { name: String },
+    /// Restart a specific process
+    RestartProcess { name: String },
+    /// Restart all processes
+    RestartAllProcesses,
+    /// Kill a specific process
+    KillProcess { name: String },
+    /// Start a stopped process
+    StartProcess { name: String },
 }
 
 /// Result of handling an IPC command: response to send + actions to apply
@@ -300,6 +308,97 @@ mod tests {
             name: "web".to_string(),
         };
         let a3 = IpcAction::ShowProcess {
+            name: "worker".to_string(),
+        };
+        assert_eq!(a1, a2);
+        assert_ne!(a1, a3);
+    }
+
+    #[test]
+    fn restart_process_action_stores_name() {
+        let action = IpcAction::RestartProcess {
+            name: "web".to_string(),
+        };
+        match action {
+            IpcAction::RestartProcess { name } => {
+                assert_eq!(name, "web");
+            }
+            _ => panic!("expected RestartProcess"),
+        }
+    }
+
+    #[test]
+    fn restart_process_action_equality() {
+        let a1 = IpcAction::RestartProcess {
+            name: "web".to_string(),
+        };
+        let a2 = IpcAction::RestartProcess {
+            name: "web".to_string(),
+        };
+        let a3 = IpcAction::RestartProcess {
+            name: "worker".to_string(),
+        };
+        assert_eq!(a1, a2);
+        assert_ne!(a1, a3);
+    }
+
+    #[test]
+    fn restart_all_processes_action_equality() {
+        let a1 = IpcAction::RestartAllProcesses;
+        let a2 = IpcAction::RestartAllProcesses;
+        assert_eq!(a1, a2);
+    }
+
+    #[test]
+    fn kill_process_action_stores_name() {
+        let action = IpcAction::KillProcess {
+            name: "worker".to_string(),
+        };
+        match action {
+            IpcAction::KillProcess { name } => {
+                assert_eq!(name, "worker");
+            }
+            _ => panic!("expected KillProcess"),
+        }
+    }
+
+    #[test]
+    fn kill_process_action_equality() {
+        let a1 = IpcAction::KillProcess {
+            name: "web".to_string(),
+        };
+        let a2 = IpcAction::KillProcess {
+            name: "web".to_string(),
+        };
+        let a3 = IpcAction::KillProcess {
+            name: "worker".to_string(),
+        };
+        assert_eq!(a1, a2);
+        assert_ne!(a1, a3);
+    }
+
+    #[test]
+    fn start_process_action_stores_name() {
+        let action = IpcAction::StartProcess {
+            name: "web".to_string(),
+        };
+        match action {
+            IpcAction::StartProcess { name } => {
+                assert_eq!(name, "web");
+            }
+            _ => panic!("expected StartProcess"),
+        }
+    }
+
+    #[test]
+    fn start_process_action_equality() {
+        let a1 = IpcAction::StartProcess {
+            name: "web".to_string(),
+        };
+        let a2 = IpcAction::StartProcess {
+            name: "web".to_string(),
+        };
+        let a3 = IpcAction::StartProcess {
             name: "worker".to_string(),
         };
         assert_eq!(a1, a2);
