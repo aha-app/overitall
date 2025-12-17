@@ -30,20 +30,32 @@ Check if TUI is running:
 oit ping
 ```
 
-Get comprehensive status:
+Get comprehensive status (best first command):
 ```bash
 oit summary
 ```
 
-Search logs for errors:
+Get recent errors/warnings:
 ```bash
 oit errors --limit 10
+```
+
+Search logs for specific text:
+```bash
+oit search "connection refused"
+```
+
+Get context around a log line (use ID from search/errors output):
+```bash
+oit context 12345 --before 10 --after 10
 ```
 
 Restart a process:
 ```bash
 oit restart worker
 ```
+
+**Note:** `logs`, `search`, and `errors` are separate commands. Use `search` to find text, `errors` to find error-level logs, and `logs` to get recent lines without filtering.
 
 For full command reference, see [COMMANDS.md](COMMANDS.md).
 "#;
@@ -69,21 +81,30 @@ List all available IPC commands.
 
 ## Logs
 
+**Important:** `logs`, `search`, and `errors` are separate commands. Do not combine their options.
+
 ### `oit logs [--limit N] [--offset N]`
-Get recent log lines. Each line includes an ID for reference.
+Get recent log lines (no filtering). Each line includes an ID for reference.
 - `--limit N` - Number of lines (default 100)
 - `--offset N` - Skip first N lines
 
+Example: `oit logs --limit 50`
+
 ### `oit search <pattern> [--limit N] [--case-sensitive]`
-Search logs for pattern. Also highlights matches in TUI.
+Search logs for a text pattern. Also highlights matches in TUI.
+- `<pattern>` - Required text to search for
 - `--limit N` - Max results
 - `--case-sensitive` - Case sensitive matching
 
+Example: `oit search "error connecting"` or `oit search "timeout" --limit 20`
+
 ### `oit errors [--limit N] [--level L] [--process P]`
-Get error and warning logs.
+Get error and warning logs (searches for error patterns automatically).
 - `--limit N` - Max results
 - `--level L` - Filter by level (error/warn/error_or_warning)
 - `--process P` - Filter by process name
+
+Example: `oit errors --limit 10` or `oit errors --process web`
 
 ## Navigation
 
@@ -91,9 +112,12 @@ Get error and warning logs.
 Select and expand a specific log line by ID.
 
 ### `oit context <id> [--before N] [--after N]`
-Get log lines surrounding a specific line.
+Get log lines surrounding a specific line by ID.
+- `<id>` - Required log line ID (from logs/search/errors output)
 - `--before N` - Lines before (default 5)
 - `--after N` - Lines after (default 5)
+
+Example: `oit context 12345 --before 10 --after 10`
 
 ### `oit goto <id>`
 Scroll TUI view to a specific log line.
