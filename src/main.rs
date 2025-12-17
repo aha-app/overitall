@@ -15,7 +15,7 @@ use cli::{get_socket_path, Cli, init_config, run_ipc_command};
 use config::Config;
 use event_handler::EventHandler;
 use ipc::state::{BufferStats, FilterInfo, LogLineInfo, ProcessInfo, StateSnapshot, ViewModeInfo};
-use ipc::{IpcCommandHandler, IpcServer};
+use ipc::{IpcAction, IpcCommandHandler, IpcServer};
 use procfile::Procfile;
 use process::{ProcessManager, ProcessStatus};
 use ui::{App, FilterType};
@@ -207,8 +207,14 @@ async fn run_app(
             if let Ok(requests) = server.poll_commands() {
                 for (conn_id, request) in requests {
                     let snapshot = create_state_snapshot(app, manager);
-                    let response = ipc_handler.handle(&request, Some(&snapshot));
-                    let _ = server.send_response(conn_id, response).await;
+                    let handler_result = ipc_handler.handle(&request, Some(&snapshot));
+
+                    // Process any actions from the handler
+                    for action in handler_result.actions {
+                        apply_ipc_action(app, action);
+                    }
+
+                    let _ = server.send_response(conn_id, handler_result.response).await;
                 }
             }
         }
@@ -387,6 +393,18 @@ fn create_state_snapshot(app: &App, manager: &ProcessManager) -> StateSnapshot {
         active_trace_id: app.active_trace_id.clone(),
         recent_logs,
         total_log_lines,
+    }
+}
+
+/// Apply an IPC action to the App state
+fn apply_ipc_action(app: &mut App, action: IpcAction) {
+    match action {
+        IpcAction::SetSearch { pattern } => {
+            app.perform_search(pattern);
+        }
+        IpcAction::ClearSearch => {
+            app.clear_search();
+        }
     }
 }
 

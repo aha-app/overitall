@@ -1,5 +1,6 @@
 use serde_json::{json, Value};
 
+use super::action::{IpcAction, IpcHandlerResult};
 use super::protocol::{IpcRequest, IpcResponse};
 use super::state::StateSnapshot;
 
@@ -18,14 +19,17 @@ impl IpcCommandHandler {
         }
     }
 
-    pub fn handle(&self, request: &IpcRequest, state: Option<&StateSnapshot>) -> IpcResponse {
+    pub fn handle(&self, request: &IpcRequest, state: Option<&StateSnapshot>) -> IpcHandlerResult {
         match request.command.as_str() {
-            "ping" => self.handle_ping(),
-            "status" => self.handle_status(&request.args, state),
-            "processes" => self.handle_processes(state),
-            "logs" => self.handle_logs(&request.args, state),
+            "ping" => IpcHandlerResult::response_only(self.handle_ping()),
+            "status" => IpcHandlerResult::response_only(self.handle_status(&request.args, state)),
+            "processes" => IpcHandlerResult::response_only(self.handle_processes(state)),
+            "logs" => IpcHandlerResult::response_only(self.handle_logs(&request.args, state)),
             "search" => self.handle_search(&request.args, state),
-            _ => IpcResponse::err(format!("unknown command: {}", request.command)),
+            _ => IpcHandlerResult::response_only(IpcResponse::err(format!(
+                "unknown command: {}",
+                request.command
+            ))),
         }
     }
 
@@ -142,12 +146,14 @@ impl IpcCommandHandler {
         }
     }
 
-    fn handle_search(&self, args: &Value, state: Option<&StateSnapshot>) -> IpcResponse {
+    fn handle_search(&self, args: &Value, state: Option<&StateSnapshot>) -> IpcHandlerResult {
         // Pattern is required
         let pattern = match args.get("pattern").and_then(|v| v.as_str()) {
             Some(p) => p,
             None => {
-                return IpcResponse::err("missing required argument: pattern".to_string());
+                return IpcHandlerResult::response_only(IpcResponse::err(
+                    "missing required argument: pattern".to_string(),
+                ));
             }
         };
 
@@ -161,6 +167,11 @@ impl IpcCommandHandler {
             .get("case_sensitive")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
+
+        // Create action to update TUI search state
+        let actions = vec![IpcAction::SetSearch {
+            pattern: pattern.to_string(),
+        }];
 
         match state {
             Some(snapshot) => {
@@ -190,21 +201,27 @@ impl IpcCommandHandler {
 
                 let count = matches.len();
 
-                IpcResponse::ok(json!({
-                    "matches": matches,
-                    "pattern": pattern,
-                    "count": count,
-                    "limit": limit
-                }))
+                IpcHandlerResult::with_actions(
+                    IpcResponse::ok(json!({
+                        "matches": matches,
+                        "pattern": pattern,
+                        "count": count,
+                        "limit": limit
+                    })),
+                    actions,
+                )
             }
             None => {
-                // No state available - return empty results
-                IpcResponse::ok(json!({
-                    "matches": [],
-                    "pattern": pattern,
-                    "count": 0,
-                    "limit": limit
-                }))
+                // No state available - still emit action to update TUI, return empty results
+                IpcHandlerResult::with_actions(
+                    IpcResponse::ok(json!({
+                        "matches": [],
+                        "pattern": pattern,
+                        "count": 0,
+                        "limit": limit
+                    })),
+                    actions,
+                )
             }
         }
     }
@@ -222,66 +239,71 @@ mod tests {
     fn ping_returns_pong() {
         let handler = test_handler();
         let request = IpcRequest::new("ping");
-        let response = handler.handle(&request, None);
+        let result = handler.handle(&request, None);
 
-        assert!(response.success);
-        assert_eq!(response.result, Some(json!({"pong": true})));
-        assert!(response.error.is_none());
+        assert!(result.response.success);
+        assert_eq!(result.response.result, Some(json!({"pong": true})));
+        assert!(result.response.error.is_none());
+        assert!(result.actions.is_empty());
     }
 
     #[test]
     fn status_returns_version_and_running() {
         let handler = test_handler();
         let request = IpcRequest::new("status");
-        let response = handler.handle(&request, None);
+        let result = handler.handle(&request, None);
 
-        assert!(response.success);
-        let result = response.result.unwrap();
-        assert_eq!(result["version"], "0.1.0-test");
-        assert_eq!(result["running"], true);
-        assert!(response.error.is_none());
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        assert_eq!(data["version"], "0.1.0-test");
+        assert_eq!(data["running"], true);
+        assert!(result.actions.is_empty());
     }
 
     #[test]
     fn unknown_command_returns_error() {
         let handler = test_handler();
         let request = IpcRequest::new("nonexistent");
-        let response = handler.handle(&request, None);
+        let result = handler.handle(&request, None);
 
-        assert!(!response.success);
-        assert!(response.result.is_none());
-        assert_eq!(response.error, Some("unknown command: nonexistent".to_string()));
+        assert!(!result.response.success);
+        assert!(result.response.result.is_none());
+        assert_eq!(
+            result.response.error,
+            Some("unknown command: nonexistent".to_string())
+        );
+        assert!(result.actions.is_empty());
     }
 
     #[test]
     fn handler_uses_provided_version() {
         let handler = IpcCommandHandler::new("1.2.3");
         let request = IpcRequest::new("status");
-        let response = handler.handle(&request, None);
+        let result = handler.handle(&request, None);
 
-        let result = response.result.unwrap();
-        assert_eq!(result["version"], "1.2.3");
+        let data = result.response.result.unwrap();
+        assert_eq!(data["version"], "1.2.3");
     }
 
     #[test]
     fn ping_with_args_ignores_args() {
         let handler = test_handler();
         let request = IpcRequest::with_args("ping", json!({"ignored": "data"}));
-        let response = handler.handle(&request, None);
+        let result = handler.handle(&request, None);
 
-        assert!(response.success);
-        assert_eq!(response.result, Some(json!({"pong": true})));
+        assert!(result.response.success);
+        assert_eq!(result.response.result, Some(json!({"pong": true})));
     }
 
     #[test]
     fn status_with_args_ignores_args() {
         let handler = test_handler();
         let request = IpcRequest::with_args("status", json!({"verbose": true}));
-        let response = handler.handle(&request, None);
+        let result = handler.handle(&request, None);
 
-        assert!(response.success);
-        let result = response.result.unwrap();
-        assert_eq!(result["version"], "0.1.0-test");
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        assert_eq!(data["version"], "0.1.0-test");
     }
 
     #[test]
@@ -327,42 +349,42 @@ mod tests {
             total_log_lines: 1500,
         };
 
-        let response = handler.handle(&request, Some(&snapshot));
+        let handler_result = handler.handle(&request, Some(&snapshot));
 
-        assert!(response.success);
-        let result = response.result.unwrap();
+        assert!(handler_result.response.success);
+        let data = handler_result.response.result.unwrap();
 
         // Basic fields
-        assert_eq!(result["version"], "0.1.0-test");
-        assert_eq!(result["running"], true);
+        assert_eq!(data["version"], "0.1.0-test");
+        assert_eq!(data["running"], true);
 
         // Enhanced fields from state
-        assert_eq!(result["process_count"], 2);
-        assert_eq!(result["filter_count"], 3);
-        assert_eq!(result["log_count"], 1500);
-        assert_eq!(result["auto_scroll"], false);
-        assert_eq!(result["trace_recording"], true);
+        assert_eq!(data["process_count"], 2);
+        assert_eq!(data["filter_count"], 3);
+        assert_eq!(data["log_count"], 1500);
+        assert_eq!(data["auto_scroll"], false);
+        assert_eq!(data["trace_recording"], true);
 
         // View mode
-        assert_eq!(result["view_mode"]["frozen"], true);
-        assert_eq!(result["view_mode"]["batch_view"], false);
-        assert_eq!(result["view_mode"]["trace_filter"], true);
-        assert_eq!(result["view_mode"]["compact"], true);
+        assert_eq!(data["view_mode"]["frozen"], true);
+        assert_eq!(data["view_mode"]["batch_view"], false);
+        assert_eq!(data["view_mode"]["trace_filter"], true);
+        assert_eq!(data["view_mode"]["compact"], true);
 
         // Buffer stats
-        assert_eq!(result["buffer"]["bytes"], 5000000);
-        assert_eq!(result["buffer"]["max_bytes"], 52428800);
+        assert_eq!(data["buffer"]["bytes"], 5000000);
+        assert_eq!(data["buffer"]["max_bytes"], 52428800);
     }
 
     #[test]
     fn processes_without_state_returns_empty_list() {
         let handler = test_handler();
         let request = IpcRequest::new("processes");
-        let response = handler.handle(&request, None);
+        let result = handler.handle(&request, None);
 
-        assert!(response.success);
-        let result = response.result.unwrap();
-        let processes = result["processes"].as_array().unwrap();
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        let processes = data["processes"].as_array().unwrap();
         assert!(processes.is_empty());
     }
 
@@ -399,11 +421,11 @@ mod tests {
             total_log_lines: 0,
         };
 
-        let response = handler.handle(&request, Some(&snapshot));
+        let result = handler.handle(&request, Some(&snapshot));
 
-        assert!(response.success);
-        let result = response.result.unwrap();
-        let processes = result["processes"].as_array().unwrap();
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        let processes = data["processes"].as_array().unwrap();
 
         assert_eq!(processes.len(), 2);
 
@@ -420,15 +442,15 @@ mod tests {
     fn logs_without_state_returns_empty_list() {
         let handler = test_handler();
         let request = IpcRequest::new("logs");
-        let response = handler.handle(&request, None);
+        let result = handler.handle(&request, None);
 
-        assert!(response.success);
-        let result = response.result.unwrap();
-        let logs = result["logs"].as_array().unwrap();
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        let logs = data["logs"].as_array().unwrap();
         assert!(logs.is_empty());
-        assert_eq!(result["total"], 0);
-        assert_eq!(result["offset"], 0);
-        assert_eq!(result["limit"], 100);
+        assert_eq!(data["total"], 0);
+        assert_eq!(data["offset"], 0);
+        assert_eq!(data["limit"], 100);
     }
 
     #[test]
@@ -468,16 +490,16 @@ mod tests {
             total_log_lines: 1500,
         };
 
-        let response = handler.handle(&request, Some(&snapshot));
+        let result = handler.handle(&request, Some(&snapshot));
 
-        assert!(response.success);
-        let result = response.result.unwrap();
-        let logs = result["logs"].as_array().unwrap();
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        let logs = data["logs"].as_array().unwrap();
 
         assert_eq!(logs.len(), 2);
-        assert_eq!(result["total"], 1500);
-        assert_eq!(result["offset"], 0);
-        assert_eq!(result["limit"], 100);
+        assert_eq!(data["total"], 1500);
+        assert_eq!(data["offset"], 0);
+        assert_eq!(data["limit"], 100);
 
         assert_eq!(logs[0]["id"], 1);
         assert_eq!(logs[0]["process"], "web");
@@ -534,15 +556,15 @@ mod tests {
             total_log_lines: 3,
         };
 
-        let response = handler.handle(&request, Some(&snapshot));
+        let result = handler.handle(&request, Some(&snapshot));
 
-        assert!(response.success);
-        let result = response.result.unwrap();
-        let logs = result["logs"].as_array().unwrap();
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        let logs = data["logs"].as_array().unwrap();
 
         assert_eq!(logs.len(), 1);
-        assert_eq!(result["offset"], 1);
-        assert_eq!(result["limit"], 1);
+        assert_eq!(data["offset"], 1);
+        assert_eq!(data["limit"], 1);
         assert_eq!(logs[0]["id"], 2);
         assert_eq!(logs[0]["content"], "Second log");
     }
@@ -551,26 +573,35 @@ mod tests {
     fn search_without_pattern_returns_error() {
         let handler = test_handler();
         let request = IpcRequest::new("search");
-        let response = handler.handle(&request, None);
+        let result = handler.handle(&request, None);
 
-        assert!(!response.success);
-        assert!(response.error.is_some());
-        assert!(response.error.unwrap().contains("pattern"));
+        assert!(!result.response.success);
+        assert!(result.response.error.is_some());
+        assert!(result.response.error.unwrap().contains("pattern"));
+        // No actions on error
+        assert!(result.actions.is_empty());
     }
 
     #[test]
     fn search_without_state_returns_empty_matches() {
         let handler = test_handler();
         let request = IpcRequest::with_args("search", json!({"pattern": "error"}));
-        let response = handler.handle(&request, None);
+        let result = handler.handle(&request, None);
 
-        assert!(response.success);
-        let result = response.result.unwrap();
-        let matches = result["matches"].as_array().unwrap();
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        let matches = data["matches"].as_array().unwrap();
         assert!(matches.is_empty());
-        assert_eq!(result["pattern"], "error");
-        assert_eq!(result["count"], 0);
-        assert_eq!(result["limit"], 100);
+        assert_eq!(data["pattern"], "error");
+        assert_eq!(data["count"], 0);
+        assert_eq!(data["limit"], 100);
+
+        // Should still emit SetSearch action
+        assert_eq!(result.actions.len(), 1);
+        assert!(matches!(
+            &result.actions[0],
+            IpcAction::SetSearch { pattern } if pattern == "error"
+        ));
     }
 
     #[test]
@@ -624,20 +655,27 @@ mod tests {
             total_log_lines: 4,
         };
 
-        let response = handler.handle(&request, Some(&snapshot));
+        let result = handler.handle(&request, Some(&snapshot));
 
-        assert!(response.success);
-        let result = response.result.unwrap();
-        let matches = result["matches"].as_array().unwrap();
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        let matches = data["matches"].as_array().unwrap();
 
         assert_eq!(matches.len(), 2);
-        assert_eq!(result["pattern"], "error");
-        assert_eq!(result["count"], 2);
+        assert_eq!(data["pattern"], "error");
+        assert_eq!(data["count"], 2);
 
         assert_eq!(matches[0]["id"], 2);
         assert_eq!(matches[0]["content"], "Error: connection failed");
         assert_eq!(matches[1]["id"], 4);
         assert_eq!(matches[1]["content"], "Job error: timeout");
+
+        // Should emit SetSearch action
+        assert_eq!(result.actions.len(), 1);
+        assert!(matches!(
+            &result.actions[0],
+            IpcAction::SetSearch { pattern } if pattern == "error"
+        ));
     }
 
     #[test]
@@ -678,16 +716,22 @@ mod tests {
             total_log_lines: 2,
         };
 
-        let response = handler.handle(&request, Some(&snapshot));
+        let result = handler.handle(&request, Some(&snapshot));
 
-        assert!(response.success);
-        let result = response.result.unwrap();
-        let matches = result["matches"].as_array().unwrap();
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        let matches = data["matches"].as_array().unwrap();
 
         // Only "Error" (capital E) should match
         assert_eq!(matches.len(), 1);
         assert_eq!(matches[0]["id"], 1);
         assert_eq!(matches[0]["content"], "Error: connection failed");
+
+        // Action should have the exact pattern
+        assert!(matches!(
+            &result.actions[0],
+            IpcAction::SetSearch { pattern } if pattern == "Error"
+        ));
     }
 
     #[test]
@@ -741,14 +785,14 @@ mod tests {
             total_log_lines: 4,
         };
 
-        let response = handler.handle(&request, Some(&snapshot));
+        let result = handler.handle(&request, Some(&snapshot));
 
-        assert!(response.success);
-        let result = response.result.unwrap();
-        let matches = result["matches"].as_array().unwrap();
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        let matches = data["matches"].as_array().unwrap();
 
         assert_eq!(matches.len(), 2);
-        assert_eq!(result["limit"], 2);
+        assert_eq!(data["limit"], 2);
         assert_eq!(matches[0]["id"], 1);
         assert_eq!(matches[1]["id"], 2);
     }
