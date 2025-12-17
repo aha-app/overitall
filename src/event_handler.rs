@@ -1,9 +1,8 @@
 use crate::command::{Command, parse_command, CommandExecutor};
 use crate::config::Config;
-use crate::log;
-use crate::operations::{batch, batch_window, clipboard, manual_trace, navigation, search, traces};
+use crate::operations::{batch, batch_window, clipboard, display, manual_trace, navigation, search, traces};
 use crate::process::ProcessManager;
-use crate::ui::{self, App, apply_filters};
+use crate::ui::App;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use anyhow::Result;
 
@@ -315,41 +314,9 @@ impl<'a> EventHandler<'a> {
     }
 
     fn handle_focus_batch(&mut self) {
-        if let Some(selected_id) = self.app.selected_line_id {
-            // Get all logs and apply filters
-            let logs = self.manager.get_all_logs();
-            let filtered_logs = apply_filters(logs, &self.app.filters);
-
-            // Find the index of the selected log by ID
-            let line_idx = match filtered_logs.iter().position(|log| log.id == selected_id) {
-                Some(idx) => idx,
-                None => {
-                    self.app.set_status_error("Selected line not found".to_string());
-                    return;
-                }
-            };
-
-            // Detect batches
-            let filtered_refs: Vec<&log::LogLine> = filtered_logs.iter().collect();
-            let batches = ui::detect_batches_from_logs(&filtered_refs, self.app.batch_window_ms);
-
-            // Find which batch contains the selected line
-            if let Some((batch_idx, _)) = batches.iter().enumerate().find(|(_, (start, end))| {
-                line_idx >= *start && line_idx <= *end
-            }) {
-                // Create snapshot if entering batch view for the first time
-                let was_none = !self.app.batch_view_mode;
-                if was_none {
-                    self.app.create_snapshot(filtered_logs);
-                }
-
-                self.app.current_batch = Some(batch_idx);
-                self.app.batch_view_mode = true;
-                self.app.scroll_offset = 0;
-                self.app.set_status_info(format!("Focused on batch {}", batch_idx + 1));
-            } else {
-                self.app.set_status_error("No batch found for selected line".to_string());
-            }
+        match batch::focus_batch(self.app, self.manager) {
+            Ok(msg) => self.app.set_status_info(msg),
+            Err(msg) => self.app.set_status_error(msg),
         }
     }
 
@@ -381,11 +348,7 @@ impl<'a> EventHandler<'a> {
     }
 
     fn handle_toggle_compact_mode(&mut self) {
-        self.app.toggle_compact_mode();
-        // Persist to config
-        self.config.compact_mode = Some(self.app.compact_mode);
-        crate::operations::config::save_config_with_error(self.config, self.app);
-        let mode = if self.app.compact_mode { "compact" } else { "full" };
+        let mode = display::toggle_compact_mode(self.app, self.config);
         self.app.set_status_info(format!("Display mode: {}", mode));
     }
 

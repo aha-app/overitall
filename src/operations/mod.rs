@@ -2,6 +2,7 @@ pub mod batch;
 pub mod batch_window;
 pub mod clipboard;
 pub mod config;
+pub mod display;
 pub mod filter;
 pub mod logs;
 pub mod manual_trace;

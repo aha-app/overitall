@@ -1,5 +1,6 @@
+use crate::log::LogLine;
 use crate::process::ProcessManager;
-use crate::ui::{App, apply_filters};
+use crate::ui::{self, App, apply_filters};
 
 /// Navigate to the next batch.
 /// Creates a snapshot if entering batch view for the first time.
@@ -49,4 +50,44 @@ pub fn toggle_batch_view(app: &mut App, manager: &ProcessManager) -> bool {
 
     app.toggle_batch_view();
     app.batch_view_mode
+}
+
+/// Focus on the batch containing the currently selected line.
+/// Enters batch view mode and navigates to the batch.
+/// Returns Ok with status message on success, Err with error message on failure.
+pub fn focus_batch(app: &mut App, manager: &ProcessManager) -> Result<String, String> {
+    let selected_id = match app.selected_line_id {
+        Some(id) => id,
+        None => return Err("No line selected".to_string()),
+    };
+
+    let logs = manager.get_all_logs();
+    let filtered_logs = apply_filters(logs, &app.filters);
+
+    let line_idx = match filtered_logs.iter().position(|log| log.id == selected_id) {
+        Some(idx) => idx,
+        None => return Err("Selected line not found".to_string()),
+    };
+
+    let filtered_refs: Vec<&LogLine> = filtered_logs.iter().collect();
+    let batches = ui::detect_batches_from_logs(&filtered_refs, app.batch_window_ms);
+
+    let batch_idx = batches
+        .iter()
+        .enumerate()
+        .find(|(_, (start, end))| line_idx >= *start && line_idx <= *end)
+        .map(|(idx, _)| idx);
+
+    match batch_idx {
+        Some(idx) => {
+            if !app.batch_view_mode {
+                app.create_snapshot(filtered_logs);
+            }
+            app.current_batch = Some(idx);
+            app.batch_view_mode = true;
+            app.scroll_offset = 0;
+            Ok(format!("Focused on batch {}", idx + 1))
+        }
+        None => Err("No batch found for selected line".to_string()),
+    }
 }
