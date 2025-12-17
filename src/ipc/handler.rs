@@ -35,6 +35,9 @@ impl IpcCommandHandler {
             "filter_add" => self.handle_filter_add(&request.args),
             "filter_remove" => self.handle_filter_remove(&request.args),
             "filter_clear" => self.handle_filter_clear(),
+            "visibility" => IpcHandlerResult::response_only(self.handle_visibility(state)),
+            "hide" => self.handle_hide(&request.args),
+            "show" => self.handle_show(&request.args),
             "help" => IpcHandlerResult::response_only(self.handle_help()),
             "trace" => IpcHandlerResult::response_only(self.handle_trace(state)),
             _ => IpcHandlerResult::response_only(IpcResponse::err(format!(
@@ -556,6 +559,77 @@ impl IpcCommandHandler {
         )
     }
 
+    fn handle_visibility(&self, state: Option<&StateSnapshot>) -> IpcResponse {
+        match state {
+            Some(snapshot) => {
+                // Build visibility info for each process
+                let visibility: Vec<Value> = snapshot
+                    .processes
+                    .iter()
+                    .map(|p| {
+                        let is_hidden = snapshot.hidden_processes.contains(&p.name);
+                        json!({
+                            "name": p.name,
+                            "visible": !is_hidden,
+                            "status": p.status
+                        })
+                    })
+                    .collect();
+
+                IpcResponse::ok(json!({
+                    "processes": visibility,
+                    "hidden_count": snapshot.hidden_processes.len(),
+                    "total_count": snapshot.processes.len()
+                }))
+            }
+            None => IpcResponse::ok(json!({
+                "processes": [],
+                "hidden_count": 0,
+                "total_count": 0
+            })),
+        }
+    }
+
+    fn handle_hide(&self, args: &Value) -> IpcHandlerResult {
+        // Process name is required
+        let name = match args.get("name").and_then(|v| v.as_str()) {
+            Some(n) => n.to_string(),
+            None => {
+                return IpcHandlerResult::response_only(IpcResponse::err(
+                    "missing required argument: name".to_string(),
+                ));
+            }
+        };
+
+        IpcHandlerResult::with_actions(
+            IpcResponse::ok(json!({
+                "hidden": true,
+                "name": name
+            })),
+            vec![IpcAction::HideProcess { name }],
+        )
+    }
+
+    fn handle_show(&self, args: &Value) -> IpcHandlerResult {
+        // Process name is required
+        let name = match args.get("name").and_then(|v| v.as_str()) {
+            Some(n) => n.to_string(),
+            None => {
+                return IpcHandlerResult::response_only(IpcResponse::err(
+                    "missing required argument: name".to_string(),
+                ));
+            }
+        };
+
+        IpcHandlerResult::with_actions(
+            IpcResponse::ok(json!({
+                "shown": true,
+                "name": name
+            })),
+            vec![IpcAction::ShowProcess { name }],
+        )
+    }
+
     fn handle_help(&self) -> IpcResponse {
         IpcResponse::ok(json!({
             "commands": [
@@ -663,6 +737,25 @@ impl IpcCommandHandler {
                     "name": "filter_clear",
                     "description": "Remove all filters (persists to config file)",
                     "args": []
+                },
+                {
+                    "name": "visibility",
+                    "description": "List visibility status for all processes (which are shown/hidden)",
+                    "args": []
+                },
+                {
+                    "name": "hide",
+                    "description": "Hide a process from log view (runtime only, does not persist)",
+                    "args": [
+                        {"name": "name", "type": "string", "required": true, "description": "Process name to hide"}
+                    ]
+                },
+                {
+                    "name": "show",
+                    "description": "Show a hidden process (runtime only, does not persist)",
+                    "args": [
+                        {"name": "name", "type": "string", "required": true, "description": "Process name to show"}
+                    ]
                 }
             ],
             "version": self.version
@@ -811,6 +904,7 @@ mod tests {
             active_trace_id: Some("abc123".to_string()),
             recent_logs: Vec::new(),
             total_log_lines: 1500,
+            hidden_processes: Vec::new(),
         };
 
         let handler_result = handler.handle(&request, Some(&snapshot));
@@ -883,6 +977,7 @@ mod tests {
             active_trace_id: None,
             recent_logs: Vec::new(),
             total_log_lines: 0,
+            hidden_processes: Vec::new(),
         };
 
         let result = handler.handle(&request, Some(&snapshot));
@@ -952,6 +1047,7 @@ mod tests {
                 },
             ],
             total_log_lines: 1500,
+            hidden_processes: Vec::new(),
         };
 
         let result = handler.handle(&request, Some(&snapshot));
@@ -1018,6 +1114,7 @@ mod tests {
                 },
             ],
             total_log_lines: 3,
+            hidden_processes: Vec::new(),
         };
 
         let result = handler.handle(&request, Some(&snapshot));
@@ -1118,6 +1215,7 @@ mod tests {
                 },
             ],
             total_log_lines: 4,
+            hidden_processes: Vec::new(),
         };
 
         let result = handler.handle(&request, Some(&snapshot));
@@ -1181,6 +1279,7 @@ mod tests {
                 },
             ],
             total_log_lines: 2,
+            hidden_processes: Vec::new(),
         };
 
         let result = handler.handle(&request, Some(&snapshot));
@@ -1252,6 +1351,7 @@ mod tests {
                 },
             ],
             total_log_lines: 4,
+            hidden_processes: Vec::new(),
         };
 
         let result = handler.handle(&request, Some(&snapshot));
@@ -1305,6 +1405,7 @@ mod tests {
                 batch_id: None,
             }],
             total_log_lines: 1,
+            hidden_processes: Vec::new(),
         };
 
         let result = handler.handle(&request, Some(&snapshot));
@@ -1349,6 +1450,7 @@ mod tests {
                 },
             ],
             total_log_lines: 2,
+            hidden_processes: Vec::new(),
         };
 
         let result = handler.handle(&request, Some(&snapshot));
@@ -1473,6 +1575,7 @@ mod tests {
             active_trace_id: Some("abc123def".to_string()),
             recent_logs: Vec::new(),
             total_log_lines: 0,
+            hidden_processes: Vec::new(),
         };
 
         let result = handler.handle(&request, Some(&snapshot));
@@ -1526,6 +1629,7 @@ mod tests {
                 batch_id: None,
             }],
             total_log_lines: 1,
+            hidden_processes: Vec::new(),
         };
 
         let result = handler.handle(&request, Some(&snapshot));
@@ -1570,6 +1674,7 @@ mod tests {
                 },
             ],
             total_log_lines: 2,
+            hidden_processes: Vec::new(),
         };
 
         let result = handler.handle(&request, Some(&snapshot));
@@ -1784,6 +1889,7 @@ mod tests {
             active_trace_id: None,
             recent_logs: Vec::new(),
             total_log_lines: 0,
+            hidden_processes: Vec::new(),
         };
 
         let result = handler.handle(&request, Some(&snapshot));
@@ -1825,6 +1931,7 @@ mod tests {
             active_trace_id: None,
             recent_logs: Vec::new(),
             total_log_lines: 0,
+            hidden_processes: Vec::new(),
         };
 
         let result = handler.handle(&request, Some(&snapshot));
@@ -1960,6 +2067,7 @@ mod tests {
             active_trace_id: None,
             recent_logs: Vec::new(),
             total_log_lines: 0,
+            hidden_processes: Vec::new(),
         };
 
         let result = handler.handle(&request, Some(&snapshot));
@@ -2089,5 +2197,155 @@ mod tests {
         assert!(command_names.contains(&"filter_add"));
         assert!(command_names.contains(&"filter_remove"));
         assert!(command_names.contains(&"filter_clear"));
+    }
+
+    #[test]
+    fn visibility_without_state_returns_empty_list() {
+        let handler = test_handler();
+        let request = IpcRequest::new("visibility");
+        let result = handler.handle(&request, None);
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        let processes = data["processes"].as_array().unwrap();
+        assert!(processes.is_empty());
+        assert_eq!(data["hidden_count"], 0);
+        assert_eq!(data["total_count"], 0);
+        assert!(result.actions.is_empty());
+    }
+
+    #[test]
+    fn visibility_with_state_returns_process_visibility() {
+        use super::super::state::{BufferStats, ProcessInfo, ViewModeInfo};
+
+        let handler = test_handler();
+        let request = IpcRequest::new("visibility");
+
+        let snapshot = StateSnapshot {
+            processes: vec![
+                ProcessInfo {
+                    name: "web".to_string(),
+                    status: "running".to_string(),
+                    error: None,
+                },
+                ProcessInfo {
+                    name: "worker".to_string(),
+                    status: "running".to_string(),
+                    error: None,
+                },
+            ],
+            filter_count: 0,
+            active_filters: vec![],
+            search_pattern: None,
+            view_mode: ViewModeInfo::default(),
+            auto_scroll: true,
+            log_count: 0,
+            buffer_stats: BufferStats::default(),
+            trace_recording: false,
+            active_trace_id: None,
+            recent_logs: Vec::new(),
+            total_log_lines: 0,
+            hidden_processes: vec!["worker".to_string()],
+        };
+
+        let result = handler.handle(&request, Some(&snapshot));
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        let processes = data["processes"].as_array().unwrap();
+
+        assert_eq!(processes.len(), 2);
+        assert_eq!(data["hidden_count"], 1);
+        assert_eq!(data["total_count"], 2);
+
+        // web is visible
+        assert_eq!(processes[0]["name"], "web");
+        assert_eq!(processes[0]["visible"], true);
+        assert_eq!(processes[0]["status"], "running");
+
+        // worker is hidden
+        assert_eq!(processes[1]["name"], "worker");
+        assert_eq!(processes[1]["visible"], false);
+        assert_eq!(processes[1]["status"], "running");
+
+        assert!(result.actions.is_empty());
+    }
+
+    #[test]
+    fn hide_without_name_returns_error() {
+        let handler = test_handler();
+        let request = IpcRequest::new("hide");
+        let result = handler.handle(&request, None);
+
+        assert!(!result.response.success);
+        assert!(result.response.error.is_some());
+        assert!(result.response.error.unwrap().contains("name"));
+        assert!(result.actions.is_empty());
+    }
+
+    #[test]
+    fn hide_returns_action() {
+        let handler = test_handler();
+        let request = IpcRequest::with_args("hide", json!({"name": "web"}));
+        let result = handler.handle(&request, None);
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        assert_eq!(data["hidden"], true);
+        assert_eq!(data["name"], "web");
+
+        assert_eq!(result.actions.len(), 1);
+        assert!(matches!(
+            &result.actions[0],
+            IpcAction::HideProcess { name } if name == "web"
+        ));
+    }
+
+    #[test]
+    fn show_without_name_returns_error() {
+        let handler = test_handler();
+        let request = IpcRequest::new("show");
+        let result = handler.handle(&request, None);
+
+        assert!(!result.response.success);
+        assert!(result.response.error.is_some());
+        assert!(result.response.error.unwrap().contains("name"));
+        assert!(result.actions.is_empty());
+    }
+
+    #[test]
+    fn show_returns_action() {
+        let handler = test_handler();
+        let request = IpcRequest::with_args("show", json!({"name": "worker"}));
+        let result = handler.handle(&request, None);
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        assert_eq!(data["shown"], true);
+        assert_eq!(data["name"], "worker");
+
+        assert_eq!(result.actions.len(), 1);
+        assert!(matches!(
+            &result.actions[0],
+            IpcAction::ShowProcess { name } if name == "worker"
+        ));
+    }
+
+    #[test]
+    fn help_includes_visibility_commands() {
+        let handler = test_handler();
+        let request = IpcRequest::new("help");
+        let result = handler.handle(&request, None);
+
+        let data = result.response.result.unwrap();
+        let commands = data["commands"].as_array().unwrap();
+
+        let command_names: Vec<&str> = commands
+            .iter()
+            .filter_map(|c| c["name"].as_str())
+            .collect();
+        assert!(command_names.contains(&"visibility"));
+        assert!(command_names.contains(&"hide"));
+        assert!(command_names.contains(&"show"));
     }
 }

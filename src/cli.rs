@@ -127,6 +127,18 @@ pub enum Commands {
     },
     /// Clear all filters (persists to config file)
     FilterClear,
+    /// List visibility status for all processes (which are shown/hidden)
+    Visibility,
+    /// Hide a process from log view (runtime only, does not persist)
+    Hide {
+        /// Process name to hide
+        name: String,
+    },
+    /// Show a hidden process (runtime only, does not persist)
+    Show {
+        /// Process name to show
+        name: String,
+    },
 }
 
 /// Initialize a new config file from an existing Procfile
@@ -275,6 +287,13 @@ pub async fn run_ipc_command(command: &Commands) -> anyhow::Result<()> {
             IpcRequest::with_args("filter_remove", serde_json::json!({"pattern": pattern}))
         }
         Commands::FilterClear => IpcRequest::new("filter_clear"),
+        Commands::Visibility => IpcRequest::new("visibility"),
+        Commands::Hide { name } => {
+            IpcRequest::with_args("hide", serde_json::json!({"name": name}))
+        }
+        Commands::Show { name } => {
+            IpcRequest::with_args("show", serde_json::json!({"name": name}))
+        }
     };
 
     let response = client.call(&request).await.with_context(|| {
@@ -709,5 +728,33 @@ mod tests {
     fn test_cli_parses_filter_clear_subcommand() {
         let cli = Cli::parse_from(["oit", "filter-clear"]);
         assert!(matches!(cli.command, Some(Commands::FilterClear)));
+    }
+
+    #[test]
+    fn test_cli_parses_visibility_subcommand() {
+        let cli = Cli::parse_from(["oit", "visibility"]);
+        assert!(matches!(cli.command, Some(Commands::Visibility)));
+    }
+
+    #[test]
+    fn test_cli_parses_hide_subcommand() {
+        let cli = Cli::parse_from(["oit", "hide", "web"]);
+        match cli.command {
+            Some(Commands::Hide { name }) => {
+                assert_eq!(name, "web");
+            }
+            _ => panic!("Expected Hide command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_show_subcommand() {
+        let cli = Cli::parse_from(["oit", "show", "worker"]);
+        match cli.command {
+            Some(Commands::Show { name }) => {
+                assert_eq!(name, "worker");
+            }
+            _ => panic!("Expected Show command"),
+        }
     }
 }

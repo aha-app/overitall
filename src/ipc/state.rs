@@ -41,6 +41,9 @@ pub struct StateSnapshot {
 
     /// Total number of log lines (may be more than recent_logs.len())
     pub total_log_lines: usize,
+
+    /// List of hidden process names (runtime visibility state)
+    pub hidden_processes: Vec<String>,
 }
 
 /// Information about a single process
@@ -132,6 +135,7 @@ impl Default for StateSnapshot {
             active_trace_id: None,
             recent_logs: Vec::new(),
             total_log_lines: 0,
+            hidden_processes: Vec::new(),
         }
     }
 }
@@ -295,6 +299,7 @@ mod tests {
                 batch_id: Some(1),
             }],
             total_log_lines: 1523,
+            hidden_processes: vec!["worker".to_string()],
         };
 
         let json = serde_json::to_string(&snapshot).unwrap();
@@ -315,6 +320,7 @@ mod tests {
         assert_eq!(parsed.recent_logs.len(), 1);
         assert_eq!(parsed.recent_logs[0].content, "Server started");
         assert_eq!(parsed.total_log_lines, 1523);
+        assert_eq!(parsed.hidden_processes, vec!["worker".to_string()]);
     }
 
     #[test]
@@ -333,6 +339,7 @@ mod tests {
         assert!(snapshot.active_trace_id.is_none());
         assert!(snapshot.recent_logs.is_empty());
         assert_eq!(snapshot.total_log_lines, 0);
+        assert!(snapshot.hidden_processes.is_empty());
     }
 
     #[test]
@@ -361,6 +368,7 @@ mod tests {
             active_trace_id: None,
             recent_logs: Vec::new(),
             total_log_lines: 100,
+            hidden_processes: Vec::new(),
         };
 
         let json = serde_json::to_string_pretty(&snapshot).unwrap();
@@ -376,6 +384,7 @@ mod tests {
         assert!(json.contains("\"trace_recording\""));
         assert!(json.contains("\"recent_logs\""));
         assert!(json.contains("\"total_log_lines\""));
+        assert!(json.contains("\"hidden_processes\""));
     }
 
     #[test]

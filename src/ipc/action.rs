@@ -28,6 +28,10 @@ pub enum IpcAction {
     RemoveFilter { pattern: String },
     /// Clear all filters
     ClearFilters,
+    /// Hide a process from log view (runtime only, does not persist to config)
+    HideProcess { name: String },
+    /// Show a hidden process (runtime only, does not persist to config)
+    ShowProcess { name: String },
 }
 
 /// Result of handling an IPC command: response to send + actions to apply
@@ -244,5 +248,61 @@ mod tests {
         let a1 = IpcAction::ClearFilters;
         let a2 = IpcAction::ClearFilters;
         assert_eq!(a1, a2);
+    }
+
+    #[test]
+    fn hide_process_action_stores_name() {
+        let action = IpcAction::HideProcess {
+            name: "web".to_string(),
+        };
+        match action {
+            IpcAction::HideProcess { name } => {
+                assert_eq!(name, "web");
+            }
+            _ => panic!("expected HideProcess"),
+        }
+    }
+
+    #[test]
+    fn hide_process_action_equality() {
+        let a1 = IpcAction::HideProcess {
+            name: "web".to_string(),
+        };
+        let a2 = IpcAction::HideProcess {
+            name: "web".to_string(),
+        };
+        let a3 = IpcAction::HideProcess {
+            name: "worker".to_string(),
+        };
+        assert_eq!(a1, a2);
+        assert_ne!(a1, a3);
+    }
+
+    #[test]
+    fn show_process_action_stores_name() {
+        let action = IpcAction::ShowProcess {
+            name: "worker".to_string(),
+        };
+        match action {
+            IpcAction::ShowProcess { name } => {
+                assert_eq!(name, "worker");
+            }
+            _ => panic!("expected ShowProcess"),
+        }
+    }
+
+    #[test]
+    fn show_process_action_equality() {
+        let a1 = IpcAction::ShowProcess {
+            name: "web".to_string(),
+        };
+        let a2 = IpcAction::ShowProcess {
+            name: "web".to_string(),
+        };
+        let a3 = IpcAction::ShowProcess {
+            name: "worker".to_string(),
+        };
+        assert_eq!(a1, a2);
+        assert_ne!(a1, a3);
     }
 }

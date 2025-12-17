@@ -393,6 +393,7 @@ fn create_state_snapshot(app: &App, manager: &ProcessManager) -> StateSnapshot {
         active_trace_id: app.active_trace_id.clone(),
         recent_logs,
         total_log_lines,
+        hidden_processes: app.hidden_processes.iter().cloned().collect(),
     }
 }
 
@@ -446,6 +447,14 @@ fn apply_ipc_action(app: &mut App, config: &mut Config, action: IpcAction) {
         }
         IpcAction::ClearFilters => {
             operations::filter::clear_filters(app, config);
+        }
+        IpcAction::HideProcess { name } => {
+            // Runtime only - directly modify hidden_processes without saving to config
+            app.hidden_processes.insert(name);
+        }
+        IpcAction::ShowProcess { name } => {
+            // Runtime only - directly modify hidden_processes without saving to config
+            app.hidden_processes.remove(&name);
         }
     }
 }
