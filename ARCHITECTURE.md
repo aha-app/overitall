@@ -49,6 +49,27 @@ All business logic lives in `operations/` modules. Event handlers and commands j
 - **Widgets** (`ui/widgets/`) - stateless rendering (log viewer, process list, status bar)
 - **App state** drives what's rendered; widgets read from App
 
+## IPC System
+
+External tools (AI agents, scripts) control oit via Unix socket IPC.
+
+```
+CLI (oit ping) → IpcClient → Unix Socket → IpcServer → IpcCommandHandler → Response
+```
+
+- **IpcServer** (`ipc/server.rs`) - Unix socket listener, non-blocking poll for commands
+- **IpcClient** (`ipc/client.rs`) - connects to socket, sends requests, receives responses
+- **IpcCommandHandler** (`ipc/handler.rs`) - processes requests, returns JSON responses
+- **Protocol** (`ipc/protocol.rs`) - `IpcRequest` and `IpcResponse` types, newline-delimited JSON
+
+Socket location: `.oit.sock` in the current working directory.
+
+**To add a new IPC command:**
+1. Add handler method in `IpcCommandHandler` (e.g., `handle_mycommand`)
+2. Add match arm in `handle()` method
+3. Add CLI subcommand in `cli.rs` if needed
+4. Add tests
+
 ## Testing
 
 Use `TestBackend` for TUI tests, `insta` for snapshots. Run `cargo test`, review with `cargo insta review`.
