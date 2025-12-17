@@ -211,7 +211,7 @@ async fn run_app(
 
                     // Process any actions from the handler
                     for action in handler_result.actions {
-                        apply_ipc_action(app, config, action);
+                        apply_ipc_action(app, config, manager, action).await;
                     }
 
                     let _ = server.send_response(conn_id, handler_result.response).await;
@@ -398,7 +398,12 @@ fn create_state_snapshot(app: &App, manager: &ProcessManager) -> StateSnapshot {
 }
 
 /// Apply an IPC action to the App state
-fn apply_ipc_action(app: &mut App, config: &mut Config, action: IpcAction) {
+async fn apply_ipc_action(
+    app: &mut App,
+    config: &mut Config,
+    manager: &mut ProcessManager,
+    action: IpcAction,
+) {
     match action {
         IpcAction::SetSearch { pattern } => {
             app.perform_search(pattern);
@@ -456,17 +461,39 @@ fn apply_ipc_action(app: &mut App, config: &mut Config, action: IpcAction) {
             // Runtime only - directly modify hidden_processes without saving to config
             app.hidden_processes.remove(&name);
         }
-        IpcAction::RestartProcess { name: _ } => {
-            // TODO: Step 4 - call manager.set_restarting(&name)
+        IpcAction::RestartProcess { name } => {
+            // Non-blocking: set restart flag, main loop handles actual restart
+            if manager.set_restarting(&name) {
+                app.set_status_info(format!("Restarting: {}", name));
+            } else {
+                app.set_status_error(format!("Process not found: {}", name));
+            }
         }
         IpcAction::RestartAllProcesses => {
-            // TODO: Step 4 - call manager.set_all_restarting()
+            // Non-blocking: set restart flags for all processes
+            let names: Vec<String> = manager
+                .get_all_statuses()
+                .into_iter()
+                .map(|(n, _)| n)
+                .collect();
+            if names.is_empty() {
+                app.set_status_error("No processes to restart".to_string());
+            } else {
+                manager.set_all_restarting();
+                app.set_status_info(format!("Restarting {} process(es)...", names.len()));
+            }
         }
-        IpcAction::KillProcess { name: _ } => {
-            // TODO: Step 4 - call operations::process::kill_process()
+        IpcAction::KillProcess { name } => {
+            match operations::process::kill_process(manager, &name).await {
+                Ok(msg) => app.set_status_success(msg),
+                Err(msg) => app.set_status_error(msg),
+            }
         }
-        IpcAction::StartProcess { name: _ } => {
-            // TODO: Step 4 - call operations::process::start_process()
+        IpcAction::StartProcess { name } => {
+            match operations::process::start_process(manager, &name).await {
+                Ok(msg) => app.set_status_success(msg),
+                Err(msg) => app.set_status_error(msg),
+            }
         }
     }
 }
