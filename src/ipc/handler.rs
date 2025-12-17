@@ -28,6 +28,8 @@ impl IpcCommandHandler {
             "search" => self.handle_search(&request.args, state),
             "select" => self.handle_select(&request.args, state),
             "context" => self.handle_context(&request.args, state),
+            "help" => IpcHandlerResult::response_only(self.handle_help()),
+            "trace" => IpcHandlerResult::response_only(self.handle_trace(state)),
             _ => IpcHandlerResult::response_only(IpcResponse::err(format!(
                 "unknown command: {}",
                 request.command
@@ -340,6 +342,93 @@ impl IpcCommandHandler {
             None => IpcHandlerResult::response_only(IpcResponse::err(
                 "no state available".to_string(),
             )),
+        }
+    }
+
+    fn handle_help(&self) -> IpcResponse {
+        IpcResponse::ok(json!({
+            "commands": [
+                {
+                    "name": "ping",
+                    "description": "Check if TUI is running",
+                    "args": []
+                },
+                {
+                    "name": "status",
+                    "description": "Get TUI status including version, process count, and buffer usage",
+                    "args": []
+                },
+                {
+                    "name": "processes",
+                    "description": "List all processes and their current status",
+                    "args": []
+                },
+                {
+                    "name": "logs",
+                    "description": "Get recent log lines from the buffer",
+                    "args": [
+                        {"name": "limit", "type": "number", "default": 100, "description": "Maximum number of lines to return"},
+                        {"name": "offset", "type": "number", "default": 0, "description": "Number of lines to skip"}
+                    ]
+                },
+                {
+                    "name": "search",
+                    "description": "Search log lines for a pattern and highlight in TUI",
+                    "args": [
+                        {"name": "pattern", "type": "string", "required": true, "description": "Search pattern (substring match)"},
+                        {"name": "limit", "type": "number", "default": 100, "description": "Maximum matches to return"},
+                        {"name": "case_sensitive", "type": "boolean", "default": false, "description": "Enable case-sensitive matching"}
+                    ]
+                },
+                {
+                    "name": "select",
+                    "description": "Select a log line by ID and open expanded view in TUI",
+                    "args": [
+                        {"name": "id", "type": "number", "required": true, "description": "Log line ID to select"}
+                    ]
+                },
+                {
+                    "name": "context",
+                    "description": "Get context lines around a specific log line",
+                    "args": [
+                        {"name": "id", "type": "number", "required": true, "description": "Log line ID"},
+                        {"name": "before", "type": "number", "default": 5, "description": "Lines before target"},
+                        {"name": "after", "type": "number", "default": 5, "description": "Lines after target"}
+                    ]
+                },
+                {
+                    "name": "help",
+                    "description": "List available IPC commands",
+                    "args": []
+                },
+                {
+                    "name": "trace",
+                    "description": "Get trace recording status and active trace info",
+                    "args": []
+                }
+            ],
+            "version": self.version
+        }))
+    }
+
+    fn handle_trace(&self, state: Option<&StateSnapshot>) -> IpcResponse {
+        match state {
+            Some(snapshot) => {
+                IpcResponse::ok(json!({
+                    "recording": snapshot.trace_recording,
+                    "active_trace_id": snapshot.active_trace_id,
+                    "trace_filter_active": snapshot.view_mode.trace_filter,
+                    "trace_selection_active": snapshot.view_mode.trace_selection
+                }))
+            }
+            None => {
+                IpcResponse::ok(json!({
+                    "recording": false,
+                    "active_trace_id": null,
+                    "trace_filter_active": false,
+                    "trace_selection_active": false
+                }))
+            }
         }
     }
 }
@@ -1018,5 +1107,126 @@ mod tests {
             IpcAction::SelectAndExpandLine { id } if *id == 42
         ));
         assert_eq!(result.actions[1], IpcAction::SetAutoScroll { enabled: false });
+    }
+
+    #[test]
+    fn help_returns_command_list() {
+        let handler = test_handler();
+        let request = IpcRequest::new("help");
+        let result = handler.handle(&request, None);
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+
+        // Check that commands array exists
+        let commands = data["commands"].as_array().unwrap();
+        assert!(!commands.is_empty());
+
+        // Check that version is included
+        assert_eq!(data["version"], "0.1.0-test");
+
+        // Verify some expected commands are present
+        let command_names: Vec<&str> = commands
+            .iter()
+            .filter_map(|c| c["name"].as_str())
+            .collect();
+        assert!(command_names.contains(&"ping"));
+        assert!(command_names.contains(&"status"));
+        assert!(command_names.contains(&"processes"));
+        assert!(command_names.contains(&"logs"));
+        assert!(command_names.contains(&"search"));
+        assert!(command_names.contains(&"select"));
+        assert!(command_names.contains(&"context"));
+        assert!(command_names.contains(&"help"));
+        assert!(command_names.contains(&"trace"));
+
+        // Check that no actions are emitted
+        assert!(result.actions.is_empty());
+    }
+
+    #[test]
+    fn help_includes_command_descriptions_and_args() {
+        let handler = test_handler();
+        let request = IpcRequest::new("help");
+        let result = handler.handle(&request, None);
+
+        let data = result.response.result.unwrap();
+        let commands = data["commands"].as_array().unwrap();
+
+        // Find the search command and verify its structure
+        let search_cmd = commands
+            .iter()
+            .find(|c| c["name"].as_str() == Some("search"))
+            .unwrap();
+
+        assert!(search_cmd["description"].as_str().unwrap().len() > 0);
+        let args = search_cmd["args"].as_array().unwrap();
+
+        // Verify search has pattern, limit, and case_sensitive args
+        let arg_names: Vec<&str> = args
+            .iter()
+            .filter_map(|a| a["name"].as_str())
+            .collect();
+        assert!(arg_names.contains(&"pattern"));
+        assert!(arg_names.contains(&"limit"));
+        assert!(arg_names.contains(&"case_sensitive"));
+    }
+
+    #[test]
+    fn trace_without_state_returns_defaults() {
+        let handler = test_handler();
+        let request = IpcRequest::new("trace");
+        let result = handler.handle(&request, None);
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+
+        assert_eq!(data["recording"], false);
+        assert!(data["active_trace_id"].is_null());
+        assert_eq!(data["trace_filter_active"], false);
+        assert_eq!(data["trace_selection_active"], false);
+
+        assert!(result.actions.is_empty());
+    }
+
+    #[test]
+    fn trace_with_state_returns_trace_info() {
+        use super::super::state::{BufferStats, ViewModeInfo};
+
+        let handler = test_handler();
+        let request = IpcRequest::new("trace");
+
+        let snapshot = StateSnapshot {
+            processes: vec![],
+            filter_count: 0,
+            active_filters: vec![],
+            search_pattern: None,
+            view_mode: ViewModeInfo {
+                frozen: false,
+                batch_view: false,
+                trace_filter: true,
+                trace_selection: false,
+                compact: false,
+            },
+            auto_scroll: true,
+            log_count: 0,
+            buffer_stats: BufferStats::default(),
+            trace_recording: true,
+            active_trace_id: Some("abc123def".to_string()),
+            recent_logs: Vec::new(),
+            total_log_lines: 0,
+        };
+
+        let result = handler.handle(&request, Some(&snapshot));
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+
+        assert_eq!(data["recording"], true);
+        assert_eq!(data["active_trace_id"], "abc123def");
+        assert_eq!(data["trace_filter_active"], true);
+        assert_eq!(data["trace_selection_active"], false);
+
+        assert!(result.actions.is_empty());
     }
 }

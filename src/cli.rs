@@ -86,6 +86,11 @@ pub enum Commands {
         #[arg(long, default_value = "5")]
         after: u64,
     },
+    /// List available IPC commands (alias for 'oit commands')
+    #[command(name = "commands")]
+    IpcHelp,
+    /// Get trace recording status and active trace info
+    Trace,
 }
 
 /// Initialize a new config file from an existing Procfile
@@ -215,6 +220,8 @@ pub async fn run_ipc_command(command: &Commands) -> anyhow::Result<()> {
             "context",
             serde_json::json!({"id": id, "before": before, "after": after}),
         ),
+        Commands::IpcHelp => IpcRequest::new("help"),
+        Commands::Trace => IpcRequest::new("trace"),
     };
 
     let response = client.call(&request).await.with_context(|| {
@@ -489,5 +496,17 @@ mod tests {
             }
             _ => panic!("Expected Search command"),
         }
+    }
+
+    #[test]
+    fn test_cli_parses_commands_subcommand() {
+        let cli = Cli::parse_from(["oit", "commands"]);
+        assert!(matches!(cli.command, Some(Commands::IpcHelp)));
+    }
+
+    #[test]
+    fn test_cli_parses_trace_subcommand() {
+        let cli = Cli::parse_from(["oit", "trace"]);
+        assert!(matches!(cli.command, Some(Commands::Trace)));
     }
 }
