@@ -258,3 +258,216 @@ async fn test_rapid_connect_disconnect() {
     // All clients have disconnected
     assert_eq!(server.connection_count(), 0);
 }
+
+// ============================================================================
+// Process Control Integration Tests
+// ============================================================================
+
+/// Restart command with specific process name returns success and action
+#[tokio::test]
+async fn test_restart_specific_process() {
+    let (_dir, path) = temp_socket_path();
+    let mut server = IpcServer::new(&path).unwrap();
+    let handler = IpcCommandHandler::new("0.1.0");
+
+    let mut client = IpcClient::connect(&path).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(10)).await;
+    server.accept_pending().unwrap();
+
+    // Send restart command for specific process
+    let request = IpcRequest::with_args("restart", json!({"name": "web"}));
+    client.send_request(&request).await.unwrap();
+
+    tokio::time::sleep(Duration::from_millis(10)).await;
+    let requests = server.poll_commands().unwrap();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].1.command, "restart");
+    assert_eq!(requests[0].1.args["name"], "web");
+
+    let conn_id = requests[0].0;
+    let handler_result = handler.handle(&requests[0].1, None);
+
+    // Verify handler returns restart action
+    assert_eq!(handler_result.actions.len(), 1);
+
+    server.send_response(conn_id, handler_result.response).await.unwrap();
+
+    let received = client.recv_response().await.unwrap();
+    assert!(received.success);
+    let result = received.result.unwrap();
+    assert_eq!(result["restarting"], true);
+    assert_eq!(result["process"], "web");
+}
+
+/// Restart command without process name restarts all
+#[tokio::test]
+async fn test_restart_all_processes() {
+    let (_dir, path) = temp_socket_path();
+    let mut server = IpcServer::new(&path).unwrap();
+    let handler = IpcCommandHandler::new("0.1.0");
+
+    let mut client = IpcClient::connect(&path).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(10)).await;
+    server.accept_pending().unwrap();
+
+    // Send restart command without name (restart all)
+    let request = IpcRequest::new("restart");
+    client.send_request(&request).await.unwrap();
+
+    tokio::time::sleep(Duration::from_millis(10)).await;
+    let requests = server.poll_commands().unwrap();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].1.command, "restart");
+
+    let conn_id = requests[0].0;
+    let handler_result = handler.handle(&requests[0].1, None);
+
+    // Verify handler returns restart all action
+    assert_eq!(handler_result.actions.len(), 1);
+
+    server.send_response(conn_id, handler_result.response).await.unwrap();
+
+    let received = client.recv_response().await.unwrap();
+    assert!(received.success);
+    let result = received.result.unwrap();
+    assert_eq!(result["restarting"], true);
+    assert_eq!(result["process"], "all");
+}
+
+/// Kill command with process name returns success
+#[tokio::test]
+async fn test_kill_process() {
+    let (_dir, path) = temp_socket_path();
+    let mut server = IpcServer::new(&path).unwrap();
+    let handler = IpcCommandHandler::new("0.1.0");
+
+    let mut client = IpcClient::connect(&path).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(10)).await;
+    server.accept_pending().unwrap();
+
+    // Send kill command
+    let request = IpcRequest::with_args("kill", json!({"name": "worker"}));
+    client.send_request(&request).await.unwrap();
+
+    tokio::time::sleep(Duration::from_millis(10)).await;
+    let requests = server.poll_commands().unwrap();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].1.command, "kill");
+    assert_eq!(requests[0].1.args["name"], "worker");
+
+    let conn_id = requests[0].0;
+    let handler_result = handler.handle(&requests[0].1, None);
+
+    // Verify handler returns kill action
+    assert_eq!(handler_result.actions.len(), 1);
+
+    server.send_response(conn_id, handler_result.response).await.unwrap();
+
+    let received = client.recv_response().await.unwrap();
+    assert!(received.success);
+    let result = received.result.unwrap();
+    assert_eq!(result["killed"], true);
+    assert_eq!(result["name"], "worker");
+}
+
+/// Kill command without name returns error
+#[tokio::test]
+async fn test_kill_without_name_returns_error() {
+    let (_dir, path) = temp_socket_path();
+    let mut server = IpcServer::new(&path).unwrap();
+    let handler = IpcCommandHandler::new("0.1.0");
+
+    let mut client = IpcClient::connect(&path).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(10)).await;
+    server.accept_pending().unwrap();
+
+    // Send kill command without name
+    let request = IpcRequest::new("kill");
+    client.send_request(&request).await.unwrap();
+
+    tokio::time::sleep(Duration::from_millis(10)).await;
+    let requests = server.poll_commands().unwrap();
+    assert_eq!(requests.len(), 1);
+
+    let conn_id = requests[0].0;
+    let handler_result = handler.handle(&requests[0].1, None);
+
+    // Verify no actions on error
+    assert!(handler_result.actions.is_empty());
+
+    server.send_response(conn_id, handler_result.response).await.unwrap();
+
+    let received = client.recv_response().await.unwrap();
+    assert!(!received.success);
+    assert!(received.error.is_some());
+    assert!(received.error.unwrap().contains("name"));
+}
+
+/// Start command with process name returns success
+#[tokio::test]
+async fn test_start_process() {
+    let (_dir, path) = temp_socket_path();
+    let mut server = IpcServer::new(&path).unwrap();
+    let handler = IpcCommandHandler::new("0.1.0");
+
+    let mut client = IpcClient::connect(&path).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(10)).await;
+    server.accept_pending().unwrap();
+
+    // Send start command
+    let request = IpcRequest::with_args("start", json!({"name": "api"}));
+    client.send_request(&request).await.unwrap();
+
+    tokio::time::sleep(Duration::from_millis(10)).await;
+    let requests = server.poll_commands().unwrap();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].1.command, "start");
+    assert_eq!(requests[0].1.args["name"], "api");
+
+    let conn_id = requests[0].0;
+    let handler_result = handler.handle(&requests[0].1, None);
+
+    // Verify handler returns start action
+    assert_eq!(handler_result.actions.len(), 1);
+
+    server.send_response(conn_id, handler_result.response).await.unwrap();
+
+    let received = client.recv_response().await.unwrap();
+    assert!(received.success);
+    let result = received.result.unwrap();
+    assert_eq!(result["started"], true);
+    assert_eq!(result["name"], "api");
+}
+
+/// Start command without name returns error
+#[tokio::test]
+async fn test_start_without_name_returns_error() {
+    let (_dir, path) = temp_socket_path();
+    let mut server = IpcServer::new(&path).unwrap();
+    let handler = IpcCommandHandler::new("0.1.0");
+
+    let mut client = IpcClient::connect(&path).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(10)).await;
+    server.accept_pending().unwrap();
+
+    // Send start command without name
+    let request = IpcRequest::new("start");
+    client.send_request(&request).await.unwrap();
+
+    tokio::time::sleep(Duration::from_millis(10)).await;
+    let requests = server.poll_commands().unwrap();
+    assert_eq!(requests.len(), 1);
+
+    let conn_id = requests[0].0;
+    let handler_result = handler.handle(&requests[0].1, None);
+
+    // Verify no actions on error
+    assert!(handler_result.actions.is_empty());
+
+    server.send_response(conn_id, handler_result.response).await.unwrap();
+
+    let received = client.recv_response().await.unwrap();
+    assert!(!received.success);
+    assert!(received.error.is_some());
+    assert!(received.error.unwrap().contains("name"));
+}
