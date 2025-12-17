@@ -139,6 +139,24 @@ pub enum Commands {
         /// Process name to show
         name: String,
     },
+    /// Restart a process or all processes
+    #[command(visible_alias = "r")]
+    Restart {
+        /// Process name to restart (restarts all if omitted)
+        name: Option<String>,
+    },
+    /// Kill a running process
+    #[command(visible_alias = "k")]
+    Kill {
+        /// Process name to kill
+        name: String,
+    },
+    /// Start a stopped process
+    #[command(visible_alias = "s")]
+    Start {
+        /// Process name to start
+        name: String,
+    },
 }
 
 /// Initialize a new config file from an existing Procfile
@@ -293,6 +311,19 @@ pub async fn run_ipc_command(command: &Commands) -> anyhow::Result<()> {
         }
         Commands::Show { name } => {
             IpcRequest::with_args("show", serde_json::json!({"name": name}))
+        }
+        Commands::Restart { name } => {
+            let args = match name {
+                Some(n) => serde_json::json!({"name": n}),
+                None => serde_json::json!({}),
+            };
+            IpcRequest::with_args("restart", args)
+        }
+        Commands::Kill { name } => {
+            IpcRequest::with_args("kill", serde_json::json!({"name": name}))
+        }
+        Commands::Start { name } => {
+            IpcRequest::with_args("start", serde_json::json!({"name": name}))
         }
     };
 
@@ -755,6 +786,83 @@ mod tests {
                 assert_eq!(name, "worker");
             }
             _ => panic!("Expected Show command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_restart_subcommand() {
+        let cli = Cli::parse_from(["oit", "restart"]);
+        match cli.command {
+            Some(Commands::Restart { name }) => {
+                assert!(name.is_none());
+            }
+            _ => panic!("Expected Restart command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_restart_subcommand_with_name() {
+        let cli = Cli::parse_from(["oit", "restart", "web"]);
+        match cli.command {
+            Some(Commands::Restart { name }) => {
+                assert_eq!(name, Some("web".to_string()));
+            }
+            _ => panic!("Expected Restart command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_kill_subcommand() {
+        let cli = Cli::parse_from(["oit", "kill", "web"]);
+        match cli.command {
+            Some(Commands::Kill { name }) => {
+                assert_eq!(name, "web");
+            }
+            _ => panic!("Expected Kill command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_start_subcommand() {
+        let cli = Cli::parse_from(["oit", "start", "worker"]);
+        match cli.command {
+            Some(Commands::Start { name }) => {
+                assert_eq!(name, "worker");
+            }
+            _ => panic!("Expected Start command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_restart_alias_r() {
+        let cli = Cli::parse_from(["oit", "r", "web"]);
+        match cli.command {
+            Some(Commands::Restart { name }) => {
+                assert_eq!(name, Some("web".to_string()));
+            }
+            _ => panic!("Expected Restart command via 'r' alias"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_kill_alias_k() {
+        let cli = Cli::parse_from(["oit", "k", "web"]);
+        match cli.command {
+            Some(Commands::Kill { name }) => {
+                assert_eq!(name, "web");
+            }
+            _ => panic!("Expected Kill command via 'k' alias"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_start_alias_s() {
+        let cli = Cli::parse_from(["oit", "s", "worker"]);
+        match cli.command {
+            Some(Commands::Start { name }) => {
+                assert_eq!(name, "worker");
+            }
+            _ => panic!("Expected Start command via 's' alias"),
         }
     }
 }
