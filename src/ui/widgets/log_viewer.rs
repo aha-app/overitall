@@ -378,8 +378,10 @@ pub fn draw_log_viewer(
             // Truncate based on display width (using clean text for measurement)
             let mut current_width = 0;
             let mut truncate_at = 0;
-            let ellipsis_width = 3; // "..." = 3 chars
-            let target_width = max_line_width.saturating_sub(ellipsis_width);
+            // "… ↵" = 4 display chars (ellipsis + space + return symbol)
+            let suffix = "… ↵";
+            let suffix_width = suffix.width();
+            let target_width = max_line_width.saturating_sub(suffix_width);
 
             for (idx, ch) in full_line_clean.char_indices() {
                 let char_width = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0);
@@ -390,16 +392,24 @@ pub fn draw_log_viewer(
                 truncate_at = idx + ch.len_utf8();
             }
 
-            // For truncated lines, use simple styling (ANSI codes likely cut off anyway)
-            let truncated = format!("{}...", &full_line_clean[..truncate_at]);
-            let style = if is_selected {
+            // For truncated lines, show hint that Enter expands
+            let truncated_text = &full_line_clean[..truncate_at];
+            let base_style = if is_selected {
                 Style::default().bg(Color::Blue).fg(Color::White)
             } else if is_match {
                 Style::default().bg(Color::DarkGray)
             } else {
                 Style::default()
             };
-            Line::from(Span::styled(truncated, style))
+            let hint_style = if is_selected {
+                Style::default().bg(Color::Blue).fg(Color::Cyan)
+            } else {
+                Style::default().fg(Color::DarkGray)
+            };
+            Line::from(vec![
+                Span::styled(truncated_text.to_string(), base_style),
+                Span::styled(suffix, hint_style),
+            ])
         } else {
             // Full line fits, parse ANSI codes with caching
             let bg_color = if is_selected {
