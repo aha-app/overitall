@@ -471,3 +471,441 @@ async fn test_start_without_name_returns_error() {
     assert!(received.error.is_some());
     assert!(received.error.unwrap().contains("name"));
 }
+
+// ============================================================================
+// AI-Optimized Commands Integration Tests
+// ============================================================================
+
+use overitall::ipc::state::{BufferStats, FilterInfo, LogLineInfo, ProcessInfo, StateSnapshot, ViewModeInfo};
+
+/// Helper to create a test snapshot with log lines
+fn test_snapshot_with_logs(logs: Vec<LogLineInfo>) -> StateSnapshot {
+    StateSnapshot {
+        processes: vec![
+            ProcessInfo {
+                name: "web".to_string(),
+                status: "running".to_string(),
+                error: None,
+            },
+            ProcessInfo {
+                name: "worker".to_string(),
+                status: "running".to_string(),
+                error: None,
+            },
+        ],
+        filter_count: 0,
+        active_filters: vec![],
+        search_pattern: None,
+        view_mode: ViewModeInfo::default(),
+        auto_scroll: true,
+        log_count: logs.len(),
+        buffer_stats: BufferStats::default(),
+        trace_recording: false,
+        active_trace_id: None,
+        total_log_lines: logs.len(),
+        hidden_processes: vec![],
+        recent_logs: logs,
+    }
+}
+
+/// Errors command returns error logs with level detection
+#[tokio::test]
+async fn test_errors_command_returns_error_logs() {
+    let (_dir, path) = temp_socket_path();
+    let mut server = IpcServer::new(&path).unwrap();
+    let handler = IpcCommandHandler::new("0.1.0");
+
+    let mut client = IpcClient::connect(&path).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(10)).await;
+    server.accept_pending().unwrap();
+
+    // Create snapshot with mixed logs
+    let snapshot = test_snapshot_with_logs(vec![
+        LogLineInfo {
+            id: 1,
+            process: "web".to_string(),
+            content: "Server started on port 3000".to_string(),
+            timestamp: "2025-12-17T10:00:00Z".to_string(),
+            batch_id: None,
+        },
+        LogLineInfo {
+            id: 2,
+            process: "web".to_string(),
+            content: "Error: connection refused".to_string(),
+            timestamp: "2025-12-17T10:00:01Z".to_string(),
+            batch_id: None,
+        },
+        LogLineInfo {
+            id: 3,
+            process: "worker".to_string(),
+            content: "Warning: slow query detected".to_string(),
+            timestamp: "2025-12-17T10:00:02Z".to_string(),
+            batch_id: None,
+        },
+        LogLineInfo {
+            id: 4,
+            process: "worker".to_string(),
+            content: "Job failed with exit code 1".to_string(),
+            timestamp: "2025-12-17T10:00:03Z".to_string(),
+            batch_id: None,
+        },
+    ]);
+
+    // Send errors command
+    let request = IpcRequest::new("errors");
+    client.send_request(&request).await.unwrap();
+
+    tokio::time::sleep(Duration::from_millis(10)).await;
+    let requests = server.poll_commands().unwrap();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].1.command, "errors");
+
+    let conn_id = requests[0].0;
+    let handler_result = handler.handle(&requests[0].1, Some(&snapshot));
+    server.send_response(conn_id, handler_result.response).await.unwrap();
+
+    let received = client.recv_response().await.unwrap();
+    assert!(received.success);
+    let result = received.result.unwrap();
+
+    // Should find 2 error logs (not warnings by default)
+    let errors = result["errors"].as_array().unwrap();
+    assert_eq!(errors.len(), 2);
+    assert_eq!(result["level_filter"], "error");
+
+    // Results are newest first
+    assert_eq!(errors[0]["id"], 4);
+    assert_eq!(errors[0]["level"], "error");
+    assert_eq!(errors[1]["id"], 2);
+}
+
+/// Errors command with level filter returns both errors and warnings
+#[tokio::test]
+async fn test_errors_command_with_level_filter() {
+    let (_dir, path) = temp_socket_path();
+    let mut server = IpcServer::new(&path).unwrap();
+    let handler = IpcCommandHandler::new("0.1.0");
+
+    let mut client = IpcClient::connect(&path).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(10)).await;
+    server.accept_pending().unwrap();
+
+    let snapshot = test_snapshot_with_logs(vec![
+        LogLineInfo {
+            id: 1,
+            process: "web".to_string(),
+            content: "Error: database connection lost".to_string(),
+            timestamp: "2025-12-17T10:00:00Z".to_string(),
+            batch_id: None,
+        },
+        LogLineInfo {
+            id: 2,
+            process: "worker".to_string(),
+            content: "Warning: memory usage high".to_string(),
+            timestamp: "2025-12-17T10:00:01Z".to_string(),
+            batch_id: None,
+        },
+    ]);
+
+    // Send errors command with error_or_warning level
+    let request = IpcRequest::with_args("errors", json!({"level": "error_or_warning"}));
+    client.send_request(&request).await.unwrap();
+
+    tokio::time::sleep(Duration::from_millis(10)).await;
+    let requests = server.poll_commands().unwrap();
+
+    let conn_id = requests[0].0;
+    let handler_result = handler.handle(&requests[0].1, Some(&snapshot));
+    server.send_response(conn_id, handler_result.response).await.unwrap();
+
+    let received = client.recv_response().await.unwrap();
+    assert!(received.success);
+    let result = received.result.unwrap();
+
+    // Should find both error and warning
+    let errors = result["errors"].as_array().unwrap();
+    assert_eq!(errors.len(), 2);
+    assert_eq!(result["level_filter"], "error_or_warning");
+}
+
+/// Summary command returns comprehensive state overview
+#[tokio::test]
+async fn test_summary_command_returns_comprehensive_state() {
+    let (_dir, path) = temp_socket_path();
+    let mut server = IpcServer::new(&path).unwrap();
+    let handler = IpcCommandHandler::new("1.0.0");
+
+    let mut client = IpcClient::connect(&path).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(10)).await;
+    server.accept_pending().unwrap();
+
+    // Create a rich snapshot with various state
+    let snapshot = StateSnapshot {
+        processes: vec![
+            ProcessInfo {
+                name: "web".to_string(),
+                status: "running".to_string(),
+                error: None,
+            },
+            ProcessInfo {
+                name: "worker".to_string(),
+                status: "failed".to_string(),
+                error: Some("Exit code: 1".to_string()),
+            },
+            ProcessInfo {
+                name: "scheduler".to_string(),
+                status: "stopped".to_string(),
+                error: None,
+            },
+        ],
+        filter_count: 2,
+        active_filters: vec![
+            FilterInfo {
+                pattern: "debug".to_string(),
+                filter_type: "exclude".to_string(),
+            },
+            FilterInfo {
+                pattern: "error".to_string(),
+                filter_type: "include".to_string(),
+            },
+        ],
+        search_pattern: None,
+        view_mode: ViewModeInfo {
+            frozen: true,
+            batch_view: false,
+            trace_filter: false,
+            trace_selection: false,
+            compact: true,
+        },
+        auto_scroll: false,
+        log_count: 500,
+        buffer_stats: BufferStats {
+            buffer_bytes: 10000000,
+            max_buffer_bytes: 52428800,
+            usage_percent: 19.07,
+        },
+        trace_recording: true,
+        active_trace_id: Some("trace123".to_string()),
+        recent_logs: vec![
+            LogLineInfo {
+                id: 1,
+                process: "web".to_string(),
+                content: "Error: connection timeout".to_string(),
+                timestamp: "2025-12-17T10:00:00Z".to_string(),
+                batch_id: None,
+            },
+        ],
+        total_log_lines: 500,
+        hidden_processes: vec!["scheduler".to_string()],
+    };
+
+    // Send summary command
+    let request = IpcRequest::new("summary");
+    client.send_request(&request).await.unwrap();
+
+    tokio::time::sleep(Duration::from_millis(10)).await;
+    let requests = server.poll_commands().unwrap();
+    assert_eq!(requests[0].1.command, "summary");
+
+    let conn_id = requests[0].0;
+    let handler_result = handler.handle(&requests[0].1, Some(&snapshot));
+    server.send_response(conn_id, handler_result.response).await.unwrap();
+
+    let received = client.recv_response().await.unwrap();
+    assert!(received.success);
+    let result = received.result.unwrap();
+
+    // Verify status section
+    assert_eq!(result["status"]["version"], "1.0.0");
+    assert_eq!(result["status"]["running"], true);
+
+    // Verify processes section
+    assert_eq!(result["processes"]["total"], 3);
+    assert_eq!(result["processes"]["running"], 1);
+    assert_eq!(result["processes"]["stopped"], 1);
+    assert_eq!(result["processes"]["failed"], 1);
+    let details = result["processes"]["details"].as_array().unwrap();
+    assert_eq!(details.len(), 3);
+
+    // Verify logs section
+    assert_eq!(result["logs"]["total_lines"], 500);
+    assert_eq!(result["logs"]["buffer_bytes"], 10000000);
+
+    // Verify errors section
+    assert_eq!(result["errors"]["recent_count"], 1);
+    assert!(result["errors"]["last_error"].is_object());
+
+    // Verify filters section
+    assert_eq!(result["filters"]["count"], 2);
+    let active = result["filters"]["active"].as_array().unwrap();
+    assert_eq!(active.len(), 2);
+
+    // Verify view section
+    assert_eq!(result["view"]["frozen"], true);
+    assert_eq!(result["view"]["auto_scroll"], false);
+    assert_eq!(result["view"]["compact"], true);
+    assert_eq!(result["view"]["trace_recording"], true);
+}
+
+/// Batch command returns all lines from a specific batch
+#[tokio::test]
+async fn test_batch_command_returns_batch_lines() {
+    let (_dir, path) = temp_socket_path();
+    let mut server = IpcServer::new(&path).unwrap();
+    let handler = IpcCommandHandler::new("0.1.0");
+
+    let mut client = IpcClient::connect(&path).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(10)).await;
+    server.accept_pending().unwrap();
+
+    // Create snapshot with logs in different batches
+    let snapshot = test_snapshot_with_logs(vec![
+        LogLineInfo {
+            id: 1,
+            process: "web".to_string(),
+            content: "Request started".to_string(),
+            timestamp: "2025-12-17T10:00:00Z".to_string(),
+            batch_id: Some(10),
+        },
+        LogLineInfo {
+            id: 2,
+            process: "web".to_string(),
+            content: "Processing request".to_string(),
+            timestamp: "2025-12-17T10:00:01Z".to_string(),
+            batch_id: Some(10),
+        },
+        LogLineInfo {
+            id: 3,
+            process: "web".to_string(),
+            content: "Request completed".to_string(),
+            timestamp: "2025-12-17T10:00:02Z".to_string(),
+            batch_id: Some(10),
+        },
+        LogLineInfo {
+            id: 4,
+            process: "worker".to_string(),
+            content: "Different batch".to_string(),
+            timestamp: "2025-12-17T10:00:03Z".to_string(),
+            batch_id: Some(11),
+        },
+    ]);
+
+    // Send batch command for batch 10
+    let request = IpcRequest::with_args("batch", json!({"id": 10}));
+    client.send_request(&request).await.unwrap();
+
+    tokio::time::sleep(Duration::from_millis(10)).await;
+    let requests = server.poll_commands().unwrap();
+    assert_eq!(requests[0].1.command, "batch");
+    assert_eq!(requests[0].1.args["id"], 10);
+
+    let conn_id = requests[0].0;
+    let handler_result = handler.handle(&requests[0].1, Some(&snapshot));
+
+    // No actions emitted without scroll flag
+    assert!(handler_result.actions.is_empty());
+
+    server.send_response(conn_id, handler_result.response).await.unwrap();
+
+    let received = client.recv_response().await.unwrap();
+    assert!(received.success);
+    let result = received.result.unwrap();
+
+    assert_eq!(result["batch_id"], 10);
+    assert_eq!(result["count"], 3);
+    assert_eq!(result["process"], "web");
+
+    let lines = result["lines"].as_array().unwrap();
+    assert_eq!(lines.len(), 3);
+    assert_eq!(lines[0]["id"], 1);
+    assert_eq!(lines[1]["id"], 2);
+    assert_eq!(lines[2]["id"], 3);
+}
+
+/// Batch command with scroll flag emits scroll action
+#[tokio::test]
+async fn test_batch_command_with_scroll_flag() {
+    let (_dir, path) = temp_socket_path();
+    let mut server = IpcServer::new(&path).unwrap();
+    let handler = IpcCommandHandler::new("0.1.0");
+
+    let mut client = IpcClient::connect(&path).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(10)).await;
+    server.accept_pending().unwrap();
+
+    let snapshot = test_snapshot_with_logs(vec![
+        LogLineInfo {
+            id: 42,
+            process: "web".to_string(),
+            content: "Batch line 1".to_string(),
+            timestamp: "2025-12-17T10:00:00Z".to_string(),
+            batch_id: Some(7),
+        },
+        LogLineInfo {
+            id: 43,
+            process: "web".to_string(),
+            content: "Batch line 2".to_string(),
+            timestamp: "2025-12-17T10:00:01Z".to_string(),
+            batch_id: Some(7),
+        },
+    ]);
+
+    // Send batch command with scroll flag
+    let request = IpcRequest::with_args("batch", json!({"id": 7, "scroll": true}));
+    client.send_request(&request).await.unwrap();
+
+    tokio::time::sleep(Duration::from_millis(10)).await;
+    let requests = server.poll_commands().unwrap();
+
+    let conn_id = requests[0].0;
+    let handler_result = handler.handle(&requests[0].1, Some(&snapshot));
+
+    // Should emit scroll actions
+    assert_eq!(handler_result.actions.len(), 2);
+
+    server.send_response(conn_id, handler_result.response).await.unwrap();
+
+    let received = client.recv_response().await.unwrap();
+    assert!(received.success);
+    let result = received.result.unwrap();
+
+    assert_eq!(result["batch_id"], 7);
+    assert_eq!(result["count"], 2);
+}
+
+/// Batch command with nonexistent batch ID returns error
+#[tokio::test]
+async fn test_batch_command_nonexistent_batch_returns_error() {
+    let (_dir, path) = temp_socket_path();
+    let mut server = IpcServer::new(&path).unwrap();
+    let handler = IpcCommandHandler::new("0.1.0");
+
+    let mut client = IpcClient::connect(&path).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(10)).await;
+    server.accept_pending().unwrap();
+
+    let snapshot = test_snapshot_with_logs(vec![
+        LogLineInfo {
+            id: 1,
+            process: "web".to_string(),
+            content: "Some log".to_string(),
+            timestamp: "2025-12-17T10:00:00Z".to_string(),
+            batch_id: Some(5),
+        },
+    ]);
+
+    // Request a batch that doesn't exist
+    let request = IpcRequest::with_args("batch", json!({"id": 999}));
+    client.send_request(&request).await.unwrap();
+
+    tokio::time::sleep(Duration::from_millis(10)).await;
+    let requests = server.poll_commands().unwrap();
+
+    let conn_id = requests[0].0;
+    let handler_result = handler.handle(&requests[0].1, Some(&snapshot));
+    server.send_response(conn_id, handler_result.response).await.unwrap();
+
+    let received = client.recv_response().await.unwrap();
+    assert!(!received.success);
+    assert!(received.error.unwrap().contains("not found"));
+}
