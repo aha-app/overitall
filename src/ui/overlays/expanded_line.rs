@@ -10,7 +10,7 @@ use crate::process::ProcessManager;
 use crate::ui::app::App;
 use crate::ui::batch::detect_batches_from_logs;
 use crate::ui::filter::FilterType;
-use crate::ui::utils::centered_rect;
+use crate::ui::utils::{centered_rect, parse_ansi_to_spans};
 
 /// Draw the expanded line view overlay
 pub fn draw_expanded_line_overlay(f: &mut Frame, manager: &ProcessManager, app: &App) {
@@ -203,7 +203,13 @@ pub fn draw_expanded_line_overlay(f: &mut Frame, manager: &ProcessManager, app: 
     content.push(Line::from(""));
 
     // Add the full message content (word-wrapped by Paragraph widget)
-    content.push(Line::from(selected_log.line.clone()));
+    // Parse ANSI codes to properly styled spans to avoid rendering corruption
+    let parsed_spans = parse_ansi_to_spans(&selected_log.line);
+    let spans: Vec<Span> = parsed_spans
+        .into_iter()
+        .map(|(text, style)| Span::styled(text, style))
+        .collect();
+    content.push(Line::from(spans));
 
     content.push(Line::from(""));
     content.push(Line::from(vec![
