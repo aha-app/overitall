@@ -219,6 +219,11 @@ pub fn install_skill(base_dir: &str) -> Result<()> {
 
 /// Prompt user for skill installation (only works in TTY mode)
 pub fn prompt_skill_install(ai_dir: &str) -> Result<bool> {
+    // Skip prompting in tests (tests set this env var to avoid TTY issues)
+    if std::env::var("OIT_TEST_NO_TTY").is_ok() {
+        return Ok(false);
+    }
+
     // Check if we're running in a TTY
     if !atty::is(atty::Stream::Stdin) {
         return Ok(false);

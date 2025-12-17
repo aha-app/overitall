@@ -628,9 +628,15 @@ mod tests {
         let original_dir = std::env::current_dir().unwrap();
         std::env::set_current_dir(temp_path).unwrap();
 
+        // Simulate non-TTY environment to prevent prompting
+        // SAFETY: This test runs with the CWD_MUTEX lock, preventing parallel execution
+        unsafe { std::env::set_var("OIT_TEST_NO_TTY", "1") };
+
         // with_skill=false and non-TTY means no prompt, no install
         let result = init_config(config_path.to_str().unwrap(), false);
 
+        // SAFETY: This test runs with the CWD_MUTEX lock, preventing parallel execution
+        unsafe { std::env::remove_var("OIT_TEST_NO_TTY") };
         std::env::set_current_dir(original_dir).unwrap();
 
         assert!(result.is_ok());
