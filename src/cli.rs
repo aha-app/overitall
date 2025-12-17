@@ -48,6 +48,8 @@ pub enum Commands {
     Ping,
     /// Get status from running TUI (version, running state)
     Status,
+    /// List all processes and their current status
+    Processes,
 }
 
 /// Initialize a new config file from an existing Procfile
@@ -154,6 +156,7 @@ pub async fn run_ipc_command(command: &Commands) -> anyhow::Result<()> {
     let request = match command {
         Commands::Ping => IpcRequest::new("ping"),
         Commands::Status => IpcRequest::new("status"),
+        Commands::Processes => IpcRequest::new("processes"),
     };
 
     let response = client.call(&request).await.with_context(|| {
@@ -341,6 +344,12 @@ mod tests {
     fn test_cli_parses_status_subcommand() {
         let cli = Cli::parse_from(["oit", "status"]);
         assert!(matches!(cli.command, Some(Commands::Status)));
+    }
+
+    #[test]
+    fn test_cli_parses_processes_subcommand() {
+        let cli = Cli::parse_from(["oit", "processes"]);
+        assert!(matches!(cli.command, Some(Commands::Processes)));
     }
 
     #[test]

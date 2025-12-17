@@ -22,6 +22,7 @@ impl IpcCommandHandler {
         match request.command.as_str() {
             "ping" => self.handle_ping(),
             "status" => self.handle_status(&request.args, state),
+            "processes" => self.handle_processes(state),
             _ => IpcResponse::err(format!("unknown command: {}", request.command)),
         }
     }
@@ -61,6 +62,29 @@ impl IpcCommandHandler {
                     "version": self.version,
                     "running": true
                 }))
+            }
+        }
+    }
+
+    fn handle_processes(&self, state: Option<&StateSnapshot>) -> IpcResponse {
+        match state {
+            Some(snapshot) => {
+                let processes: Vec<Value> = snapshot
+                    .processes
+                    .iter()
+                    .map(|p| {
+                        json!({
+                            "name": p.name,
+                            "status": p.status,
+                            "error": p.error
+                        })
+                    })
+                    .collect();
+                IpcResponse::ok(json!({ "processes": processes }))
+            }
+            None => {
+                // No state available - return empty list
+                IpcResponse::ok(json!({ "processes": [] }))
             }
         }
     }
@@ -206,5 +230,65 @@ mod tests {
         // Buffer stats
         assert_eq!(result["buffer"]["bytes"], 5000000);
         assert_eq!(result["buffer"]["max_bytes"], 52428800);
+    }
+
+    #[test]
+    fn processes_without_state_returns_empty_list() {
+        let handler = test_handler();
+        let request = IpcRequest::new("processes");
+        let response = handler.handle(&request, None);
+
+        assert!(response.success);
+        let result = response.result.unwrap();
+        let processes = result["processes"].as_array().unwrap();
+        assert!(processes.is_empty());
+    }
+
+    #[test]
+    fn processes_with_state_returns_process_list() {
+        use super::super::state::{BufferStats, ProcessInfo, ViewModeInfo};
+
+        let handler = test_handler();
+        let request = IpcRequest::new("processes");
+
+        let snapshot = StateSnapshot {
+            processes: vec![
+                ProcessInfo {
+                    name: "web".to_string(),
+                    status: "running".to_string(),
+                    error: None,
+                },
+                ProcessInfo {
+                    name: "worker".to_string(),
+                    status: "failed".to_string(),
+                    error: Some("Exit code: 1".to_string()),
+                },
+            ],
+            filter_count: 0,
+            active_filters: vec![],
+            search_pattern: None,
+            view_mode: ViewModeInfo::default(),
+            auto_scroll: true,
+            log_count: 0,
+            buffer_stats: BufferStats::default(),
+            trace_recording: false,
+            active_trace_id: None,
+        };
+
+        let response = handler.handle(&request, Some(&snapshot));
+
+        assert!(response.success);
+        let result = response.result.unwrap();
+        let processes = result["processes"].as_array().unwrap();
+
+        assert_eq!(processes.len(), 2);
+
+        assert_eq!(processes[0]["name"], "web");
+        assert_eq!(processes[0]["status"], "running");
+        assert!(processes[0]["error"].is_null());
+
+        assert_eq!(processes[1]["name"], "worker");
+        assert_eq!(processes[1]["status"], "failed");
+        assert_eq!(processes[1]["error"], "Exit code: 1");
     }
 }
