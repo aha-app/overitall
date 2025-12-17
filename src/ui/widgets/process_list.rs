@@ -33,6 +33,7 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
                 ProcessStatus::Running => ("Running", Color::Green),
                 ProcessStatus::Stopped => ("Stopped", Color::Yellow),
                 ProcessStatus::Terminating => ("Terminating", Color::Magenta),
+                ProcessStatus::Restarting => ("Restarting", Color::Cyan),
                 ProcessStatus::Failed(_) => ("Failed", Color::Red),
             }
         };

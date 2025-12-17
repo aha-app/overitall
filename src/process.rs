@@ -17,6 +17,7 @@ pub enum ProcessStatus {
     Running,
     Stopped,
     Terminating,
+    Restarting,
     Failed(String),
 }
 
@@ -294,6 +295,59 @@ impl ProcessManager {
         let process = self.processes.get_mut(name)
             .ok_or_else(|| anyhow::anyhow!("Process '{}' not found", name))?;
         process.restart(self.log_tx.clone()).await
+    }
+
+    /// Set a process to Restarting status (fast, non-blocking)
+    /// Returns true if the process was found, false otherwise
+    pub fn set_restarting(&mut self, name: &str) -> bool {
+        if let Some(process) = self.processes.get_mut(name) {
+            process.status = ProcessStatus::Restarting;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Set all processes to Restarting status (fast, non-blocking)
+    pub fn set_all_restarting(&mut self) {
+        for (_name, process) in self.processes.iter_mut() {
+            process.status = ProcessStatus::Restarting;
+        }
+    }
+
+    /// Get the names of processes that are currently in Restarting status
+    pub fn get_restarting_processes(&self) -> Vec<String> {
+        self.processes
+            .iter()
+            .filter(|(_, p)| p.status == ProcessStatus::Restarting)
+            .map(|(name, _)| name.clone())
+            .collect()
+    }
+
+    /// Perform the actual restart for processes in Restarting status
+    /// This should be called from the event loop after UI has been redrawn
+    /// Returns a tuple of (successfully_restarted, failed) process names
+    pub async fn perform_pending_restarts(&mut self) -> (Vec<String>, Vec<(String, String)>) {
+        let restarting: Vec<String> = self.get_restarting_processes();
+        let mut succeeded = Vec::new();
+        let mut failed = Vec::new();
+
+        for name in restarting {
+            if let Some(process) = self.processes.get_mut(&name) {
+                let log_tx = self.log_tx.clone();
+                match process.restart(log_tx).await {
+                    Ok(_) => succeeded.push(name),
+                    Err(e) => failed.push((name, e.to_string())),
+                }
+            }
+        }
+
+        (succeeded, failed)
+    }
+
+    /// Check if any processes are in Restarting status
+    pub fn has_pending_restarts(&self) -> bool {
+        self.processes.values().any(|p| p.status == ProcessStatus::Restarting)
     }
 
     /// Set all running processes to Terminating status (fast, non-blocking)
@@ -600,7 +654,7 @@ mod tests {
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
         // Check status - should detect the failure
-        let newly_failed = manager.check_all_status().await;
+        let _newly_failed = manager.check_all_status().await;
 
         // The process should now have Failed status
         let status = manager.get_status("failing");
@@ -609,5 +663,97 @@ mod tests {
             "Expected Failed status, got {:?}",
             status
         );
+    }
+
+    #[tokio::test]
+    async fn test_set_restarting() {
+        let mut manager = ProcessManager::new();
+        manager.add_process("test".to_string(), "sleep 10".to_string(), None);
+
+        // Test with non-existent process
+        assert!(!manager.set_restarting("nonexistent"));
+
+        // Test with existing process
+        assert!(manager.set_restarting("test"));
+        assert_eq!(
+            manager.get_status("test"),
+            Some(ProcessStatus::Restarting)
+        );
+    }
+
+    #[tokio::test]
+    async fn test_set_all_restarting() {
+        let mut manager = ProcessManager::new();
+        manager.add_process("proc1".to_string(), "sleep 10".to_string(), None);
+        manager.add_process("proc2".to_string(), "sleep 10".to_string(), None);
+
+        manager.set_all_restarting();
+
+        assert_eq!(
+            manager.get_status("proc1"),
+            Some(ProcessStatus::Restarting)
+        );
+        assert_eq!(
+            manager.get_status("proc2"),
+            Some(ProcessStatus::Restarting)
+        );
+    }
+
+    #[tokio::test]
+    async fn test_get_restarting_processes() {
+        let mut manager = ProcessManager::new();
+        manager.add_process("proc1".to_string(), "sleep 10".to_string(), None);
+        manager.add_process("proc2".to_string(), "sleep 10".to_string(), None);
+        manager.add_process("proc3".to_string(), "sleep 10".to_string(), None);
+
+        // No processes restarting initially
+        assert!(manager.get_restarting_processes().is_empty());
+
+        // Set some to restarting
+        manager.set_restarting("proc1");
+        manager.set_restarting("proc3");
+
+        let restarting = manager.get_restarting_processes();
+        assert_eq!(restarting.len(), 2);
+        assert!(restarting.contains(&"proc1".to_string()));
+        assert!(restarting.contains(&"proc3".to_string()));
+        assert!(!restarting.contains(&"proc2".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_has_pending_restarts() {
+        let mut manager = ProcessManager::new();
+        manager.add_process("test".to_string(), "sleep 10".to_string(), None);
+
+        assert!(!manager.has_pending_restarts());
+
+        manager.set_restarting("test");
+        assert!(manager.has_pending_restarts());
+    }
+
+    #[tokio::test]
+    async fn test_perform_pending_restarts() {
+        let mut manager = ProcessManager::new();
+        manager.add_process("test".to_string(), "echo hello".to_string(), None);
+
+        // Start the process
+        manager.start_process("test").await.unwrap();
+        assert_eq!(manager.get_status("test"), Some(ProcessStatus::Running));
+
+        // Set to restarting
+        manager.set_restarting("test");
+        assert_eq!(manager.get_status("test"), Some(ProcessStatus::Restarting));
+
+        // Perform the restart
+        let (succeeded, failed) = manager.perform_pending_restarts().await;
+        assert_eq!(succeeded.len(), 1);
+        assert!(succeeded.contains(&"test".to_string()));
+        assert!(failed.is_empty());
+
+        // Process should now be running
+        assert_eq!(manager.get_status("test"), Some(ProcessStatus::Running));
+
+        // Clean up
+        manager.kill_all().await.unwrap();
     }
 }

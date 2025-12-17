@@ -176,6 +176,19 @@ async fn run_app(
             ui::draw(f, app, manager);
         })?;
 
+        // Handle pending restarts (after UI has been drawn showing "Restarting" status)
+        if manager.has_pending_restarts() {
+            let (succeeded, failed) = manager.perform_pending_restarts().await;
+
+            // Update status bar with result
+            if !failed.is_empty() {
+                let failed_names: Vec<&str> = failed.iter().map(|(n, _)| n.as_str()).collect();
+                app.set_status_error(format!("Restart failed: {}", failed_names.join(", ")));
+            } else if !succeeded.is_empty() {
+                app.set_status_success(format!("Restarted: {}", succeeded.join(", ")));
+            }
+        }
+
         // Check if we're shutting down
         if app.shutting_down {
             if shutdown_ui_shown {

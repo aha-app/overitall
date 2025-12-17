@@ -152,10 +152,10 @@ impl<'a> CommandExecutor<'a> {
                 self.execute_start(&name).await?;
             }
             Command::Restart(Some(name)) => {
-                self.execute_restart(&name).await?;
+                self.execute_restart(&name)?;
             }
             Command::Restart(None) => {
-                self.execute_restart_all().await?;
+                self.execute_restart_all()?;
             }
             Command::Kill(name) => {
                 self.execute_kill(&name).await?;
@@ -220,18 +220,24 @@ impl<'a> CommandExecutor<'a> {
         Ok(())
     }
 
-    async fn execute_restart(&mut self, name: &str) -> Result<()> {
-        match process::restart_process(self.manager, name).await {
-            Ok(msg) => self.app.set_status_success(msg),
-            Err(msg) => self.app.set_status_error(msg),
+    fn execute_restart(&mut self, name: &str) -> Result<()> {
+        // Non-blocking: just set the status and let the main loop handle the actual restart
+        if self.manager.set_restarting(name) {
+            self.app.set_status_info(format!("Restarting: {}", name));
+        } else {
+            self.app.set_status_error(format!("Process not found: {}", name));
         }
         Ok(())
     }
 
-    async fn execute_restart_all(&mut self) -> Result<()> {
-        match process::restart_all_processes(self.manager).await {
-            Ok(msg) => self.app.set_status_success(msg),
-            Err(msg) => self.app.set_status_error(msg),
+    fn execute_restart_all(&mut self) -> Result<()> {
+        // Non-blocking: just set the status and let the main loop handle the actual restart
+        let names: Vec<String> = self.manager.get_all_statuses().into_iter().map(|(n, _)| n).collect();
+        if names.is_empty() {
+            self.app.set_status_error("No processes to restart".to_string());
+        } else {
+            self.manager.set_all_restarting();
+            self.app.set_status_info(format!("Restarting {} process(es)...", names.len()));
         }
         Ok(())
     }
