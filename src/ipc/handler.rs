@@ -24,6 +24,7 @@ impl IpcCommandHandler {
             "status" => self.handle_status(&request.args, state),
             "processes" => self.handle_processes(state),
             "logs" => self.handle_logs(&request.args, state),
+            "search" => self.handle_search(&request.args, state),
             _ => IpcResponse::err(format!("unknown command: {}", request.command)),
         }
     }
@@ -135,6 +136,73 @@ impl IpcCommandHandler {
                     "logs": [],
                     "total": 0,
                     "offset": offset,
+                    "limit": limit
+                }))
+            }
+        }
+    }
+
+    fn handle_search(&self, args: &Value, state: Option<&StateSnapshot>) -> IpcResponse {
+        // Pattern is required
+        let pattern = match args.get("pattern").and_then(|v| v.as_str()) {
+            Some(p) => p,
+            None => {
+                return IpcResponse::err("missing required argument: pattern".to_string());
+            }
+        };
+
+        // Parse optional arguments
+        let limit = args
+            .get("limit")
+            .and_then(|v| v.as_u64())
+            .map(|v| v as usize)
+            .unwrap_or(100);
+        let case_sensitive = args
+            .get("case_sensitive")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
+        match state {
+            Some(snapshot) => {
+                // Search through recent_logs
+                let pattern_lower = pattern.to_lowercase();
+
+                let matches: Vec<Value> = snapshot
+                    .recent_logs
+                    .iter()
+                    .filter(|log| {
+                        if case_sensitive {
+                            log.content.contains(pattern)
+                        } else {
+                            log.content.to_lowercase().contains(&pattern_lower)
+                        }
+                    })
+                    .take(limit)
+                    .map(|log| {
+                        json!({
+                            "id": log.id,
+                            "process": log.process,
+                            "content": log.content,
+                            "timestamp": log.timestamp
+                        })
+                    })
+                    .collect();
+
+                let count = matches.len();
+
+                IpcResponse::ok(json!({
+                    "matches": matches,
+                    "pattern": pattern,
+                    "count": count,
+                    "limit": limit
+                }))
+            }
+            None => {
+                // No state available - return empty results
+                IpcResponse::ok(json!({
+                    "matches": [],
+                    "pattern": pattern,
+                    "count": 0,
                     "limit": limit
                 }))
             }
@@ -477,5 +545,211 @@ mod tests {
         assert_eq!(result["limit"], 1);
         assert_eq!(logs[0]["id"], 2);
         assert_eq!(logs[0]["content"], "Second log");
+    }
+
+    #[test]
+    fn search_without_pattern_returns_error() {
+        let handler = test_handler();
+        let request = IpcRequest::new("search");
+        let response = handler.handle(&request, None);
+
+        assert!(!response.success);
+        assert!(response.error.is_some());
+        assert!(response.error.unwrap().contains("pattern"));
+    }
+
+    #[test]
+    fn search_without_state_returns_empty_matches() {
+        let handler = test_handler();
+        let request = IpcRequest::with_args("search", json!({"pattern": "error"}));
+        let response = handler.handle(&request, None);
+
+        assert!(response.success);
+        let result = response.result.unwrap();
+        let matches = result["matches"].as_array().unwrap();
+        assert!(matches.is_empty());
+        assert_eq!(result["pattern"], "error");
+        assert_eq!(result["count"], 0);
+        assert_eq!(result["limit"], 100);
+    }
+
+    #[test]
+    fn search_with_state_finds_matches() {
+        use super::super::state::{BufferStats, LogLineInfo, ViewModeInfo};
+
+        let handler = test_handler();
+        let request = IpcRequest::with_args("search", json!({"pattern": "error"}));
+
+        let snapshot = StateSnapshot {
+            processes: vec![],
+            filter_count: 0,
+            active_filters: vec![],
+            search_pattern: None,
+            view_mode: ViewModeInfo::default(),
+            auto_scroll: true,
+            log_count: 0,
+            buffer_stats: BufferStats::default(),
+            trace_recording: false,
+            active_trace_id: None,
+            recent_logs: vec![
+                LogLineInfo {
+                    id: 1,
+                    process: "web".to_string(),
+                    content: "Server started".to_string(),
+                    timestamp: "2025-12-17T10:00:00Z".to_string(),
+                    batch_id: None,
+                },
+                LogLineInfo {
+                    id: 2,
+                    process: "web".to_string(),
+                    content: "Error: connection failed".to_string(),
+                    timestamp: "2025-12-17T10:00:01Z".to_string(),
+                    batch_id: None,
+                },
+                LogLineInfo {
+                    id: 3,
+                    process: "worker".to_string(),
+                    content: "Processing job".to_string(),
+                    timestamp: "2025-12-17T10:00:02Z".to_string(),
+                    batch_id: None,
+                },
+                LogLineInfo {
+                    id: 4,
+                    process: "worker".to_string(),
+                    content: "Job error: timeout".to_string(),
+                    timestamp: "2025-12-17T10:00:03Z".to_string(),
+                    batch_id: None,
+                },
+            ],
+            total_log_lines: 4,
+        };
+
+        let response = handler.handle(&request, Some(&snapshot));
+
+        assert!(response.success);
+        let result = response.result.unwrap();
+        let matches = result["matches"].as_array().unwrap();
+
+        assert_eq!(matches.len(), 2);
+        assert_eq!(result["pattern"], "error");
+        assert_eq!(result["count"], 2);
+
+        assert_eq!(matches[0]["id"], 2);
+        assert_eq!(matches[0]["content"], "Error: connection failed");
+        assert_eq!(matches[1]["id"], 4);
+        assert_eq!(matches[1]["content"], "Job error: timeout");
+    }
+
+    #[test]
+    fn search_case_sensitive() {
+        use super::super::state::{BufferStats, LogLineInfo, ViewModeInfo};
+
+        let handler = test_handler();
+        let request =
+            IpcRequest::with_args("search", json!({"pattern": "Error", "case_sensitive": true}));
+
+        let snapshot = StateSnapshot {
+            processes: vec![],
+            filter_count: 0,
+            active_filters: vec![],
+            search_pattern: None,
+            view_mode: ViewModeInfo::default(),
+            auto_scroll: true,
+            log_count: 0,
+            buffer_stats: BufferStats::default(),
+            trace_recording: false,
+            active_trace_id: None,
+            recent_logs: vec![
+                LogLineInfo {
+                    id: 1,
+                    process: "web".to_string(),
+                    content: "Error: connection failed".to_string(),
+                    timestamp: "2025-12-17T10:00:00Z".to_string(),
+                    batch_id: None,
+                },
+                LogLineInfo {
+                    id: 2,
+                    process: "worker".to_string(),
+                    content: "Job error: timeout".to_string(),
+                    timestamp: "2025-12-17T10:00:01Z".to_string(),
+                    batch_id: None,
+                },
+            ],
+            total_log_lines: 2,
+        };
+
+        let response = handler.handle(&request, Some(&snapshot));
+
+        assert!(response.success);
+        let result = response.result.unwrap();
+        let matches = result["matches"].as_array().unwrap();
+
+        // Only "Error" (capital E) should match
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0]["id"], 1);
+        assert_eq!(matches[0]["content"], "Error: connection failed");
+    }
+
+    #[test]
+    fn search_with_limit() {
+        use super::super::state::{BufferStats, LogLineInfo, ViewModeInfo};
+
+        let handler = test_handler();
+        let request = IpcRequest::with_args("search", json!({"pattern": "log", "limit": 2}));
+
+        let snapshot = StateSnapshot {
+            processes: vec![],
+            filter_count: 0,
+            active_filters: vec![],
+            search_pattern: None,
+            view_mode: ViewModeInfo::default(),
+            auto_scroll: true,
+            log_count: 0,
+            buffer_stats: BufferStats::default(),
+            trace_recording: false,
+            active_trace_id: None,
+            recent_logs: vec![
+                LogLineInfo {
+                    id: 1,
+                    process: "web".to_string(),
+                    content: "Log line 1".to_string(),
+                    timestamp: "2025-12-17T10:00:00Z".to_string(),
+                    batch_id: None,
+                },
+                LogLineInfo {
+                    id: 2,
+                    process: "web".to_string(),
+                    content: "Log line 2".to_string(),
+                    timestamp: "2025-12-17T10:00:01Z".to_string(),
+                    batch_id: None,
+                },
+                LogLineInfo {
+                    id: 3,
+                    process: "web".to_string(),
+                    content: "Log line 3".to_string(),
+                    timestamp: "2025-12-17T10:00:02Z".to_string(),
+                    batch_id: None,
+                },
+                LogLineInfo {
+                    id: 4,
+                    process: "web".to_string(),
+                    content: "Log line 4".to_string(),
+                    timestamp: "2025-12-17T10:00:03Z".to_string(),
+                    batch_id: None,
+                },
+            ],
+            total_log_lines: 4,
+        };
+
+        let response = handler.handle(&request, Some(&snapshot));
+
+        assert!(response.success);
+        let result = response.result.unwrap();
+        let matches = result["matches"].as_array().unwrap();
+
+        assert_eq!(matches.len(), 2);
+        assert_eq!(result["limit"], 2);
+        assert_eq!(matches[0]["id"], 1);
+        assert_eq!(matches[1]["id"], 2);
     }
 }

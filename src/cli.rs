@@ -59,6 +59,17 @@ pub enum Commands {
         #[arg(long, default_value = "0")]
         offset: u64,
     },
+    /// Search log lines for a pattern
+    Search {
+        /// The search pattern (substring match)
+        pattern: String,
+        /// Maximum number of matches to return (default: 100)
+        #[arg(long, default_value = "100")]
+        limit: u64,
+        /// Enable case-sensitive matching (default: case-insensitive)
+        #[arg(long)]
+        case_sensitive: bool,
+    },
 }
 
 /// Initialize a new config file from an existing Procfile
@@ -169,6 +180,18 @@ pub async fn run_ipc_command(command: &Commands) -> anyhow::Result<()> {
         Commands::Logs { limit, offset } => {
             IpcRequest::with_args("logs", serde_json::json!({"limit": limit, "offset": offset}))
         }
+        Commands::Search {
+            pattern,
+            limit,
+            case_sensitive,
+        } => IpcRequest::with_args(
+            "search",
+            serde_json::json!({
+                "pattern": pattern,
+                "limit": limit,
+                "case_sensitive": case_sensitive
+            }),
+        ),
     };
 
     let response = client.call(&request).await.with_context(|| {
@@ -409,5 +432,39 @@ mod tests {
         let filename = path.file_name().unwrap().to_str().unwrap();
         assert!(filename.starts_with('.'), "Socket filename should be hidden (start with .)");
         assert_eq!(filename, ".oit.sock");
+    }
+
+    #[test]
+    fn test_cli_parses_search_subcommand() {
+        let cli = Cli::parse_from(["oit", "search", "error"]);
+        match cli.command {
+            Some(Commands::Search {
+                pattern,
+                limit,
+                case_sensitive,
+            }) => {
+                assert_eq!(pattern, "error");
+                assert_eq!(limit, 100);
+                assert!(!case_sensitive);
+            }
+            _ => panic!("Expected Search command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_search_with_options() {
+        let cli = Cli::parse_from(["oit", "search", "ERROR", "--limit", "50", "--case-sensitive"]);
+        match cli.command {
+            Some(Commands::Search {
+                pattern,
+                limit,
+                case_sensitive,
+            }) => {
+                assert_eq!(pattern, "ERROR");
+                assert_eq!(limit, 50);
+                assert!(case_sensitive);
+            }
+            _ => panic!("Expected Search command"),
+        }
     }
 }
