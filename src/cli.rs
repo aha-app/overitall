@@ -104,6 +104,12 @@ pub enum Commands {
         #[arg(long, default_value = "20")]
         lines: u64,
     },
+    /// Freeze or unfreeze the TUI display (pauses auto-scroll)
+    Freeze {
+        /// Mode: on, off, or toggle (default: toggle)
+        #[arg(default_value = "toggle")]
+        mode: String,
+    },
 }
 
 /// Initialize a new config file from an existing Procfile
@@ -240,6 +246,9 @@ pub async fn run_ipc_command(command: &Commands) -> anyhow::Result<()> {
             "scroll",
             serde_json::json!({"direction": direction, "lines": lines}),
         ),
+        Commands::Freeze { mode } => {
+            IpcRequest::with_args("freeze", serde_json::json!({"mode": mode}))
+        }
     };
 
     let response = client.call(&request).await.with_context(|| {
@@ -582,6 +591,50 @@ mod tests {
                 assert_eq!(direction, "bottom");
             }
             _ => panic!("Expected Scroll command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_freeze_subcommand() {
+        let cli = Cli::parse_from(["oit", "freeze"]);
+        match cli.command {
+            Some(Commands::Freeze { mode }) => {
+                assert_eq!(mode, "toggle"); // default
+            }
+            _ => panic!("Expected Freeze command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_freeze_on() {
+        let cli = Cli::parse_from(["oit", "freeze", "on"]);
+        match cli.command {
+            Some(Commands::Freeze { mode }) => {
+                assert_eq!(mode, "on");
+            }
+            _ => panic!("Expected Freeze command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_freeze_off() {
+        let cli = Cli::parse_from(["oit", "freeze", "off"]);
+        match cli.command {
+            Some(Commands::Freeze { mode }) => {
+                assert_eq!(mode, "off");
+            }
+            _ => panic!("Expected Freeze command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_freeze_toggle() {
+        let cli = Cli::parse_from(["oit", "freeze", "toggle"]);
+        match cli.command {
+            Some(Commands::Freeze { mode }) => {
+                assert_eq!(mode, "toggle");
+            }
+            _ => panic!("Expected Freeze command"),
         }
     }
 }

@@ -427,6 +427,13 @@ fn apply_ipc_action(app: &mut App, action: IpcAction) {
         IpcAction::ScrollToTop => {
             app.scroll_to_top();
         }
+        IpcAction::SetFrozen { frozen } => {
+            if frozen {
+                app.freeze_display();
+            } else {
+                app.unfreeze_display();
+            }
+        }
     }
 }
 

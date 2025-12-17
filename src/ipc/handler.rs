@@ -30,6 +30,7 @@ impl IpcCommandHandler {
             "context" => self.handle_context(&request.args, state),
             "goto" => self.handle_goto(&request.args, state),
             "scroll" => self.handle_scroll(&request.args, state),
+            "freeze" => self.handle_freeze(&request.args, state),
             "help" => IpcHandlerResult::response_only(self.handle_help()),
             "trace" => IpcHandlerResult::response_only(self.handle_trace(state)),
             _ => IpcHandlerResult::response_only(IpcResponse::err(format!(
@@ -433,6 +434,37 @@ impl IpcCommandHandler {
         }
     }
 
+    fn handle_freeze(&self, args: &Value, state: Option<&StateSnapshot>) -> IpcHandlerResult {
+        // Parse mode: on, off, or toggle (default: toggle)
+        let mode = args
+            .get("mode")
+            .and_then(|v| v.as_str())
+            .unwrap_or("toggle");
+
+        let frozen = match mode {
+            "on" => true,
+            "off" => false,
+            "toggle" => {
+                // Need current state to toggle - default to freezing if no state
+                state.map(|s| !s.view_mode.frozen).unwrap_or(true)
+            }
+            _ => {
+                return IpcHandlerResult::response_only(IpcResponse::err(format!(
+                    "invalid mode: {}. Valid options: on, off, toggle",
+                    mode
+                )));
+            }
+        };
+
+        IpcHandlerResult::with_actions(
+            IpcResponse::ok(json!({
+                "frozen": frozen,
+                "mode": mode
+            })),
+            vec![IpcAction::SetFrozen { frozen }],
+        )
+    }
+
     fn handle_help(&self) -> IpcResponse {
         IpcResponse::ok(json!({
             "commands": [
@@ -497,6 +529,13 @@ impl IpcCommandHandler {
                     "args": [
                         {"name": "direction", "type": "string", "required": true, "description": "Scroll direction: up, down, top, or bottom"},
                         {"name": "lines", "type": "number", "default": 20, "description": "Number of lines to scroll (for up/down)"}
+                    ]
+                },
+                {
+                    "name": "freeze",
+                    "description": "Freeze or unfreeze the TUI display (pauses auto-scroll)",
+                    "args": [
+                        {"name": "mode", "type": "string", "default": "toggle", "description": "Mode: on, off, or toggle"}
                     ]
                 },
                 {
@@ -1583,5 +1622,182 @@ mod tests {
             .collect();
         assert!(arg_names.contains(&"direction"));
         assert!(arg_names.contains(&"lines"));
+    }
+
+    #[test]
+    fn freeze_toggle_default_without_state_freezes() {
+        let handler = test_handler();
+        let request = IpcRequest::new("freeze");
+        let result = handler.handle(&request, None);
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        assert_eq!(data["frozen"], true);
+        assert_eq!(data["mode"], "toggle");
+
+        assert_eq!(result.actions.len(), 1);
+        assert!(matches!(
+            &result.actions[0],
+            IpcAction::SetFrozen { frozen } if *frozen == true
+        ));
+    }
+
+    #[test]
+    fn freeze_toggle_with_unfrozen_state_freezes() {
+        use super::super::state::{BufferStats, ViewModeInfo};
+
+        let handler = test_handler();
+        let request = IpcRequest::new("freeze");
+
+        let snapshot = StateSnapshot {
+            processes: vec![],
+            filter_count: 0,
+            active_filters: vec![],
+            search_pattern: None,
+            view_mode: ViewModeInfo {
+                frozen: false,
+                batch_view: false,
+                trace_filter: false,
+                trace_selection: false,
+                compact: false,
+            },
+            auto_scroll: true,
+            log_count: 0,
+            buffer_stats: BufferStats::default(),
+            trace_recording: false,
+            active_trace_id: None,
+            recent_logs: Vec::new(),
+            total_log_lines: 0,
+        };
+
+        let result = handler.handle(&request, Some(&snapshot));
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        assert_eq!(data["frozen"], true);
+
+        assert_eq!(result.actions.len(), 1);
+        assert!(matches!(
+            &result.actions[0],
+            IpcAction::SetFrozen { frozen } if *frozen == true
+        ));
+    }
+
+    #[test]
+    fn freeze_toggle_with_frozen_state_unfreezes() {
+        use super::super::state::{BufferStats, ViewModeInfo};
+
+        let handler = test_handler();
+        let request = IpcRequest::new("freeze");
+
+        let snapshot = StateSnapshot {
+            processes: vec![],
+            filter_count: 0,
+            active_filters: vec![],
+            search_pattern: None,
+            view_mode: ViewModeInfo {
+                frozen: true,
+                batch_view: false,
+                trace_filter: false,
+                trace_selection: false,
+                compact: false,
+            },
+            auto_scroll: false,
+            log_count: 0,
+            buffer_stats: BufferStats::default(),
+            trace_recording: false,
+            active_trace_id: None,
+            recent_logs: Vec::new(),
+            total_log_lines: 0,
+        };
+
+        let result = handler.handle(&request, Some(&snapshot));
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        assert_eq!(data["frozen"], false);
+
+        assert_eq!(result.actions.len(), 1);
+        assert!(matches!(
+            &result.actions[0],
+            IpcAction::SetFrozen { frozen } if *frozen == false
+        ));
+    }
+
+    #[test]
+    fn freeze_on_explicitly_freezes() {
+        let handler = test_handler();
+        let request = IpcRequest::with_args("freeze", json!({"mode": "on"}));
+        let result = handler.handle(&request, None);
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        assert_eq!(data["frozen"], true);
+        assert_eq!(data["mode"], "on");
+
+        assert_eq!(result.actions.len(), 1);
+        assert!(matches!(
+            &result.actions[0],
+            IpcAction::SetFrozen { frozen } if *frozen == true
+        ));
+    }
+
+    #[test]
+    fn freeze_off_explicitly_unfreezes() {
+        let handler = test_handler();
+        let request = IpcRequest::with_args("freeze", json!({"mode": "off"}));
+        let result = handler.handle(&request, None);
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        assert_eq!(data["frozen"], false);
+        assert_eq!(data["mode"], "off");
+
+        assert_eq!(result.actions.len(), 1);
+        assert!(matches!(
+            &result.actions[0],
+            IpcAction::SetFrozen { frozen } if *frozen == false
+        ));
+    }
+
+    #[test]
+    fn freeze_invalid_mode_returns_error() {
+        let handler = test_handler();
+        let request = IpcRequest::with_args("freeze", json!({"mode": "pause"}));
+        let result = handler.handle(&request, None);
+
+        assert!(!result.response.success);
+        assert!(result.response.error.unwrap().contains("invalid mode"));
+        assert!(result.actions.is_empty());
+    }
+
+    #[test]
+    fn help_includes_freeze_command() {
+        let handler = test_handler();
+        let request = IpcRequest::new("help");
+        let result = handler.handle(&request, None);
+
+        let data = result.response.result.unwrap();
+        let commands = data["commands"].as_array().unwrap();
+
+        let command_names: Vec<&str> = commands
+            .iter()
+            .filter_map(|c| c["name"].as_str())
+            .collect();
+        assert!(command_names.contains(&"freeze"));
+
+        // Check that freeze has the correct structure
+        let freeze_cmd = commands
+            .iter()
+            .find(|c| c["name"].as_str() == Some("freeze"))
+            .unwrap();
+
+        assert!(freeze_cmd["description"].as_str().unwrap().len() > 0);
+        let args = freeze_cmd["args"].as_array().unwrap();
+        let arg_names: Vec<&str> = args
+            .iter()
+            .filter_map(|a| a["name"].as_str())
+            .collect();
+        assert!(arg_names.contains(&"mode"));
     }
 }

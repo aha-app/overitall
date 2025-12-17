@@ -20,6 +20,8 @@ pub enum IpcAction {
     ScrollDown { lines: usize },
     /// Scroll to the top of the log
     ScrollToTop,
+    /// Set the frozen (paused) state of the display
+    SetFrozen { frozen: bool },
 }
 
 /// Result of handling an IPC command: response to send + actions to apply
@@ -145,5 +147,23 @@ mod tests {
         let a1 = IpcAction::ScrollToTop;
         let a2 = IpcAction::ScrollToTop;
         assert_eq!(a1, a2);
+    }
+
+    #[test]
+    fn set_frozen_action_stores_state() {
+        let action = IpcAction::SetFrozen { frozen: true };
+        match action {
+            IpcAction::SetFrozen { frozen } => assert!(frozen),
+            _ => panic!("expected SetFrozen"),
+        }
+    }
+
+    #[test]
+    fn set_frozen_action_equality() {
+        let a1 = IpcAction::SetFrozen { frozen: true };
+        let a2 = IpcAction::SetFrozen { frozen: true };
+        let a3 = IpcAction::SetFrozen { frozen: false };
+        assert_eq!(a1, a2);
+        assert_ne!(a1, a3);
     }
 }
