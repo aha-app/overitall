@@ -29,20 +29,31 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
         }
 
         // Check if process is hidden
+        // Priority: Hidden > Terminating/Failed > Custom status > Standard status
         let (status_text, color) = if app.hidden_processes.contains(*name) {
             ("Hidden".to_string(), Color::DarkGray)
-        } else if let Some((custom_label, custom_color)) = handle.get_custom_status() {
-            // Use custom status label and color if configured
-            let color = custom_color.unwrap_or(Color::Green);
-            (custom_label.to_string(), color)
         } else {
-            // Fall back to standard status display
+            // Terminating and Failed always override custom status
             match &handle.status {
-                ProcessStatus::Running => ("Running".to_string(), Color::Green),
-                ProcessStatus::Stopped => ("Stopped".to_string(), Color::Yellow),
                 ProcessStatus::Terminating => ("Terminating".to_string(), Color::Magenta),
-                ProcessStatus::Restarting => ("Restarting".to_string(), Color::Cyan),
                 ProcessStatus::Failed(_) => ("Failed".to_string(), Color::Red),
+                _ => {
+                    // For other statuses, prefer custom status if configured
+                    if let Some((custom_label, custom_color)) = handle.get_custom_status() {
+                        let color = custom_color.unwrap_or(Color::Green);
+                        (custom_label.to_string(), color)
+                    } else {
+                        // Fall back to standard status display
+                        match &handle.status {
+                            ProcessStatus::Running => ("Running".to_string(), Color::Green),
+                            ProcessStatus::Stopped => ("Stopped".to_string(), Color::Yellow),
+                            ProcessStatus::Restarting => ("Restarting".to_string(), Color::Cyan),
+                            // Already handled above, but needed for exhaustive match
+                            ProcessStatus::Terminating => ("Terminating".to_string(), Color::Magenta),
+                            ProcessStatus::Failed(_) => ("Failed".to_string(), Color::Red),
+                        }
+                    }
+                }
             }
         };
 
