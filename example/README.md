@@ -51,3 +51,13 @@ The high-volume log generation is perfect for testing:
 - Scrolling performance with large log volumes
 - Line selection and navigation at scale
 - Filter performance with thousands of logs
+
+## Custom Process Status Labels
+
+The example config demonstrates the custom process status feature. Each process has a custom status configuration that shows meaningful labels based on log patterns:
+
+- **web**: Shows "Starting" initially, then "Ready" (green) when HTTP requests start
+- **worker**: Shows "Starting" initially, then "Processing" (cyan) when jobs begin
+- **monitor**: Shows "Starting" initially, then "Active" (blue) when metrics start flowing
+
+Watch the process list at the top of the TUI - you'll see the status labels change from "Starting" to their active state within the first second as logs come in.

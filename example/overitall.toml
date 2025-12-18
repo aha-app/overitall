@@ -7,8 +7,37 @@ compact_mode = true
 [processes.web]
 log_file = "web.log"
 
+# Custom status: Shows "Starting" initially, then "Ready" when the server starts logging requests
+[processes.web.status]
+default = "Starting"
+
+[[processes.web.status.transitions]]
+pattern = "GET|POST|PUT|DELETE"
+label = "Ready"
+color = "green"
+
 [processes.worker]
 log_file = "worker.log"
+
+# Custom status: Shows "Starting" initially, then "Processing" when jobs begin
+[processes.worker.status]
+default = "Starting"
+
+[[processes.worker.status.transitions]]
+pattern = "Processing"
+label = "Processing"
+color = "cyan"
+
+# Monitor process - shows "Starting" then "Active" when metrics start flowing
+[processes.monitor]
+
+[processes.monitor.status]
+default = "Starting"
+
+[[processes.monitor.status.transitions]]
+pattern = "CPU:"
+label = "Active"
+color = "blue"
 
 [filters]
 include = []
