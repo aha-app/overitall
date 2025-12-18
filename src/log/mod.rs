@@ -21,24 +21,47 @@ pub struct LogLine {
     pub arrival_time: DateTime<Local>,  // When log was received
     pub source: LogSource,
     pub line: String,
+    /// Pre-computed lowercase version of line for case-insensitive matching
+    line_lowercase: String,
 }
 
 impl LogLine {
     pub fn new(source: LogSource, line: String) -> Self {
         let now = Local::now();
+        let line_lowercase = line.to_lowercase();
         Self {
             id: NEXT_LOG_ID.fetch_add(1, Ordering::Relaxed),
             timestamp: now,  // Will be updated by parser if found
             arrival_time: now,  // Capture arrival time
             source,
             line,
+            line_lowercase,
         }
+    }
+
+    /// Create a log line with specific timestamp (for benchmarks and tests)
+    pub fn new_with_time(source: LogSource, line: String, time: DateTime<Local>) -> Self {
+        let line_lowercase = line.to_lowercase();
+        Self {
+            id: NEXT_LOG_ID.fetch_add(1, Ordering::Relaxed),
+            timestamp: time,
+            arrival_time: time,
+            source,
+            line,
+            line_lowercase,
+        }
+    }
+
+    /// Get the pre-computed lowercase version of the line
+    pub fn line_lowercase(&self) -> &str {
+        &self.line_lowercase
     }
 
     pub fn memory_size(&self) -> usize {
         let mut size = std::mem::size_of::<LogLine>();
 
         size += self.line.capacity();
+        size += self.line_lowercase.capacity();
 
         match &self.source {
             LogSource::ProcessStdout(name) => size += name.capacity(),

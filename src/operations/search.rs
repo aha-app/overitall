@@ -16,13 +16,10 @@ pub fn execute_search(app: &mut App, manager: &ProcessManager, search_text: &str
     let filtered_logs = apply_filters(logs, &app.filters);
 
     // Apply search filter
+    let search_text_lower = search_text.to_lowercase();
     let search_filtered: Vec<_> = filtered_logs
         .into_iter()
-        .filter(|log| {
-            log.line
-                .to_lowercase()
-                .contains(&search_text.to_lowercase())
-        })
+        .filter(|log| log.line_lowercase().contains(&search_text_lower))
         .collect();
 
     if search_filtered.is_empty() {

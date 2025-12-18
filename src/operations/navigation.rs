@@ -64,13 +64,10 @@ fn get_display_logs(app: &App, manager: &ProcessManager) -> Vec<LogLine> {
     };
 
     if !active_search_pattern.is_empty() {
+        let pattern_lower = active_search_pattern.to_lowercase();
         filtered_logs = filtered_logs
             .into_iter()
-            .filter(|log| {
-                log.line
-                    .to_lowercase()
-                    .contains(&active_search_pattern.to_lowercase())
-            })
+            .filter(|log| log.line_lowercase().contains(&pattern_lower))
             .collect();
     }
 

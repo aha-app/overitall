@@ -20,12 +20,9 @@ fn create_test_process_manager() -> ProcessManager {
 
 /// Helper to create a test log line with fixed timestamp
 fn create_test_log_line(process: &str, message: &str) -> LogLine {
-    let mut log = LogLine::new(LogSource::ProcessStdout(process.to_string()), message.to_string());
-    // Override with a fixed timestamp for consistent snapshots
+    // Use a fixed timestamp for consistent snapshots
     let fixed_time = Local.with_ymd_and_hms(2024, 12, 10, 12, 0, 0).unwrap();
-    log.timestamp = fixed_time;
-    log.arrival_time = fixed_time;
-    log
+    LogLine::new_with_time(LogSource::ProcessStdout(process.to_string()), message.to_string(), fixed_time)
 }
 
 /// Helper to create a ProcessManager with test logs

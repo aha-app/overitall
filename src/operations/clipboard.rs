@@ -146,7 +146,7 @@ pub fn build_search_text(app: &App, logs: &[LogLine]) -> Result<CopyResult, Stri
 
     // Filter logs by search pattern (case-insensitive)
     let matching_logs: Vec<_> = logs.iter()
-        .filter(|log| log.line.to_lowercase().contains(&pattern_lower))
+        .filter(|log| log.line_lowercase().contains(&pattern_lower))
         .cloned()
         .collect();
 
@@ -250,41 +250,31 @@ mod tests {
     fn create_test_logs() -> Vec<LogLine> {
         let now = Local::now();
         vec![
-            LogLine {
-                id: 1,
-                timestamp: now,
-                arrival_time: now,
-                source: LogSource::ProcessStdout("web".to_string()),
-                line: "Starting server".to_string(),
-            },
-            LogLine {
-                id: 2,
-                timestamp: now + Duration::milliseconds(10),
-                arrival_time: now + Duration::milliseconds(10),
-                source: LogSource::ProcessStdout("web".to_string()),
-                line: "ERROR: Connection failed".to_string(),
-            },
-            LogLine {
-                id: 3,
-                timestamp: now + Duration::milliseconds(20),
-                arrival_time: now + Duration::milliseconds(20),
-                source: LogSource::ProcessStdout("worker".to_string()),
-                line: "Processing job trace-abc123".to_string(),
-            },
-            LogLine {
-                id: 4,
-                timestamp: now + Duration::milliseconds(500),
-                arrival_time: now + Duration::milliseconds(500),
-                source: LogSource::ProcessStdout("worker".to_string()),
-                line: "ERROR: Job failed trace-abc123".to_string(),
-            },
-            LogLine {
-                id: 5,
-                timestamp: now + Duration::milliseconds(510),
-                arrival_time: now + Duration::milliseconds(510),
-                source: LogSource::ProcessStdout("web".to_string()),
-                line: "Request completed".to_string(),
-            },
+            LogLine::new_with_time(
+                LogSource::ProcessStdout("web".to_string()),
+                "Starting server".to_string(),
+                now,
+            ),
+            LogLine::new_with_time(
+                LogSource::ProcessStdout("web".to_string()),
+                "ERROR: Connection failed".to_string(),
+                now + Duration::milliseconds(10),
+            ),
+            LogLine::new_with_time(
+                LogSource::ProcessStdout("worker".to_string()),
+                "Processing job trace-abc123".to_string(),
+                now + Duration::milliseconds(20),
+            ),
+            LogLine::new_with_time(
+                LogSource::ProcessStdout("worker".to_string()),
+                "ERROR: Job failed trace-abc123".to_string(),
+                now + Duration::milliseconds(500),
+            ),
+            LogLine::new_with_time(
+                LogSource::ProcessStdout("web".to_string()),
+                "Request completed".to_string(),
+                now + Duration::milliseconds(510),
+            ),
         ]
     }
 
@@ -396,9 +386,10 @@ mod tests {
         let mut app = App::new();
         app.batch_view_mode = true;
         app.current_batch = Some(0);
-        app.selected_line_id = Some(1);
 
         let logs = create_test_logs();
+        // Use the first log's actual ID
+        app.selected_line_id = Some(logs[0].id);
         let filtered = create_filtered_logs(logs);
 
         let result = build_batch_text(&app, &filtered).unwrap();
@@ -417,9 +408,10 @@ mod tests {
         let mut app = App::new();
         app.batch_view_mode = true;
         app.current_batch = Some(1);
-        app.selected_line_id = Some(4);
 
         let logs = create_test_logs();
+        // Use the fourth log's actual ID (index 3)
+        app.selected_line_id = Some(logs[3].id);
         let filtered = create_filtered_logs(logs);
 
         let result = build_batch_text(&app, &filtered).unwrap();
@@ -454,9 +446,10 @@ mod tests {
         app.search_pattern = "ERROR".to_string();
         app.batch_view_mode = true;
         app.current_batch = Some(0);
-        app.selected_line_id = Some(1);
 
         let logs = create_test_logs();
+        // Use the first log's actual ID
+        app.selected_line_id = Some(logs[0].id);
         let filtered = create_filtered_logs(logs);
 
         let result = build_context_text(&app, &filtered).unwrap();
@@ -486,9 +479,10 @@ mod tests {
     #[test]
     fn test_build_line_text() {
         let mut app = App::new();
-        app.selected_line_id = Some(2);
 
         let logs = create_test_logs();
+        // Use the second log's actual ID (index 1, contains "ERROR: Connection failed")
+        app.selected_line_id = Some(logs[1].id);
         let filtered = create_filtered_logs(logs);
 
         let result = build_line_text(&app, &filtered).unwrap();

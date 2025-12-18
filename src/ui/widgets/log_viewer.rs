@@ -45,12 +45,12 @@ pub fn draw_log_viewer(
     } else {
         logs_vec.into_iter()
             .filter(|log| {
-                let line_text = &log.line;
+                let line_lower = log.line_lowercase();
 
                 // Check exclude filters first (if any match, reject the line)
                 for filter in &app.filters {
                     if matches!(filter.filter_type, FilterType::Exclude) {
-                        if filter.matches(line_text) {
+                        if filter.matches_lowercase(line_lower) {
                             return false; // Excluded
                         }
                     }
@@ -68,7 +68,7 @@ pub fn draw_log_viewer(
                 }
 
                 // At least one include filter must match
-                include_filters.iter().any(|filter| filter.matches(line_text))
+                include_filters.iter().any(|filter| filter.matches_lowercase(line_lower))
             })
             .collect()
     };
@@ -84,13 +84,10 @@ pub fn draw_log_viewer(
     };
 
     if !active_search_pattern.is_empty() {
+        let pattern_lower = active_search_pattern.to_lowercase();
         filtered_logs = filtered_logs
             .into_iter()
-            .filter(|log| {
-                log.line
-                    .to_lowercase()
-                    .contains(&active_search_pattern.to_lowercase())
-            })
+            .filter(|log| log.line_lowercase().contains(&pattern_lower))
             .collect();
     }
 

@@ -8,13 +8,11 @@ fn create_test_logs(count: usize) -> Vec<LogLine> {
     (0..count)
         .map(|i| {
             let arrival = base_time + Duration::milliseconds((i as i64) * 10);
-            LogLine {
-                id: i as u64,
-                line: format!("Log line {}", i),
-                timestamp: arrival,
-                arrival_time: arrival,
-                source: LogSource::ProcessStdout("test".to_string()),
-            }
+            LogLine::new_with_time(
+                LogSource::ProcessStdout("test".to_string()),
+                format!("Log line {}", i),
+                arrival,
+            )
         })
         .collect()
 }
