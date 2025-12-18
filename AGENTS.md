@@ -21,6 +21,9 @@ Any optimization MUST include before/after benchmarks. Document results in commi
 - Add commands and keys in the help system
 - Document new architecture patterns very concisely in ARCHITECTURE.md, only write out how it works, do not add discussion on pros/cons
 
+## Git
+- Commit your changes. This is an experiemntal project so keep committing so I can push and release at will.
+
 ## Reference
 - [ARCHITECTURE.md](ARCHITECTURE.md) - code structure, how to add features
 - [plan.md](plan.md) - feature specs
