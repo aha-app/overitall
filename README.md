@@ -9,6 +9,7 @@ Overitall (`oit`) is a Rust-based TUI that helps you manage multiple processes a
 ### Key Features
 
 - **Process Management**: Start, stop, and restart processes defined in a Procfile
+- **Custom Status Labels**: Show meaningful status like "Starting", "Ready" based on log patterns
 - **Unified Log Viewing**: View logs from multiple sources in a single, interleaved stream
 - **Advanced Filtering**: Include or exclude log lines with regex patterns
 - **Process Visibility Toggle**: Hide/show logs from specific processes on demand
@@ -233,6 +234,7 @@ hidden_processes = ["worker"]
 
 - `procfile` - Path to your Procfile (required)
 - `processes.<name>.log_file` - Path to the log file for a specific process (optional)
+- `processes.<name>.status` - Custom status configuration (see below)
 - `filters.include` - Array of regex patterns to include
 - `filters.exclude` - Array of regex patterns to exclude
 - `hidden_processes` - Array of process names to hide from log viewer (automatically saved)
@@ -240,6 +242,34 @@ hidden_processes = ["worker"]
 - `batch_window_ms` - Batch grouping window in milliseconds (default: 100)
 - `disable_auto_update` - Set to `true` to disable auto-update checks (default: false)
 - `compact_mode` - Set to `false` to show full log lines by default (default: true)
+
+### Custom Process Status Labels
+
+You can configure custom status labels that change based on log patterns. This is useful for showing meaningful status like "Starting", "Ready", "Migrating" instead of just "Running".
+
+```toml
+[processes.web]
+log_file = "log/web.log"
+
+[processes.web.status]
+default = "Starting"
+
+[[processes.web.status.transitions]]
+pattern = "Listening on"
+label = "Ready"
+color = "green"
+
+[[processes.web.status.transitions]]
+pattern = "database migration"
+label = "Migrating"
+color = "yellow"
+```
+
+When the process starts, it shows the default status ("Starting"). When a log line matches a transition pattern, the status updates to the corresponding label with the specified color.
+
+Available colors: `red`, `green`, `yellow`, `blue`, `magenta`, `cyan`, `gray`, `dark_gray`, `light_red`, `light_green`, `light_yellow`, `light_blue`, `light_magenta`, `light_cyan`, `white`
+
+The status resets to the default when the process is restarted.
 
 ### Auto-Update
 
@@ -377,6 +407,7 @@ Overitall is under active development. Current features:
 
 - Easy initialization with `--init` flag (automatically generates config from Procfile)
 - Process management (start/stop/restart)
+- Custom process status labels (show "Starting", "Ready", etc. based on log patterns)
 - Log file tailing and interleaved viewing
 - Filtering (include/exclude patterns)
 - Process visibility toggle (hide/show logs from specific processes)
