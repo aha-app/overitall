@@ -10,5 +10,6 @@ pub mod operations;
 pub mod process;
 pub mod procfile;
 pub mod skill;
+pub mod status_matcher;
 pub mod traces;
 pub mod ui;
