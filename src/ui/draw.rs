@@ -47,6 +47,25 @@ fn calculate_process_list_height(manager: &ProcessManager, app: &App, terminal_w
         total_width += name.len() + 3 + status_len;
     }
 
+    // Include standalone log files in width calculation
+    let mut log_file_names = manager.get_standalone_log_file_names();
+    log_file_names.sort();
+
+    for name in log_file_names.iter() {
+        if total_width > 0 {
+            total_width += 3; // " | " separator
+        }
+
+        let status_len = if app.hidden_processes.contains(name) {
+            6 // "Hidden"
+        } else {
+            3 // "LOG"
+        };
+
+        // "name [Status]" = name.len() + 3 (for " []") + status_len
+        total_width += name.len() + 3 + status_len;
+    }
+
     // Calculate how many lines are needed (account for border taking 2 chars width)
     let usable_width = terminal_width.saturating_sub(2) as usize;
     if usable_width == 0 {
