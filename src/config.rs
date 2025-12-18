@@ -29,6 +29,24 @@ pub struct Config {
 pub struct ProcessConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub log_file: Option<PathBuf>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<StatusConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StatusConfig {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default: Option<String>,
+    #[serde(default)]
+    pub transitions: Vec<StatusTransition>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StatusTransition {
+    pub pattern: String,
+    pub label: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -367,5 +385,170 @@ procfile = "Procfile"
 
         let loaded = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
         assert_eq!(loaded.hidden_processes, original.hidden_processes);
+    }
+
+    #[test]
+    fn test_status_config_loads_from_toml() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(
+            temp_file,
+            r#"
+procfile = "Procfile"
+
+[processes.webpack]
+log_file = "logs/webpack.log"
+
+[processes.webpack.status]
+default = "Preparing"
+transitions = [
+  {{ pattern = "webpack compiled", label = "Ready", color = "green" }},
+  {{ pattern = "Rebuilding|Compiling", label = "Building", color = "yellow" }},
+]
+"#
+        )
+        .unwrap();
+
+        let config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+
+        let webpack_config = config.processes.get("webpack").unwrap();
+        assert!(webpack_config.status.is_some());
+
+        let status = webpack_config.status.as_ref().unwrap();
+        assert_eq!(status.default, Some("Preparing".to_string()));
+        assert_eq!(status.transitions.len(), 2);
+
+        assert_eq!(status.transitions[0].pattern, "webpack compiled");
+        assert_eq!(status.transitions[0].label, "Ready");
+        assert_eq!(status.transitions[0].color, Some("green".to_string()));
+
+        assert_eq!(status.transitions[1].pattern, "Rebuilding|Compiling");
+        assert_eq!(status.transitions[1].label, "Building");
+        assert_eq!(status.transitions[1].color, Some("yellow".to_string()));
+    }
+
+    #[test]
+    fn test_status_config_without_default() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(
+            temp_file,
+            r#"
+procfile = "Procfile"
+
+[processes.web]
+
+[processes.web.status]
+transitions = [
+  {{ pattern = "Listening", label = "Ready" }},
+]
+"#
+        )
+        .unwrap();
+
+        let config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+
+        let web_config = config.processes.get("web").unwrap();
+        let status = web_config.status.as_ref().unwrap();
+        assert_eq!(status.default, None);
+        assert_eq!(status.transitions.len(), 1);
+        assert_eq!(status.transitions[0].color, None);
+    }
+
+    #[test]
+    fn test_status_config_missing_is_none() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(
+            temp_file,
+            r#"
+procfile = "Procfile"
+
+[processes.worker]
+log_file = "logs/worker.log"
+"#
+        )
+        .unwrap();
+
+        let config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+
+        let worker_config = config.processes.get("worker").unwrap();
+        assert!(worker_config.status.is_none());
+    }
+
+    #[test]
+    fn test_status_config_roundtrip() {
+        let mut processes = HashMap::new();
+        processes.insert(
+            "webpack".to_string(),
+            ProcessConfig {
+                log_file: Some(PathBuf::from("logs/webpack.log")),
+                status: Some(StatusConfig {
+                    default: Some("Preparing".to_string()),
+                    transitions: vec![
+                        StatusTransition {
+                            pattern: "webpack compiled".to_string(),
+                            label: "Ready".to_string(),
+                            color: Some("green".to_string()),
+                        },
+                        StatusTransition {
+                            pattern: "Compiling".to_string(),
+                            label: "Building".to_string(),
+                            color: None,
+                        },
+                    ],
+                }),
+            },
+        );
+
+        let original = Config {
+            processes,
+            ..test_config()
+        };
+
+        let temp_file = NamedTempFile::new().unwrap();
+        original.save(temp_file.path().to_str().unwrap()).unwrap();
+
+        let loaded = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+
+        let webpack = loaded.processes.get("webpack").unwrap();
+        let status = webpack.status.as_ref().unwrap();
+        assert_eq!(status.default, Some("Preparing".to_string()));
+        assert_eq!(status.transitions.len(), 2);
+        assert_eq!(status.transitions[0].label, "Ready");
+        assert_eq!(status.transitions[1].label, "Building");
+    }
+
+    #[test]
+    fn test_status_config_not_serialized_when_none() {
+        let config = test_config();
+
+        let toml_string = toml::to_string_pretty(&config).unwrap();
+        assert!(
+            !toml_string.contains("status"),
+            "status should not be serialized when None"
+        );
+    }
+
+    #[test]
+    fn test_status_config_empty_transitions() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(
+            temp_file,
+            r#"
+procfile = "Procfile"
+
+[processes.api]
+
+[processes.api.status]
+default = "Starting"
+transitions = []
+"#
+        )
+        .unwrap();
+
+        let config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+
+        let api_config = config.processes.get("api").unwrap();
+        let status = api_config.status.as_ref().unwrap();
+        assert_eq!(status.default, Some("Starting".to_string()));
+        assert!(status.transitions.is_empty());
     }
 }

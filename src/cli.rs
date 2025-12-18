@@ -225,6 +225,7 @@ pub fn init_config(config_path: &str, with_skill: bool) -> anyhow::Result<()> {
                 name.to_string(),
                 config::ProcessConfig {
                     log_file: Some(std::path::PathBuf::from(format!("logs/{}.log", name))),
+                    status: None,
                 },
             );
         }
