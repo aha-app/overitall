@@ -8,6 +8,7 @@ mod operations;
 mod procfile;
 mod process;
 mod skill;
+mod status_matcher;
 mod traces;
 mod ui;
 mod updater;
@@ -102,7 +103,10 @@ async fn main() -> anyhow::Result<()> {
 
     // Add processes from Procfile
     for (name, command) in &procfile.processes {
-        manager.add_process(name.clone(), command.clone(), Some(procfile_dir.clone()));
+        // Get status config if available
+        let status_config = config.processes.get(name)
+            .and_then(|pc| pc.status.as_ref());
+        manager.add_process(name.clone(), command.clone(), Some(procfile_dir.clone()), status_config);
 
         // If this process has a log file configured, add it
         if let Some(proc_config) = config.processes.get(name) {

@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use ratatui::style::Color;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -9,7 +10,9 @@ use tokio::task::JoinHandle;
 
 // Re-export log types for compatibility
 pub use crate::log::{LogLine, LogSource};
+use crate::config::StatusConfig;
 use crate::log::{LogBuffer, FileReader};
+use crate::status_matcher::StatusMatcher;
 
 /// Status of a managed process
 #[derive(Debug, Clone, PartialEq)]
@@ -40,11 +43,13 @@ pub struct ProcessHandle {
     pgid: Option<i32>,  // Process Group ID for killing entire process tree
     stdout_task: Option<JoinHandle<()>>,
     stderr_task: Option<JoinHandle<()>>,
+    status_matcher: Option<StatusMatcher>,
 }
 
 impl ProcessHandle {
     /// Create a new process handle (not yet started)
-    pub fn new(name: String, command: String, working_dir: Option<PathBuf>) -> Self {
+    pub fn new(name: String, command: String, working_dir: Option<PathBuf>, status_config: Option<&StatusConfig>) -> Self {
+        let status_matcher = status_config.and_then(|c| StatusMatcher::new(c).ok());
         Self {
             name,
             command,
@@ -54,6 +59,24 @@ impl ProcessHandle {
             pgid: None,
             stdout_task: None,
             stderr_task: None,
+            status_matcher,
+        }
+    }
+
+    /// Get custom display status if configured
+    pub fn get_custom_status(&self) -> Option<(&str, Option<Color>)> {
+        self.status_matcher.as_ref().and_then(|m| m.get_display_status())
+    }
+
+    /// Check log line against status patterns. Returns true if status changed.
+    pub fn check_log_line(&mut self, line: &str) -> bool {
+        self.status_matcher.as_mut().map(|m| m.check_line(line)).unwrap_or(false)
+    }
+
+    /// Reset status matcher to default (call on restart)
+    pub fn reset_status(&mut self) {
+        if let Some(m) = &mut self.status_matcher {
+            m.reset();
         }
     }
 
@@ -230,6 +253,7 @@ impl ProcessHandle {
 
     /// Restart the process (kill then start)
     pub async fn restart(&mut self, log_tx: mpsc::UnboundedSender<LogLine>) -> Result<()> {
+        self.reset_status();
         self.kill().await?;
         self.start(log_tx).await?;
         Ok(())
@@ -262,8 +286,8 @@ impl ProcessManager {
     }
 
     /// Add a process definition (doesn't start it)
-    pub fn add_process(&mut self, name: String, command: String, working_dir: Option<PathBuf>) {
-        self.processes.insert(name.clone(), ProcessHandle::new(name, command, working_dir));
+    pub fn add_process(&mut self, name: String, command: String, working_dir: Option<PathBuf>, status_config: Option<&StatusConfig>) {
+        self.processes.insert(name.clone(), ProcessHandle::new(name, command, working_dir, status_config));
     }
 
     pub async fn start_process(&mut self, name: &str) -> Result<()> {
@@ -515,7 +539,7 @@ mod tests {
     #[tokio::test]
     async fn test_process_start_stop() {
         let mut manager = ProcessManager::new();
-        manager.add_process("test".to_string(), "echo hello".to_string(), None);
+        manager.add_process("test".to_string(), "echo hello".to_string(), None, None);
 
         manager.start_process("test").await.unwrap();
         assert_eq!(manager.get_status("test"), Some(ProcessStatus::Running));
@@ -536,8 +560,8 @@ mod tests {
     #[tokio::test]
     async fn test_set_all_terminating() {
         let mut manager = ProcessManager::new();
-        manager.add_process("proc1".to_string(), "sleep 10".to_string(), None);
-        manager.add_process("proc2".to_string(), "sleep 10".to_string(), None);
+        manager.add_process("proc1".to_string(), "sleep 10".to_string(), None, None);
+        manager.add_process("proc2".to_string(), "sleep 10".to_string(), None, None);
 
         let failures = manager.start_all().await;
         assert!(failures.is_empty(), "Expected no failures, got {:?}", failures);
@@ -561,9 +585,9 @@ mod tests {
     #[tokio::test]
     async fn test_kill_all_multiple_processes() {
         let mut manager = ProcessManager::new();
-        manager.add_process("proc1".to_string(), "sleep 10".to_string(), None);
-        manager.add_process("proc2".to_string(), "sleep 10".to_string(), None);
-        manager.add_process("proc3".to_string(), "sleep 10".to_string(), None);
+        manager.add_process("proc1".to_string(), "sleep 10".to_string(), None, None);
+        manager.add_process("proc2".to_string(), "sleep 10".to_string(), None, None);
+        manager.add_process("proc3".to_string(), "sleep 10".to_string(), None, None);
 
         let failures = manager.start_all().await;
         assert!(failures.is_empty(), "Expected no failures, got {:?}", failures);
@@ -578,7 +602,7 @@ mod tests {
     #[tokio::test]
     async fn test_shutdown_flow_sets_status_before_killing() {
         let mut manager = ProcessManager::new();
-        manager.add_process("test".to_string(), "sleep 10".to_string(), None);
+        manager.add_process("test".to_string(), "sleep 10".to_string(), None, None);
 
         manager.start_process("test").await.unwrap();
         assert_eq!(manager.get_status("test"), Some(ProcessStatus::Running));
@@ -602,7 +626,7 @@ mod tests {
     #[tokio::test]
     async fn test_send_kill_signals_returns_quickly() {
         let mut manager = ProcessManager::new();
-        manager.add_process("slow".to_string(), "sleep 10".to_string(), None);
+        manager.add_process("slow".to_string(), "sleep 10".to_string(), None, None);
 
         let failures = manager.start_all().await;
         assert!(failures.is_empty(), "Expected no failures, got {:?}", failures);
@@ -628,9 +652,9 @@ mod tests {
         // This test verifies that all processes are started regardless of any
         // individual failures.
         let mut manager = ProcessManager::new();
-        manager.add_process("proc1".to_string(), "sleep 10".to_string(), None);
-        manager.add_process("proc2".to_string(), "sleep 10".to_string(), None);
-        manager.add_process("proc3".to_string(), "sleep 10".to_string(), None);
+        manager.add_process("proc1".to_string(), "sleep 10".to_string(), None, None);
+        manager.add_process("proc2".to_string(), "sleep 10".to_string(), None, None);
+        manager.add_process("proc3".to_string(), "sleep 10".to_string(), None, None);
 
         let failures = manager.start_all().await;
 
@@ -649,7 +673,7 @@ mod tests {
     async fn test_check_all_status_detects_failed_processes() {
         let mut manager = ProcessManager::new();
         // Use a command that exits immediately with an error
-        manager.add_process("failing".to_string(), "exit 1".to_string(), None);
+        manager.add_process("failing".to_string(), "exit 1".to_string(), None, None);
 
         let failures = manager.start_all().await;
         assert!(failures.is_empty()); // spawn succeeds, command fails later
@@ -672,7 +696,7 @@ mod tests {
     #[tokio::test]
     async fn test_set_restarting() {
         let mut manager = ProcessManager::new();
-        manager.add_process("test".to_string(), "sleep 10".to_string(), None);
+        manager.add_process("test".to_string(), "sleep 10".to_string(), None, None);
 
         // Test with non-existent process
         assert!(!manager.set_restarting("nonexistent"));
@@ -688,8 +712,8 @@ mod tests {
     #[tokio::test]
     async fn test_set_all_restarting() {
         let mut manager = ProcessManager::new();
-        manager.add_process("proc1".to_string(), "sleep 10".to_string(), None);
-        manager.add_process("proc2".to_string(), "sleep 10".to_string(), None);
+        manager.add_process("proc1".to_string(), "sleep 10".to_string(), None, None);
+        manager.add_process("proc2".to_string(), "sleep 10".to_string(), None, None);
 
         manager.set_all_restarting();
 
@@ -706,9 +730,9 @@ mod tests {
     #[tokio::test]
     async fn test_get_restarting_processes() {
         let mut manager = ProcessManager::new();
-        manager.add_process("proc1".to_string(), "sleep 10".to_string(), None);
-        manager.add_process("proc2".to_string(), "sleep 10".to_string(), None);
-        manager.add_process("proc3".to_string(), "sleep 10".to_string(), None);
+        manager.add_process("proc1".to_string(), "sleep 10".to_string(), None, None);
+        manager.add_process("proc2".to_string(), "sleep 10".to_string(), None, None);
+        manager.add_process("proc3".to_string(), "sleep 10".to_string(), None, None);
 
         // No processes restarting initially
         assert!(manager.get_restarting_processes().is_empty());
@@ -727,7 +751,7 @@ mod tests {
     #[tokio::test]
     async fn test_has_pending_restarts() {
         let mut manager = ProcessManager::new();
-        manager.add_process("test".to_string(), "sleep 10".to_string(), None);
+        manager.add_process("test".to_string(), "sleep 10".to_string(), None, None);
 
         assert!(!manager.has_pending_restarts());
 
@@ -738,7 +762,7 @@ mod tests {
     #[tokio::test]
     async fn test_perform_pending_restarts() {
         let mut manager = ProcessManager::new();
-        manager.add_process("test".to_string(), "echo hello".to_string(), None);
+        manager.add_process("test".to_string(), "echo hello".to_string(), None, None);
 
         // Start the process
         manager.start_process("test").await.unwrap();
@@ -759,5 +783,161 @@ mod tests {
 
         // Clean up
         manager.kill_all().await.unwrap();
+    }
+
+    // StatusMatcher integration tests
+
+    #[test]
+    fn test_process_handle_without_status_config() {
+        let handle = ProcessHandle::new(
+            "test".to_string(),
+            "echo hello".to_string(),
+            None,
+            None,
+        );
+        assert!(handle.get_custom_status().is_none());
+    }
+
+    #[test]
+    fn test_process_handle_with_status_config_default() {
+        use crate::config::{StatusConfig, StatusTransition};
+        let config = StatusConfig {
+            default: Some("Starting".to_string()),
+            transitions: vec![
+                StatusTransition {
+                    pattern: "Ready".to_string(),
+                    label: "Ready".to_string(),
+                    color: Some("green".to_string()),
+                },
+            ],
+        };
+
+        let handle = ProcessHandle::new(
+            "test".to_string(),
+            "echo hello".to_string(),
+            None,
+            Some(&config),
+        );
+
+        let status = handle.get_custom_status();
+        assert!(status.is_some());
+        let (label, color) = status.unwrap();
+        assert_eq!(label, "Starting");
+        assert!(color.is_none());
+    }
+
+    #[test]
+    fn test_process_handle_check_log_line_changes_status() {
+        use crate::config::{StatusConfig, StatusTransition};
+        use ratatui::style::Color;
+
+        let config = StatusConfig {
+            default: Some("Starting".to_string()),
+            transitions: vec![
+                StatusTransition {
+                    pattern: "Server ready".to_string(),
+                    label: "Ready".to_string(),
+                    color: Some("green".to_string()),
+                },
+            ],
+        };
+
+        let mut handle = ProcessHandle::new(
+            "test".to_string(),
+            "echo hello".to_string(),
+            None,
+            Some(&config),
+        );
+
+        assert_eq!(handle.get_custom_status().unwrap().0, "Starting");
+
+        let changed = handle.check_log_line("Server ready to accept connections");
+        assert!(changed);
+
+        let status = handle.get_custom_status().unwrap();
+        assert_eq!(status.0, "Ready");
+        assert_eq!(status.1, Some(Color::Green));
+    }
+
+    #[test]
+    fn test_process_handle_check_log_line_no_match() {
+        use crate::config::{StatusConfig, StatusTransition};
+
+        let config = StatusConfig {
+            default: Some("Starting".to_string()),
+            transitions: vec![
+                StatusTransition {
+                    pattern: "Server ready".to_string(),
+                    label: "Ready".to_string(),
+                    color: None,
+                },
+            ],
+        };
+
+        let mut handle = ProcessHandle::new(
+            "test".to_string(),
+            "echo hello".to_string(),
+            None,
+            Some(&config),
+        );
+
+        let changed = handle.check_log_line("Some unrelated log message");
+        assert!(!changed);
+        assert_eq!(handle.get_custom_status().unwrap().0, "Starting");
+    }
+
+    #[test]
+    fn test_process_handle_reset_status() {
+        use crate::config::{StatusConfig, StatusTransition};
+
+        let config = StatusConfig {
+            default: Some("Starting".to_string()),
+            transitions: vec![
+                StatusTransition {
+                    pattern: "Ready".to_string(),
+                    label: "Ready".to_string(),
+                    color: Some("green".to_string()),
+                },
+            ],
+        };
+
+        let mut handle = ProcessHandle::new(
+            "test".to_string(),
+            "echo hello".to_string(),
+            None,
+            Some(&config),
+        );
+
+        handle.check_log_line("Ready");
+        assert_eq!(handle.get_custom_status().unwrap().0, "Ready");
+
+        handle.reset_status();
+        assert_eq!(handle.get_custom_status().unwrap().0, "Starting");
+    }
+
+    #[test]
+    fn test_process_handle_check_log_line_without_matcher() {
+        let mut handle = ProcessHandle::new(
+            "test".to_string(),
+            "echo hello".to_string(),
+            None,
+            None,
+        );
+
+        let changed = handle.check_log_line("Some log message");
+        assert!(!changed);
+    }
+
+    #[test]
+    fn test_process_handle_reset_status_without_matcher() {
+        let mut handle = ProcessHandle::new(
+            "test".to_string(),
+            "echo hello".to_string(),
+            None,
+            None,
+        );
+
+        handle.reset_status();
+        assert!(handle.get_custom_status().is_none());
     }
 }
