@@ -1053,6 +1053,7 @@ fn create_manager_with_custom_status() -> ProcessManager {
 
     let status_config = StatusConfig {
         default: Some("Starting".to_string()),
+        color: None,
         transitions: vec![
             StatusTransition {
                 pattern: "Ready".to_string(),
@@ -1094,6 +1095,7 @@ fn test_custom_status_after_transition() {
 
     let status_config = StatusConfig {
         default: Some("Starting".to_string()),
+        color: None,
         transitions: vec![
             StatusTransition {
                 pattern: "Server ready".to_string(),
@@ -1143,6 +1145,7 @@ fn test_custom_status_with_multiple_processes() {
 
     let web_config = StatusConfig {
         default: Some("Booting".to_string()),
+        color: None,
         transitions: vec![
             StatusTransition {
                 pattern: "Listening".to_string(),
@@ -1154,6 +1157,7 @@ fn test_custom_status_with_multiple_processes() {
 
     let worker_config = StatusConfig {
         default: Some("Idle".to_string()),
+        color: None,
         transitions: vec![
             StatusTransition {
                 pattern: "Processing".to_string(),

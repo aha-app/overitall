@@ -10,6 +10,7 @@ pub struct CompiledTransition {
 
 pub struct StatusMatcher {
     default: Option<String>,
+    default_color: Option<Color>,
     transitions: Vec<CompiledTransition>,
     current_label: Option<String>,
     current_color: Option<Color>,
@@ -44,11 +45,14 @@ impl StatusMatcher {
             });
         }
 
+        let default_color = config.color.as_ref().and_then(|c| parse_color(c));
+
         Ok(StatusMatcher {
             default: config.default.clone(),
+            default_color,
             transitions,
             current_label: config.default.clone(),
-            current_color: None,
+            current_color: default_color,
         })
     }
 
@@ -75,7 +79,7 @@ impl StatusMatcher {
     /// Reset to default (call when process restarts).
     pub fn reset(&mut self) {
         self.current_label = self.default.clone();
-        self.current_color = None;
+        self.current_color = self.default_color;
     }
 }
 
@@ -88,8 +92,17 @@ mod tests {
         default: Option<&str>,
         transitions: Vec<(&str, &str, Option<&str>)>,
     ) -> StatusConfig {
+        make_config_with_color(default, None, transitions)
+    }
+
+    fn make_config_with_color(
+        default: Option<&str>,
+        color: Option<&str>,
+        transitions: Vec<(&str, &str, Option<&str>)>,
+    ) -> StatusConfig {
         StatusConfig {
             default: default.map(|s| s.to_string()),
+            color: color.map(|s| s.to_string()),
             transitions: transitions
                 .into_iter()
                 .map(|(pattern, label, color)| StatusTransition {
@@ -331,5 +344,62 @@ mod tests {
         matcher.reset();
         matcher.check_line("HMR update received");
         assert_eq!(matcher.get_display_status().unwrap().0, "Building");
+    }
+
+    #[test]
+    fn test_default_color_on_creation() {
+        let config = make_config_with_color(
+            Some("Building"),
+            Some("yellow"),
+            vec![("Ready", "Ready", Some("green"))],
+        );
+
+        let matcher = StatusMatcher::new(&config).unwrap();
+
+        let status = matcher.get_display_status();
+        assert!(status.is_some());
+        let (label, color) = status.unwrap();
+        assert_eq!(label, "Building");
+        assert_eq!(color, Some(Color::Yellow));
+    }
+
+    #[test]
+    fn test_default_color_restored_after_reset() {
+        let config = make_config_with_color(
+            Some("Building"),
+            Some("yellow"),
+            vec![("Ready", "Ready", Some("green"))],
+        );
+
+        let mut matcher = StatusMatcher::new(&config).unwrap();
+
+        // Transition to a different status
+        matcher.check_line("Ready");
+        let status = matcher.get_display_status().unwrap();
+        assert_eq!(status.0, "Ready");
+        assert_eq!(status.1, Some(Color::Green));
+
+        // Reset should restore default label AND color
+        matcher.reset();
+        let status = matcher.get_display_status().unwrap();
+        assert_eq!(status.0, "Building");
+        assert_eq!(status.1, Some(Color::Yellow));
+    }
+
+    #[test]
+    fn test_default_color_with_invalid_color_name() {
+        let config = make_config_with_color(
+            Some("Starting"),
+            Some("invalid_color"),
+            vec![],
+        );
+
+        let matcher = StatusMatcher::new(&config).unwrap();
+
+        let status = matcher.get_display_status();
+        assert!(status.is_some());
+        let (label, color) = status.unwrap();
+        assert_eq!(label, "Starting");
+        assert!(color.is_none());
     }
 }

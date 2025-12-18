@@ -809,6 +809,7 @@ mod tests {
         use crate::config::{StatusConfig, StatusTransition};
         let config = StatusConfig {
             default: Some("Starting".to_string()),
+            color: None,
             transitions: vec![
                 StatusTransition {
                     pattern: "Ready".to_string(),
@@ -839,6 +840,7 @@ mod tests {
 
         let config = StatusConfig {
             default: Some("Starting".to_string()),
+            color: None,
             transitions: vec![
                 StatusTransition {
                     pattern: "Server ready".to_string(),
@@ -871,6 +873,7 @@ mod tests {
 
         let config = StatusConfig {
             default: Some("Starting".to_string()),
+            color: None,
             transitions: vec![
                 StatusTransition {
                     pattern: "Server ready".to_string(),
@@ -898,6 +901,7 @@ mod tests {
 
         let config = StatusConfig {
             default: Some("Starting".to_string()),
+            color: None,
             transitions: vec![
                 StatusTransition {
                     pattern: "Ready".to_string(),
@@ -956,6 +960,7 @@ mod tests {
 
         let config = StatusConfig {
             default: Some("Starting".to_string()),
+            color: None,
             transitions: vec![
                 StatusTransition {
                     pattern: "Server ready".to_string(),
@@ -1036,6 +1041,7 @@ mod tests {
 
         let config = StatusConfig {
             default: Some("Starting".to_string()),
+            color: None,
             transitions: vec![
                 StatusTransition {
                     pattern: "Listening".to_string(),

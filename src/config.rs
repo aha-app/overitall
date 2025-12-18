@@ -37,6 +37,8 @@ pub struct ProcessConfig {
 pub struct StatusConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
     #[serde(default)]
     pub transitions: Vec<StatusTransition>,
 }
@@ -482,6 +484,7 @@ log_file = "logs/worker.log"
                 log_file: Some(PathBuf::from("logs/webpack.log")),
                 status: Some(StatusConfig {
                     default: Some("Preparing".to_string()),
+                    color: None,
                     transitions: vec![
                         StatusTransition {
                             pattern: "webpack compiled".to_string(),
