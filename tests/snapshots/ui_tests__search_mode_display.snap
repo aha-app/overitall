@@ -3,9 +3,9 @@ source: tests/ui_tests.rs
 expression: output
 ---
 No processes                                                                                                            
-                                                                                                                        
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 [Search: ERROR] no matches                                                                                              
+                                                                                                                        
                                                                                                                         
                                                                                                                         
                                                                                                                         

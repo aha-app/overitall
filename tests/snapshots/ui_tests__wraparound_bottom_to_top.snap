@@ -3,7 +3,6 @@ source: tests/ui_tests.rs
 expression: output
 ---
 web [Stopped] | worker [Stopped]                                                                                        
-                                                                                                                        
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
                                                                                                                         
 [12:00:00] web: Starting web server on port 3000                                                                        
@@ -14,6 +13,7 @@ web [Stopped] | worker [Stopped]
 [12:00:00] web: POST /api/auth 201 Created                                                                              
 [12:00:00] worker: ERROR: Failed to process job #5678                                                                   
 [12:00:00] web: Server ready to accept connections                                                                      
+                                                                                                                        
                                                                                                                         
                                                                                                                         
                                                                                                                         

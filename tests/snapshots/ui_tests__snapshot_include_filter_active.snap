@@ -3,11 +3,11 @@ source: tests/ui_tests.rs
 expression: output
 ---
 web [Stopped] | worker [Stopped]                                                                                        
-                                                                                                                        
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 (1 filters)                                                                                                             
 [12:00:00] web: ERROR: Database connection failed                                                                       
 [12:00:00] worker: ERROR: Failed to process job #5678                                                                   
+                                                                                                                        
                                                                                                                         
                                                                                                                         
                                                                                                                         

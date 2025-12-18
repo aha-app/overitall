@@ -3,9 +3,9 @@ source: tests/ui_tests.rs
 expression: output
 ---
 web [Stopped] | worker [Stopped]                                                                                        
-                                                                                                                        
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 (1 filters)                                                                                                             
+                                                                                                                        
                                                                                                                         
                                                                                                                         
                                                                                                                         

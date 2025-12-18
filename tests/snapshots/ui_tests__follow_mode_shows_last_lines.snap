@@ -3,9 +3,9 @@ source: tests/ui_tests.rs
 expression: output
 ---
 web [Stopped]                                                                                                           
-                                                                                                                        
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
                                                                                                                         
+[12:00:00] web: Log line number 16                                                                                      
 [12:00:00] web: Log line number 17                                                                                      
 [12:00:00] web: Log line number 18                                                                                      
 [12:00:00] web: Log line number 19                                                                                      
