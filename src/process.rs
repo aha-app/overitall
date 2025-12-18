@@ -208,7 +208,11 @@ impl ProcessHandle {
                     if status.success() {
                         self.status = ProcessStatus::Stopped;
                     } else {
-                        self.status = ProcessStatus::Failed(format!("Exit code: {:?}", status.code()));
+                        let msg = match status.code() {
+                            Some(code) => format!("Exit code: {}", code),
+                            None => "Terminated by signal".to_string(),
+                        };
+                        self.status = ProcessStatus::Failed(msg);
                     }
                     self.child = None;
                 }
