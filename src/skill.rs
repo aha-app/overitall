@@ -5,7 +5,7 @@
 
 use anyhow::{Context, Result};
 use std::fs;
-use std::io::{self, Write};
+use std::io::{self, BufRead, Write};
 use std::path::Path;
 
 /// SKILL.md content - main skill definition
@@ -217,38 +217,69 @@ pub fn install_skill(base_dir: &str) -> Result<()> {
     Ok(())
 }
 
-/// Prompt user for skill installation (only works in TTY mode)
-pub fn prompt_skill_install(ai_dir: &str) -> Result<bool> {
-    // Skip prompting in tests (tests set this env var to avoid TTY issues)
-    if std::env::var("OIT_TEST_NO_TTY").is_ok() {
-        return Ok(false);
+/// Add the skill directory to .git/info/exclude if in a git repo
+fn add_to_git_exclude(skill_dir: &str) -> Result<()> {
+    let git_dir = Path::new(".git");
+    if !git_dir.is_dir() {
+        return Ok(()); // Not a git repo, nothing to do
     }
 
-    // Check if we're running in a TTY
-    if !atty::is(atty::Stream::Stdin) {
-        return Ok(false);
-    }
+    let info_dir = git_dir.join("info");
+    let exclude_path = info_dir.join("exclude");
 
-    print!(
-        "{} detected. Install oit skill for AI integration? [y/N] ",
-        match ai_dir {
-            ".claude" => "Claude Code",
-            ".cursor" => "Cursor",
-            _ => "AI tool",
+    // Entry to add (relative path from repo root)
+    let entry = format!("{}/skills/oit/", skill_dir);
+
+    // Check if entry already exists
+    if exclude_path.exists() {
+        let file = fs::File::open(&exclude_path)
+            .with_context(|| format!("Failed to read {:?}", exclude_path))?;
+        let reader = io::BufReader::new(file);
+        for line in reader.lines() {
+            if let Ok(line) = line {
+                if line.trim() == entry {
+                    return Ok(()); // Already excluded
+                }
+            }
         }
-    );
-    io::stdout().flush()?;
+    }
 
-    let mut input = String::new();
-    io::stdin().read_line(&mut input)?;
+    // Ensure .git/info directory exists
+    fs::create_dir_all(&info_dir)
+        .with_context(|| format!("Failed to create {:?}", info_dir))?;
 
-    Ok(input.trim().eq_ignore_ascii_case("y"))
+    // Append the entry
+    let mut file = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&exclude_path)
+        .with_context(|| format!("Failed to open {:?} for writing", exclude_path))?;
+
+    writeln!(file, "{}", entry)
+        .with_context(|| format!("Failed to write to {:?}", exclude_path))?;
+
+    Ok(())
+}
+
+/// Automatically install/update skill on TUI startup (silent, no prompts)
+pub fn auto_install_skill() {
+    if let Some(ai_dir) = detect_ai_tool_directory() {
+        // Always install/update to ensure latest skill content
+        if install_skill(ai_dir).is_ok() {
+            // Add to git exclude (ignore errors - not critical)
+            let _ = add_to_git_exclude(ai_dir);
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
     use tempfile::TempDir;
+
+    // Mutex to serialize tests that change the current directory
+    static CWD_MUTEX: Mutex<()> = Mutex::new(());
 
     #[test]
     fn test_skill_md_content_has_required_fields() {
@@ -326,6 +357,7 @@ mod tests {
 
     #[test]
     fn test_detect_ai_tool_directory_finds_claude() {
+        let _guard = CWD_MUTEX.lock().unwrap();
         let temp_dir = TempDir::new().unwrap();
         let original_dir = std::env::current_dir().unwrap();
         std::env::set_current_dir(temp_dir.path()).unwrap();
@@ -339,6 +371,7 @@ mod tests {
 
     #[test]
     fn test_detect_ai_tool_directory_finds_cursor() {
+        let _guard = CWD_MUTEX.lock().unwrap();
         let temp_dir = TempDir::new().unwrap();
         let original_dir = std::env::current_dir().unwrap();
         std::env::set_current_dir(temp_dir.path()).unwrap();
@@ -352,6 +385,7 @@ mod tests {
 
     #[test]
     fn test_detect_ai_tool_directory_prefers_claude() {
+        let _guard = CWD_MUTEX.lock().unwrap();
         let temp_dir = TempDir::new().unwrap();
         let original_dir = std::env::current_dir().unwrap();
         std::env::set_current_dir(temp_dir.path()).unwrap();
@@ -366,12 +400,133 @@ mod tests {
 
     #[test]
     fn test_detect_ai_tool_directory_returns_none() {
+        let _guard = CWD_MUTEX.lock().unwrap();
         let temp_dir = TempDir::new().unwrap();
         let original_dir = std::env::current_dir().unwrap();
         std::env::set_current_dir(temp_dir.path()).unwrap();
 
         let result = detect_ai_tool_directory();
         assert_eq!(result, None);
+
+        std::env::set_current_dir(original_dir).unwrap();
+    }
+
+    #[test]
+    fn test_add_to_git_exclude_creates_entry() {
+        let _guard = CWD_MUTEX.lock().unwrap();
+        let temp_dir = TempDir::new().unwrap();
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(temp_dir.path()).unwrap();
+
+        // Create .git/info directory
+        fs::create_dir_all(".git/info").unwrap();
+
+        // Call add_to_git_exclude
+        add_to_git_exclude(".claude").unwrap();
+
+        // Check that the entry was added
+        let exclude_content = fs::read_to_string(".git/info/exclude").unwrap();
+        assert!(exclude_content.contains(".claude/skills/oit/"));
+
+        std::env::set_current_dir(original_dir).unwrap();
+    }
+
+    #[test]
+    fn test_add_to_git_exclude_idempotent() {
+        let _guard = CWD_MUTEX.lock().unwrap();
+        let temp_dir = TempDir::new().unwrap();
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(temp_dir.path()).unwrap();
+
+        fs::create_dir_all(".git/info").unwrap();
+
+        // Call twice
+        add_to_git_exclude(".claude").unwrap();
+        add_to_git_exclude(".claude").unwrap();
+
+        // Should only have one entry
+        let exclude_content = fs::read_to_string(".git/info/exclude").unwrap();
+        let count = exclude_content.matches(".claude/skills/oit/").count();
+        assert_eq!(count, 1, "Entry should only appear once");
+
+        std::env::set_current_dir(original_dir).unwrap();
+    }
+
+    #[test]
+    fn test_add_to_git_exclude_no_git_dir() {
+        let _guard = CWD_MUTEX.lock().unwrap();
+        let temp_dir = TempDir::new().unwrap();
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(temp_dir.path()).unwrap();
+
+        // No .git directory - should succeed silently
+        let result = add_to_git_exclude(".claude");
+        assert!(result.is_ok());
+
+        std::env::set_current_dir(original_dir).unwrap();
+    }
+
+    #[test]
+    fn test_auto_install_skill_creates_files() {
+        let _guard = CWD_MUTEX.lock().unwrap();
+        let temp_dir = TempDir::new().unwrap();
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(temp_dir.path()).unwrap();
+
+        // Create .claude directory
+        fs::create_dir(".claude").unwrap();
+        // Create .git directory for exclude test
+        fs::create_dir_all(".git/info").unwrap();
+
+        // Call auto_install_skill
+        auto_install_skill();
+
+        // Check that skill files were created
+        assert!(Path::new(".claude/skills/oit/SKILL.md").exists());
+        assert!(Path::new(".claude/skills/oit/COMMANDS.md").exists());
+
+        // Check that git exclude was updated
+        let exclude_content = fs::read_to_string(".git/info/exclude").unwrap();
+        assert!(exclude_content.contains(".claude/skills/oit/"));
+
+        std::env::set_current_dir(original_dir).unwrap();
+    }
+
+    #[test]
+    fn test_auto_install_skill_updates_existing_files() {
+        let _guard = CWD_MUTEX.lock().unwrap();
+        let temp_dir = TempDir::new().unwrap();
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(temp_dir.path()).unwrap();
+
+        // Create .claude directory with existing outdated skill
+        fs::create_dir_all(".claude/skills/oit").unwrap();
+        fs::write(".claude/skills/oit/SKILL.md", "old content").unwrap();
+        fs::write(".claude/skills/oit/COMMANDS.md", "old content").unwrap();
+
+        // Call auto_install_skill
+        auto_install_skill();
+
+        // Check that files were updated with latest content
+        let skill_content = fs::read_to_string(".claude/skills/oit/SKILL.md").unwrap();
+        assert!(skill_content.contains("name: oit"), "SKILL.md should be updated with latest content");
+
+        std::env::set_current_dir(original_dir).unwrap();
+    }
+
+    #[test]
+    fn test_auto_install_skill_no_ai_dir() {
+        let _guard = CWD_MUTEX.lock().unwrap();
+        let temp_dir = TempDir::new().unwrap();
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(temp_dir.path()).unwrap();
+
+        // No .claude or .cursor directory
+        auto_install_skill();
+
+        // No skill files should be created
+        assert!(!Path::new(".claude/skills/oit/SKILL.md").exists());
+        assert!(!Path::new(".cursor/skills/oit/SKILL.md").exists());
 
         std::env::set_current_dir(original_dir).unwrap();
     }

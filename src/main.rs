@@ -53,7 +53,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Handle --init flag
     if cli.init {
-        return init_config(config_path, cli.with_skill);
+        return init_config(config_path);
     }
 
     // Handle IPC subcommands (ping, status, etc.)
@@ -80,6 +80,9 @@ async fn main() -> anyhow::Result<()> {
         eprintln!("Use 'oit ping' to verify, or remove .oit.sock if the previous instance crashed.");
         std::process::exit(1);
     }
+
+    // Auto-install Claude/Cursor skill if .claude or .cursor directory exists
+    skill::auto_install_skill();
 
     // Load config
     let mut config = Config::from_file(config_path)?;

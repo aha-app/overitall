@@ -5,7 +5,6 @@ use std::path::Path;
 
 use crate::config::{self, Config};
 use crate::procfile::Procfile;
-use crate::skill;
 
 /// Overitall - Process and log management TUI
 #[derive(Parser, Debug)]
@@ -32,10 +31,6 @@ pub struct Cli {
     /// Initialize a new .overitall.toml config file from Procfile
     #[arg(long)]
     pub init: bool,
-
-    /// When using --init, also install Claude Code/Cursor skill without prompting
-    #[arg(long)]
-    pub with_skill: bool,
 
     /// Skip auto-update check on startup
     #[arg(long)]
@@ -187,7 +182,7 @@ pub enum Commands {
 }
 
 /// Initialize a new config file from an existing Procfile
-pub fn init_config(config_path: &str, with_skill: bool) -> anyhow::Result<()> {
+pub fn init_config(config_path: &str) -> anyhow::Result<()> {
     let config_exists = Path::new(config_path).exists();
 
     // Only create config if it doesn't exist
@@ -255,44 +250,12 @@ pub fn init_config(config_path: &str, with_skill: bool) -> anyhow::Result<()> {
         for name in &process_names {
             println!("  - {}", name);
         }
-    } else {
-        println!("Config file '{}' already exists, skipping config creation.", config_path);
-    }
 
-    // Handle skill installation
-    let mut skill_installed = false;
-    if let Some(ai_dir) = skill::detect_ai_tool_directory() {
-        let should_install = if with_skill {
-            true
-        } else {
-            skill::prompt_skill_install(ai_dir).unwrap_or(false)
-        };
-
-        if should_install {
-            match skill::install_skill(ai_dir) {
-                Ok(()) => {
-                    println!("\nInstalled {}/skills/oit/", ai_dir);
-                    skill_installed = true;
-                }
-                Err(e) => {
-                    eprintln!("\nWarning: Failed to install skill: {}", e);
-                }
-            }
-        }
-    }
-
-    if !config_exists || skill_installed {
         println!("\nNext steps:");
-        let mut step = 1;
-        if !config_exists {
-            println!("  {}. Edit {} to configure log file paths", step, config_path);
-            step += 1;
-            println!("  {}. Run 'oit' to start the TUI", step);
-            step += 1;
-        }
-        if skill_installed {
-            println!("  {}. AI tools can now control oit via CLI commands", step);
-        }
+        println!("  1. Edit {} to configure log file paths", config_path);
+        println!("  2. Run 'oit' to start the TUI");
+    } else {
+        println!("Config file '{}' already exists.", config_path);
     }
 
     Ok(())
@@ -502,8 +465,8 @@ mod tests {
         let original_dir = std::env::current_dir().unwrap();
         std::env::set_current_dir(temp_path).unwrap();
 
-        // Call init_config (with_skill=false since no .claude dir exists)
-        let result = init_config(config_path.to_str().unwrap(), false);
+        // Call init_config
+        let result = init_config(config_path.to_str().unwrap());
 
         // Restore original directory
         std::env::set_current_dir(original_dir).unwrap();
@@ -541,7 +504,7 @@ mod tests {
         std::env::set_current_dir(temp_path).unwrap();
 
         // Call init_config (no Procfile needed since config exists)
-        let result = init_config(config_path.to_str().unwrap(), false);
+        let result = init_config(config_path.to_str().unwrap());
 
         // Restore original directory
         std::env::set_current_dir(original_dir).unwrap();
@@ -569,7 +532,7 @@ mod tests {
         std::env::set_current_dir(temp_path).unwrap();
 
         // Call init_config
-        let result = init_config(config_path.to_str().unwrap(), false);
+        let result = init_config(config_path.to_str().unwrap());
 
         // Restore original directory
         std::env::set_current_dir(original_dir).unwrap();
@@ -578,114 +541,6 @@ mod tests {
         assert!(result.is_err(), "init_config should fail when Procfile is missing");
         let err_msg = result.unwrap_err().to_string();
         assert!(err_msg.contains("Procfile"), "Error should mention Procfile: {}", err_msg);
-    }
-
-    #[test]
-    fn test_init_config_with_skill_installs_skill_files() {
-        let _guard = CWD_MUTEX.lock().unwrap();
-
-        let temp_dir = TempDir::new().unwrap();
-        let temp_path = temp_dir.path();
-
-        // Create Procfile
-        fs::write(temp_path.join("Procfile"), "web: rails server\n").unwrap();
-
-        // Create .claude directory (simulate Claude Code environment)
-        fs::create_dir(temp_path.join(".claude")).unwrap();
-
-        let config_path = temp_path.join(".overitall.toml");
-
-        let original_dir = std::env::current_dir().unwrap();
-        std::env::set_current_dir(temp_path).unwrap();
-
-        let result = init_config(config_path.to_str().unwrap(), true);
-
-        std::env::set_current_dir(original_dir).unwrap();
-
-        assert!(result.is_ok(), "init_config with --with-skill should succeed: {:?}", result.err());
-
-        // Verify skill files were created
-        let skill_md = temp_path.join(".claude/skills/oit/SKILL.md");
-        let commands_md = temp_path.join(".claude/skills/oit/COMMANDS.md");
-
-        assert!(skill_md.exists(), "SKILL.md should be created");
-        assert!(commands_md.exists(), "COMMANDS.md should be created");
-
-        let skill_content = fs::read_to_string(&skill_md).unwrap();
-        assert!(skill_content.contains("name: oit"), "SKILL.md should contain skill name");
-    }
-
-    #[test]
-    fn test_init_config_without_skill_flag_no_skill_installed() {
-        let _guard = CWD_MUTEX.lock().unwrap();
-
-        let temp_dir = TempDir::new().unwrap();
-        let temp_path = temp_dir.path();
-
-        fs::write(temp_path.join("Procfile"), "web: rails server\n").unwrap();
-        fs::create_dir(temp_path.join(".claude")).unwrap();
-
-        let config_path = temp_path.join(".overitall.toml");
-
-        let original_dir = std::env::current_dir().unwrap();
-        std::env::set_current_dir(temp_path).unwrap();
-
-        // Simulate non-TTY environment to prevent prompting
-        // SAFETY: This test runs with the CWD_MUTEX lock, preventing parallel execution
-        unsafe { std::env::set_var("OIT_TEST_NO_TTY", "1") };
-
-        // with_skill=false and non-TTY means no prompt, no install
-        let result = init_config(config_path.to_str().unwrap(), false);
-
-        // SAFETY: This test runs with the CWD_MUTEX lock, preventing parallel execution
-        unsafe { std::env::remove_var("OIT_TEST_NO_TTY") };
-        std::env::set_current_dir(original_dir).unwrap();
-
-        assert!(result.is_ok());
-
-        // Skill files should not be created (no TTY prompt, with_skill=false)
-        let skill_dir = temp_path.join(".claude/skills/oit");
-        assert!(!skill_dir.exists(), "Skill directory should not be created without --with-skill");
-    }
-
-    #[test]
-    fn test_init_config_no_claude_dir_no_skill_installed() {
-        let _guard = CWD_MUTEX.lock().unwrap();
-
-        let temp_dir = TempDir::new().unwrap();
-        let temp_path = temp_dir.path();
-
-        fs::write(temp_path.join("Procfile"), "web: rails server\n").unwrap();
-        // No .claude directory
-
-        let config_path = temp_path.join(".overitall.toml");
-
-        let original_dir = std::env::current_dir().unwrap();
-        std::env::set_current_dir(temp_path).unwrap();
-
-        let result = init_config(config_path.to_str().unwrap(), true);
-
-        std::env::set_current_dir(original_dir).unwrap();
-
-        assert!(result.is_ok());
-
-        // Skill files should not be created (no .claude directory)
-        let skill_dir = temp_path.join(".claude/skills/oit");
-        assert!(!skill_dir.exists(), "Skill should not be installed without .claude directory");
-    }
-
-    #[test]
-    fn test_cli_parses_with_skill_flag() {
-        let cli = Cli::parse_from(["oit", "--init", "--with-skill"]);
-        assert!(cli.init);
-        assert!(cli.with_skill);
-    }
-
-    #[test]
-    fn test_cli_with_skill_defaults_to_false() {
-        let cli = Cli::parse_from(["oit", "--init"]);
-        assert!(cli.init);
-        assert!(!cli.with_skill);
     }
 
     #[test]
