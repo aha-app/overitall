@@ -8,6 +8,8 @@ pub struct Config {
     #[serde(default)]
     pub processes: HashMap<String, ProcessConfig>,
     #[serde(default)]
+    pub log_files: Vec<LogFileConfig>,
+    #[serde(default)]
     pub filters: FilterConfig,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub batch_window_ms: Option<i64>,
@@ -31,6 +33,12 @@ pub struct ProcessConfig {
     pub log_file: Option<PathBuf>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<StatusConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LogFileConfig {
+    pub name: String,
+    pub path: PathBuf,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -92,6 +100,30 @@ impl Config {
         self.filters.include = include_filters;
         self.filters.exclude = exclude_filters;
     }
+
+    pub fn validate(&self, process_names: &[String]) -> anyhow::Result<()> {
+        use std::collections::HashSet;
+
+        let process_set: HashSet<&str> = process_names.iter().map(|s| s.as_str()).collect();
+
+        for log_file in &self.log_files {
+            if process_set.contains(log_file.name.as_str()) {
+                anyhow::bail!(
+                    "Log file name '{}' conflicts with a process name",
+                    log_file.name
+                );
+            }
+        }
+
+        let mut log_file_names: HashSet<&str> = HashSet::new();
+        for log_file in &self.log_files {
+            if !log_file_names.insert(&log_file.name) {
+                anyhow::bail!("Duplicate log file name '{}'", log_file.name);
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -104,6 +136,7 @@ mod tests {
         Config {
             procfile: PathBuf::from("Procfile"),
             processes: HashMap::new(),
+            log_files: Vec::new(),
             filters: FilterConfig::default(),
             batch_window_ms: None,
             max_log_buffer_mb: None,
@@ -553,5 +586,124 @@ transitions = []
         let status = api_config.status.as_ref().unwrap();
         assert_eq!(status.default, Some("Starting".to_string()));
         assert!(status.transitions.is_empty());
+    }
+
+    #[test]
+    fn test_log_files_loads_from_config() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(
+            temp_file,
+            r#"
+procfile = "Procfile"
+
+[[log_files]]
+name = "rails"
+path = "log/development.log"
+
+[[log_files]]
+name = "sidekiq"
+path = "log/sidekiq.log"
+"#
+        )
+        .unwrap();
+
+        let config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert_eq!(config.log_files.len(), 2);
+        assert_eq!(config.log_files[0].name, "rails");
+        assert_eq!(config.log_files[0].path, PathBuf::from("log/development.log"));
+        assert_eq!(config.log_files[1].name, "sidekiq");
+        assert_eq!(config.log_files[1].path, PathBuf::from("log/sidekiq.log"));
+    }
+
+    #[test]
+    fn test_log_files_defaults_to_empty() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(
+            temp_file,
+            r#"
+procfile = "Procfile"
+"#
+        )
+        .unwrap();
+
+        let config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert!(config.log_files.is_empty());
+    }
+
+    #[test]
+    fn test_log_files_roundtrip() {
+        let config = Config {
+            log_files: vec![
+                LogFileConfig {
+                    name: "rails".to_string(),
+                    path: PathBuf::from("log/development.log"),
+                },
+                LogFileConfig {
+                    name: "sidekiq".to_string(),
+                    path: PathBuf::from("log/sidekiq.log"),
+                },
+            ],
+            ..test_config()
+        };
+
+        let temp_file = NamedTempFile::new().unwrap();
+        config.save(temp_file.path().to_str().unwrap()).unwrap();
+
+        let loaded = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert_eq!(loaded.log_files.len(), 2);
+        assert_eq!(loaded.log_files[0].name, "rails");
+        assert_eq!(loaded.log_files[1].name, "sidekiq");
+    }
+
+    #[test]
+    fn test_validate_passes_with_no_conflicts() {
+        let config = Config {
+            log_files: vec![LogFileConfig {
+                name: "rails".to_string(),
+                path: PathBuf::from("log/development.log"),
+            }],
+            ..test_config()
+        };
+
+        let process_names = vec!["web".to_string(), "worker".to_string()];
+        assert!(config.validate(&process_names).is_ok());
+    }
+
+    #[test]
+    fn test_validate_fails_on_name_collision() {
+        let config = Config {
+            log_files: vec![LogFileConfig {
+                name: "web".to_string(),
+                path: PathBuf::from("log/web.log"),
+            }],
+            ..test_config()
+        };
+
+        let process_names = vec!["web".to_string(), "worker".to_string()];
+        let result = config.validate(&process_names);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("conflicts with a process name"));
+    }
+
+    #[test]
+    fn test_validate_fails_on_duplicate_log_file_name() {
+        let config = Config {
+            log_files: vec![
+                LogFileConfig {
+                    name: "rails".to_string(),
+                    path: PathBuf::from("log/development.log"),
+                },
+                LogFileConfig {
+                    name: "rails".to_string(),
+                    path: PathBuf::from("log/other.log"),
+                },
+            ],
+            ..test_config()
+        };
+
+        let process_names = vec!["web".to_string()];
+        let result = config.validate(&process_names);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Duplicate log file name"));
     }
 }

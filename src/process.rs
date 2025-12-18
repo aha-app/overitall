@@ -264,6 +264,7 @@ impl ProcessHandle {
 pub struct ProcessManager {
     processes: HashMap<String, ProcessHandle>,
     log_sources: Vec<FileReader>,
+    standalone_log_files: Vec<FileReader>,
     log_buffer: LogBuffer,
     log_tx: mpsc::UnboundedSender<LogLine>,
     log_rx: mpsc::UnboundedReceiver<LogLine>,
@@ -279,6 +280,7 @@ impl ProcessManager {
         Self {
             processes: HashMap::new(),
             log_sources: Vec::new(),
+            standalone_log_files: Vec::new(),
             log_buffer: LogBuffer::new_with_memory_limit(max_log_buffer_mb),
             log_tx,
             log_rx,
@@ -478,6 +480,24 @@ impl ProcessManager {
         reader.start(self.log_tx.clone()).await?;
         self.log_sources.push(reader);
         Ok(())
+    }
+
+    /// Add a standalone log file (not associated with any process)
+    pub async fn add_standalone_log_file(&mut self, name: String, path: PathBuf) -> Result<()> {
+        let mut reader = FileReader::new_standalone(name, path);
+        reader.start(self.log_tx.clone()).await?;
+        self.standalone_log_files.push(reader);
+        Ok(())
+    }
+
+    /// Get names of all standalone log files
+    pub fn get_standalone_log_file_names(&self) -> Vec<String> {
+        self.standalone_log_files.iter().map(|r| r.name().to_string()).collect()
+    }
+
+    /// Check if a standalone log file exists with the given name
+    pub fn has_standalone_log_file(&self, name: &str) -> bool {
+        self.standalone_log_files.iter().any(|r| r.name() == name)
     }
 
     /// Process incoming logs from the channel into the buffer
@@ -1069,5 +1089,28 @@ mod tests {
         // Second transition
         handle.check_log_line("Ready to serve requests");
         assert_eq!(handle.get_custom_status().unwrap().0, "Ready");
+    }
+
+    #[test]
+    fn test_has_standalone_log_file_returns_false_initially() {
+        let manager = ProcessManager::new();
+        assert!(!manager.has_standalone_log_file("rails"));
+    }
+
+    #[test]
+    fn test_get_standalone_log_file_names_returns_empty_initially() {
+        let manager = ProcessManager::new();
+        assert!(manager.get_standalone_log_file_names().is_empty());
+    }
+
+    #[test]
+    fn test_process_name_not_confused_with_log_file() {
+        let mut manager = ProcessManager::new();
+        manager.add_process("web".to_string(), "echo hi".to_string(), None, None);
+
+        // has_process should return true for process
+        assert!(manager.has_process("web"));
+        // has_standalone_log_file should return false for process
+        assert!(!manager.has_standalone_log_file("web"));
     }
 }

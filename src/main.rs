@@ -88,6 +88,10 @@ async fn main() -> anyhow::Result<()> {
     // Parse procfile
     let procfile = Procfile::from_file(&config.procfile)?;
 
+    // Validate config (check for name collisions between processes and log files)
+    let process_names: Vec<String> = procfile.processes.keys().cloned().collect();
+    config.validate(&process_names)?;
+
     // Determine working directory from Procfile path
     // If procfile is just "Procfile" (no directory), parent() returns Some("")
     // We need to filter out empty paths and use current_dir instead
@@ -115,6 +119,12 @@ async fn main() -> anyhow::Result<()> {
                 manager.add_log_file(name.clone(), log_path).await?;
             }
         }
+    }
+
+    // Add standalone log files from config
+    for log_file_config in &config.log_files {
+        let log_path = procfile_dir.join(&log_file_config.path);
+        manager.add_standalone_log_file(log_file_config.name.clone(), log_path).await?;
     }
 
     // Start all processes (collect failures, don't crash)
@@ -384,6 +394,7 @@ fn create_state_snapshot(app: &App, manager: &ProcessManager) -> StateSnapshot {
 
     StateSnapshot {
         processes,
+        log_files: manager.get_standalone_log_file_names(),
         filter_count: app.filters.len(),
         active_filters,
         search_pattern: if app.search_pattern.is_empty() {

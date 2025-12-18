@@ -213,6 +213,11 @@ impl<'a> CommandExecutor<'a> {
     }
 
     async fn execute_start(&mut self, name: &str) -> Result<()> {
+        // Check if it's a standalone log file first
+        if self.manager.has_standalone_log_file(name) {
+            self.app.set_status_error(format!("Cannot start log file: {}", name));
+            return Ok(());
+        }
         match process::start_process(self.manager, name).await {
             Ok(msg) => self.app.set_status_success(msg),
             Err(msg) => self.app.set_status_error(msg),
@@ -221,6 +226,11 @@ impl<'a> CommandExecutor<'a> {
     }
 
     fn execute_restart(&mut self, name: &str) -> Result<()> {
+        // Check if it's a standalone log file first
+        if self.manager.has_standalone_log_file(name) {
+            self.app.set_status_error(format!("Cannot restart log file: {}", name));
+            return Ok(());
+        }
         // Non-blocking: just set the status and let the main loop handle the actual restart
         if self.manager.set_restarting(name) {
             self.app.set_status_info(format!("Restarting: {}", name));
@@ -243,6 +253,11 @@ impl<'a> CommandExecutor<'a> {
     }
 
     async fn execute_kill(&mut self, name: &str) -> Result<()> {
+        // Check if it's a standalone log file first
+        if self.manager.has_standalone_log_file(name) {
+            self.app.set_status_error(format!("Cannot stop log file: {}", name));
+            return Ok(());
+        }
         match process::kill_process(self.manager, name).await {
             Ok(msg) => self.app.set_status_success(msg),
             Err(msg) => self.app.set_status_error(msg),

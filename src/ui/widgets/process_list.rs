@@ -56,7 +56,34 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
         spans.push(Span::raw("]"));
     }
 
-    // If no processes, show a message
+    // Add standalone log files after processes
+    let mut log_file_names = manager.get_standalone_log_file_names();
+    log_file_names.sort();
+
+    for name in log_file_names.iter() {
+        // Add separator if there are any previous items
+        if !spans.is_empty() {
+            spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
+        }
+
+        // Check if log file is hidden
+        let (status_text, color) = if app.hidden_processes.contains(name) {
+            ("Hidden".to_string(), Color::DarkGray)
+        } else {
+            ("LOG".to_string(), Color::Cyan)
+        };
+
+        // Add log file name and status
+        spans.push(Span::styled(
+            name.clone(),
+            Style::default().add_modifier(Modifier::BOLD),
+        ));
+        spans.push(Span::raw(" ["));
+        spans.push(Span::styled(status_text, Style::default().fg(color)));
+        spans.push(Span::raw("]"));
+    }
+
+    // If no processes or log files, show a message
     if spans.is_empty() {
         spans.push(Span::styled(
             "No processes",

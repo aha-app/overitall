@@ -9,6 +9,9 @@ pub struct StateSnapshot {
     /// Process information
     pub processes: Vec<ProcessInfo>,
 
+    /// Standalone log file names
+    pub log_files: Vec<String>,
+
     /// Number of active filters
     pub filter_count: usize,
 
@@ -124,6 +127,7 @@ impl Default for StateSnapshot {
     fn default() -> Self {
         Self {
             processes: Vec::new(),
+            log_files: Vec::new(),
             filter_count: 0,
             active_filters: Vec::new(),
             search_pattern: None,
@@ -263,6 +267,7 @@ mod tests {
                     error: None,
                 },
             ],
+            log_files: Vec::new(),
             filter_count: 2,
             active_filters: vec![
                 FilterInfo {
@@ -350,6 +355,7 @@ mod tests {
                 status: "running".to_string(),
                 error: None,
             }],
+            log_files: Vec::new(),
             filter_count: 1,
             active_filters: vec![FilterInfo {
                 pattern: "info".to_string(),
@@ -375,6 +381,7 @@ mod tests {
 
         // Verify key fields are present in JSON output
         assert!(json.contains("\"processes\""));
+        assert!(json.contains("\"log_files\""));
         assert!(json.contains("\"filter_count\""));
         assert!(json.contains("\"active_filters\""));
         assert!(json.contains("\"view_mode\""));

@@ -233,6 +233,7 @@ pub fn init_config(config_path: &str, with_skill: bool) -> anyhow::Result<()> {
         let config = Config {
             procfile: std::path::PathBuf::from(procfile_path),
             processes,
+            log_files: Vec::new(),
             filters: config::FilterConfig {
                 include: vec![],
                 exclude: vec![],

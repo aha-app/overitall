@@ -38,9 +38,9 @@ impl IpcCommandHandler {
             "visibility" => IpcHandlerResult::response_only(self.handle_visibility(state)),
             "hide" => self.handle_hide(&request.args),
             "show" => self.handle_show(&request.args),
-            "restart" => self.handle_restart(&request.args),
-            "kill" => self.handle_kill(&request.args),
-            "start" => self.handle_start(&request.args),
+            "restart" => self.handle_restart(&request.args, state),
+            "kill" => self.handle_kill(&request.args, state),
+            "start" => self.handle_start(&request.args, state),
             "errors" => IpcHandlerResult::response_only(self.handle_errors(&request.args, state)),
             "summary" => IpcHandlerResult::response_only(self.handle_summary(state)),
             "batch" => self.handle_batch(&request.args, state),
@@ -636,12 +636,21 @@ impl IpcCommandHandler {
         )
     }
 
-    fn handle_restart(&self, args: &Value) -> IpcHandlerResult {
+    fn handle_restart(&self, args: &Value, state: Option<&StateSnapshot>) -> IpcHandlerResult {
         // Name is optional - if not provided, restart all processes
         let name = args.get("name").and_then(|v| v.as_str());
 
         match name {
             Some(name) => {
+                // Check if it's a standalone log file
+                if let Some(s) = state {
+                    if s.log_files.contains(&name.to_string()) {
+                        return IpcHandlerResult::response_only(IpcResponse::err(format!(
+                            "Cannot restart log file: {}",
+                            name
+                        )));
+                    }
+                }
                 // Restart specific process
                 IpcHandlerResult::with_actions(
                     IpcResponse::ok(json!({
@@ -666,7 +675,7 @@ impl IpcCommandHandler {
         }
     }
 
-    fn handle_kill(&self, args: &Value) -> IpcHandlerResult {
+    fn handle_kill(&self, args: &Value, state: Option<&StateSnapshot>) -> IpcHandlerResult {
         // Process name is required
         let name = match args.get("name").and_then(|v| v.as_str()) {
             Some(n) => n.to_string(),
@@ -676,6 +685,16 @@ impl IpcCommandHandler {
                 ));
             }
         };
+
+        // Check if it's a standalone log file
+        if let Some(s) = state {
+            if s.log_files.contains(&name) {
+                return IpcHandlerResult::response_only(IpcResponse::err(format!(
+                    "Cannot stop log file: {}",
+                    name
+                )));
+            }
+        }
 
         IpcHandlerResult::with_actions(
             IpcResponse::ok(json!({
@@ -686,7 +705,7 @@ impl IpcCommandHandler {
         )
     }
 
-    fn handle_start(&self, args: &Value) -> IpcHandlerResult {
+    fn handle_start(&self, args: &Value, state: Option<&StateSnapshot>) -> IpcHandlerResult {
         // Process name is required
         let name = match args.get("name").and_then(|v| v.as_str()) {
             Some(n) => n.to_string(),
@@ -696,6 +715,16 @@ impl IpcCommandHandler {
                 ));
             }
         };
+
+        // Check if it's a standalone log file
+        if let Some(s) = state {
+            if s.log_files.contains(&name) {
+                return IpcHandlerResult::response_only(IpcResponse::err(format!(
+                    "Cannot start log file: {}",
+                    name
+                )));
+            }
+        }
 
         IpcHandlerResult::with_actions(
             IpcResponse::ok(json!({
@@ -1327,6 +1356,7 @@ mod tests {
                     error: None,
                 },
             ],
+            log_files: Vec::new(),
             filter_count: 3,
             active_filters: vec![],
             search_pattern: Some("error".to_string()),
@@ -1410,6 +1440,7 @@ mod tests {
                     error: Some("Exit code: 1".to_string()),
                 },
             ],
+            log_files: Vec::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -1465,6 +1496,7 @@ mod tests {
 
         let snapshot = StateSnapshot {
             processes: vec![],
+            log_files: Vec::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -1525,6 +1557,7 @@ mod tests {
 
         let snapshot = StateSnapshot {
             processes: vec![],
+            log_files: Vec::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -1619,6 +1652,7 @@ mod tests {
 
         let snapshot = StateSnapshot {
             processes: vec![],
+            log_files: Vec::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -1697,6 +1731,7 @@ mod tests {
 
         let snapshot = StateSnapshot {
             processes: vec![],
+            log_files: Vec::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -1755,6 +1790,7 @@ mod tests {
 
         let snapshot = StateSnapshot {
             processes: vec![],
+            log_files: Vec::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -1832,6 +1868,7 @@ mod tests {
 
         let snapshot = StateSnapshot {
             processes: vec![],
+            log_files: Vec::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -1868,6 +1905,7 @@ mod tests {
 
         let snapshot = StateSnapshot {
             processes: vec![],
+            log_files: Vec::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -2002,6 +2040,7 @@ mod tests {
 
         let snapshot = StateSnapshot {
             processes: vec![],
+            log_files: Vec::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -2056,6 +2095,7 @@ mod tests {
 
         let snapshot = StateSnapshot {
             processes: vec![],
+            log_files: Vec::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -2092,6 +2132,7 @@ mod tests {
 
         let snapshot = StateSnapshot {
             processes: vec![],
+            log_files: Vec::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -2316,6 +2357,7 @@ mod tests {
 
         let snapshot = StateSnapshot {
             processes: vec![],
+            log_files: Vec::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -2358,6 +2400,7 @@ mod tests {
 
         let snapshot = StateSnapshot {
             processes: vec![],
+            log_files: Vec::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -2491,6 +2534,7 @@ mod tests {
 
         let snapshot = StateSnapshot {
             processes: vec![],
+            log_files: Vec::new(),
             filter_count: 2,
             active_filters: vec![
                 FilterInfo {
@@ -2678,6 +2722,7 @@ mod tests {
                     error: None,
                 },
             ],
+            log_files: Vec::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -3030,6 +3075,7 @@ mod tests {
 
         let snapshot = StateSnapshot {
             processes: vec![],
+            log_files: Vec::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -3088,6 +3134,7 @@ mod tests {
 
         let snapshot = StateSnapshot {
             processes: vec![],
+            log_files: Vec::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -3139,6 +3186,7 @@ mod tests {
 
         let snapshot = StateSnapshot {
             processes: vec![],
+            log_files: Vec::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -3187,6 +3235,7 @@ mod tests {
 
         let snapshot = StateSnapshot {
             processes: vec![],
+            log_files: Vec::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -3236,6 +3285,7 @@ mod tests {
 
         let snapshot = StateSnapshot {
             processes: vec![],
+            log_files: Vec::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -3319,6 +3369,7 @@ mod tests {
                     error: Some("Exit code: 1".to_string()),
                 },
             ],
+            log_files: Vec::new(),
             filter_count: 1,
             active_filters: vec![FilterInfo {
                 pattern: "debug".to_string(),
@@ -3430,6 +3481,7 @@ mod tests {
 
         let snapshot = StateSnapshot {
             processes: vec![],
+            log_files: Vec::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -3466,6 +3518,7 @@ mod tests {
 
         let snapshot = StateSnapshot {
             processes: vec![],
+            log_files: Vec::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -3529,6 +3582,7 @@ mod tests {
 
         let snapshot = StateSnapshot {
             processes: vec![],
+            log_files: Vec::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,

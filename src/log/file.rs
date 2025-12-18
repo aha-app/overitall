@@ -10,18 +10,37 @@ use tokio::time::Duration;
 
 /// Reader for tailing log files using OS-level file system notifications
 pub struct FileReader {
-    process_name: String,
+    name: String,
     path: PathBuf,
+    is_standalone: bool,
     task: Option<JoinHandle<()>>,
 }
 
 impl FileReader {
     pub fn new(process_name: String, path: PathBuf) -> Self {
         Self {
-            process_name,
+            name: process_name,
             path,
+            is_standalone: false,
             task: None,
         }
+    }
+
+    pub fn new_standalone(name: String, path: PathBuf) -> Self {
+        Self {
+            name,
+            path,
+            is_standalone: true,
+            task: None,
+        }
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn is_standalone(&self) -> bool {
+        self.is_standalone
     }
 
     /// Start tailing the log file and send lines to the channel
@@ -30,11 +49,12 @@ impl FileReader {
             return Ok(()); // Already running
         }
 
-        let process_name = self.process_name.clone();
+        let name = self.name.clone();
         let path = self.path.clone();
+        let is_standalone = self.is_standalone;
 
         let task = tokio::spawn(async move {
-            tail_file_with_notify(path, process_name, log_tx).await;
+            tail_file_with_notify(path, name, is_standalone, log_tx).await;
         });
 
         self.task = Some(task);
@@ -57,7 +77,8 @@ impl Drop for FileReader {
 /// Tail the file using notify for file system events
 async fn tail_file_with_notify(
     path: PathBuf,
-    process_name: String,
+    name: String,
+    is_standalone: bool,
     log_tx: mpsc::UnboundedSender<LogLine>,
 ) {
     let mut position: Option<u64> = None;
@@ -152,13 +173,18 @@ async fn tail_file_with_notify(
                                 continue;
                             }
 
-                            let log_line = LogLine::new(
-                                LogSource::File {
-                                    process_name: process_name.clone(),
+                            let source = if is_standalone {
+                                LogSource::StandaloneFile {
+                                    name: name.clone(),
                                     path: path.clone(),
-                                },
-                                line.to_string(),
-                            );
+                                }
+                            } else {
+                                LogSource::File {
+                                    process_name: name.clone(),
+                                    path: path.clone(),
+                                }
+                            };
+                            let log_line = LogLine::new(source, line.to_string());
 
                             if log_tx.send(log_line).is_err() {
                                 return; // Channel closed

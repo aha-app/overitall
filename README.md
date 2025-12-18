@@ -10,6 +10,7 @@ Overitall (`oit`) is a Rust-based TUI that helps you manage multiple processes a
 
 - **Process Management**: Start, stop, and restart processes defined in a Procfile
 - **Custom Status Labels**: Show meaningful status like "Starting", "Ready" based on log patterns
+- **Standalone Log Files**: Tail log files (like Rails logs) without an associated process
 - **Unified Log Viewing**: View logs from multiple sources in a single, interleaved stream
 - **Advanced Filtering**: Include or exclude log lines with regex patterns
 - **Process Visibility Toggle**: Hide/show logs from specific processes on demand
@@ -235,6 +236,7 @@ hidden_processes = ["worker"]
 - `procfile` - Path to your Procfile (required)
 - `processes.<name>.log_file` - Path to the log file for a specific process (optional)
 - `processes.<name>.status` - Custom status configuration (see below)
+- `log_files` - Array of standalone log files to tail (see below)
 - `filters.include` - Array of regex patterns to include
 - `filters.exclude` - Array of regex patterns to exclude
 - `hidden_processes` - Array of process names to hide from log viewer (automatically saved)
@@ -242,6 +244,28 @@ hidden_processes = ["worker"]
 - `batch_window_ms` - Batch grouping window in milliseconds (default: 100)
 - `disable_auto_update` - Set to `true` to disable auto-update checks (default: false)
 - `compact_mode` - Set to `false` to show full log lines by default (default: true)
+
+### Standalone Log Files
+
+You can tail log files that aren't associated with any process in your Procfile. This is useful for:
+- Framework logs (Rails development.log, Sidekiq logs)
+- System logs
+- Any log file you want to view alongside your process output
+
+```toml
+# Tail standalone log files (not associated with any process)
+[[log_files]]
+name = "rails"
+path = "log/development.log"
+
+[[log_files]]
+name = "sidekiq"
+path = "log/sidekiq.log"
+```
+
+Standalone log files appear in the process list with a `[LOG]` indicator instead of a process status. You can hide/show them using the same commands as processes (`:hide rails`, `:show rails`).
+
+Note: You cannot start, stop, or restart standalone log files - these commands are only for processes.
 
 ### Custom Process Status Labels
 
@@ -408,6 +432,7 @@ Overitall is under active development. Current features:
 - Easy initialization with `--init` flag (automatically generates config from Procfile)
 - Process management (start/stop/restart)
 - Custom process status labels (show "Starting", "Ready", etc. based on log patterns)
+- Standalone log files (tail log files not associated with any process)
 - Log file tailing and interleaved viewing
 - Filtering (include/exclude patterns)
 - Process visibility toggle (hide/show logs from specific processes)

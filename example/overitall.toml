@@ -39,6 +39,13 @@ pattern = "CPU:"
 label = "Active"
 color = "blue"
 
+# Standalone log file (not associated with any process)
+# This appears in the process list with [LOG] indicator
+# You can hide/show it with :hide shared or :show shared
+[[log_files]]
+name = "shared"
+path = "shared.log"
+
 [filters]
 include = []
 exclude = []

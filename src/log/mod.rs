@@ -70,6 +70,10 @@ impl LogLine {
                 size += process_name.capacity();
                 size += path.as_os_str().len();
             }
+            LogSource::StandaloneFile { name, path } => {
+                size += name.capacity();
+                size += path.as_os_str().len();
+            }
         }
 
         size
@@ -85,6 +89,10 @@ pub enum LogSource {
         process_name: String,
         path: PathBuf,
     },
+    StandaloneFile {
+        name: String,
+        path: PathBuf,
+    },
 }
 
 impl LogSource {
@@ -93,6 +101,7 @@ impl LogSource {
             LogSource::ProcessStdout(name) => name,
             LogSource::ProcessStderr(name) => name,
             LogSource::File { process_name, .. } => process_name,
+            LogSource::StandaloneFile { name, .. } => name,
         }
     }
 
@@ -106,5 +115,60 @@ impl LogSource {
 
     pub fn is_file(&self) -> bool {
         matches!(self, LogSource::File { .. })
+    }
+
+    pub fn is_standalone_file(&self) -> bool {
+        matches!(self, LogSource::StandaloneFile { .. })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_log_source_process_name_for_stdout() {
+        let source = LogSource::ProcessStdout("web".to_string());
+        assert_eq!(source.process_name(), "web");
+        assert!(source.is_stdout());
+        assert!(!source.is_stderr());
+        assert!(!source.is_file());
+        assert!(!source.is_standalone_file());
+    }
+
+    #[test]
+    fn test_log_source_process_name_for_stderr() {
+        let source = LogSource::ProcessStderr("worker".to_string());
+        assert_eq!(source.process_name(), "worker");
+        assert!(!source.is_stdout());
+        assert!(source.is_stderr());
+        assert!(!source.is_file());
+        assert!(!source.is_standalone_file());
+    }
+
+    #[test]
+    fn test_log_source_process_name_for_file() {
+        let source = LogSource::File {
+            process_name: "web".to_string(),
+            path: PathBuf::from("/var/log/web.log"),
+        };
+        assert_eq!(source.process_name(), "web");
+        assert!(!source.is_stdout());
+        assert!(!source.is_stderr());
+        assert!(source.is_file());
+        assert!(!source.is_standalone_file());
+    }
+
+    #[test]
+    fn test_log_source_process_name_for_standalone_file() {
+        let source = LogSource::StandaloneFile {
+            name: "rails".to_string(),
+            path: PathBuf::from("/var/log/rails.log"),
+        };
+        assert_eq!(source.process_name(), "rails");
+        assert!(!source.is_stdout());
+        assert!(!source.is_stderr());
+        assert!(!source.is_file());
+        assert!(source.is_standalone_file());
     }
 }

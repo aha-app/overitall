@@ -493,6 +493,7 @@ fn test_snapshot_with_logs(logs: Vec<LogLineInfo>) -> StateSnapshot {
                 error: None,
             },
         ],
+        log_files: vec![],
         filter_count: 0,
         active_filters: vec![],
         search_pattern: None,
@@ -658,6 +659,7 @@ async fn test_summary_command_returns_comprehensive_state() {
                 error: None,
             },
         ],
+        log_files: vec![],
         filter_count: 2,
         active_filters: vec![
             FilterInfo {
