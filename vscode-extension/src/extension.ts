@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { startOit } from './commands/start';
+import { startOit, setExtensionContext } from './commands/start';
 import { OitClient } from './ipc/client';
 import { ProcessTreeProvider } from './providers/processTree';
 import { StatusBarManager } from './providers/statusBar';
@@ -10,6 +10,9 @@ import { log, getOutputChannel, disposeLogger } from './utils/logger';
 
 export function activate(context: vscode.ExtensionContext) {
   log('Overitall extension activating...');
+
+  // Set context for development mode detection
+  setExtensionContext(context);
 
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
   if (!workspaceFolder) {
