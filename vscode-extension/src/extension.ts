@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { startOit, setExtensionContext, showOitTerminal, getOitTerminal, clearOitTerminal } from './commands/start';
+import { startOit, setExtensionContext, setSocketChecker, showOitTerminal, getOitTerminal, clearOitTerminal } from './commands/start';
 import { OitClient } from './ipc/client';
 import { ProcessTreeProvider } from './providers/processTree';
 import { StatusBarManager } from './providers/statusBar';
@@ -28,6 +28,9 @@ export function activate(context: vscode.ExtensionContext) {
   const processTreeProvider = new ProcessTreeProvider();
   const statusBarManager = new StatusBarManager();
   const socketWatcher = new SocketWatcher(workspacePath);
+
+  // Set up socket checker for start command to detect if oit is running
+  setSocketChecker(() => socketWatcher.isAvailable());
 
   statusBarManager.show();
 

@@ -5,9 +5,14 @@ import { log } from '../utils/logger';
 
 let extensionContext: vscode.ExtensionContext | undefined;
 let oitTerminal: vscode.Terminal | undefined;
+let socketChecker: (() => boolean) | undefined;
 
 export function setExtensionContext(context: vscode.ExtensionContext): void {
   extensionContext = context;
+}
+
+export function setSocketChecker(checker: () => boolean): void {
+  socketChecker = checker;
 }
 
 export function getOitTerminal(): vscode.Terminal | undefined {
@@ -19,12 +24,24 @@ export function clearOitTerminal(): void {
 }
 
 export async function startOit(): Promise<vscode.Terminal | undefined> {
-  // If terminal already exists and is still valid, just show it
+  // If terminal already exists and is still valid, check if oit is running
   if (oitTerminal) {
     const terminals = vscode.window.terminals;
     if (terminals.includes(oitTerminal)) {
-      log('Reusing existing Overitall terminal');
+      const isOitRunning = socketChecker?.() ?? false;
+      if (isOitRunning) {
+        log('Reusing existing Overitall terminal (oit is running)');
+        oitTerminal.show();
+        return oitTerminal;
+      }
+      // Terminal exists but oit is not running - restart it in the same terminal
+      log('Terminal exists but oit not running, restarting oit');
       oitTerminal.show();
+      const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+      if (workspaceFolder) {
+        const oitCommand = getOitCommand(workspaceFolder.uri.fsPath);
+        oitTerminal.sendText(oitCommand);
+      }
       return oitTerminal;
     }
     // Terminal was closed, clear reference
