@@ -120,6 +120,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     treeView,
     statusBarManager,
+    { dispose: () => processTreeProvider.dispose() },
   );
 
   context.subscriptions.push({

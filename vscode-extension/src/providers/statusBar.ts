@@ -4,6 +4,8 @@ import { OitClient } from '../ipc/client';
 export class StatusBarManager {
   private statusBarItem: vscode.StatusBarItem;
   private client?: OitClient;
+  private pollInterval?: ReturnType<typeof setInterval>;
+  private static readonly POLL_INTERVAL_MS = 2000;
 
   constructor() {
     this.statusBarItem = vscode.window.createStatusBarItem(
@@ -18,8 +20,24 @@ export class StatusBarManager {
     this.client = client;
     if (client) {
       this.refresh();
+      this.startPolling();
     } else {
+      this.stopPolling();
       this.setDisconnected();
+    }
+  }
+
+  private startPolling(): void {
+    this.stopPolling();
+    this.pollInterval = setInterval(() => {
+      this.refresh();
+    }, StatusBarManager.POLL_INTERVAL_MS);
+  }
+
+  private stopPolling(): void {
+    if (this.pollInterval) {
+      clearInterval(this.pollInterval);
+      this.pollInterval = undefined;
     }
   }
 
@@ -57,6 +75,7 @@ export class StatusBarManager {
   }
 
   dispose(): void {
+    this.stopPolling();
     this.statusBarItem.dispose();
   }
 }

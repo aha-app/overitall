@@ -8,15 +8,38 @@ export class ProcessTreeProvider implements vscode.TreeDataProvider<ProcessInfo>
 
   private processes: ProcessInfo[] = [];
   private client?: OitClient;
+  private pollInterval?: ReturnType<typeof setInterval>;
+  private static readonly POLL_INTERVAL_MS = 2000;
 
   setClient(client: OitClient | undefined): void {
     this.client = client;
     if (client) {
       this.refresh();
+      this.startPolling();
     } else {
+      this.stopPolling();
       this.processes = [];
       this._onDidChangeTreeData.fire(undefined);
     }
+  }
+
+  private startPolling(): void {
+    this.stopPolling();
+    this.pollInterval = setInterval(() => {
+      this.refresh();
+    }, ProcessTreeProvider.POLL_INTERVAL_MS);
+  }
+
+  private stopPolling(): void {
+    if (this.pollInterval) {
+      clearInterval(this.pollInterval);
+      this.pollInterval = undefined;
+    }
+  }
+
+  dispose(): void {
+    this.stopPolling();
+    this._onDidChangeTreeData.dispose();
   }
 
   async refresh(): Promise<void> {
