@@ -31,9 +31,16 @@ function getOitCommand(workspacePath: string): string {
   // In development mode, prefer local binary from target directory
   if (extensionContext?.extensionMode === vscode.ExtensionMode.Development) {
     log('Development mode detected, looking for local oit binary');
+
+    // Extension is in vscode-extension/, so go up one level to find target/
+    const extensionPath = extensionContext.extensionPath;
+    const repoRoot = path.dirname(extensionPath);
+    log(`Extension path: ${extensionPath}`);
+    log(`Repo root: ${repoRoot}`);
+
     // Check for release binary first, then debug
-    const releaseBinary = path.join(workspacePath, 'target', 'release', 'oit');
-    const debugBinary = path.join(workspacePath, 'target', 'debug', 'oit');
+    const releaseBinary = path.join(repoRoot, 'target', 'release', 'oit');
+    const debugBinary = path.join(repoRoot, 'target', 'debug', 'oit');
 
     if (fs.existsSync(releaseBinary)) {
       log(`Using release binary: ${releaseBinary}`);
