@@ -36,6 +36,10 @@ pub struct Cli {
     #[arg(long)]
     pub no_update: bool,
 
+    /// Check for updates and exit (doesn't start processes)
+    #[arg(long)]
+    pub update: bool,
+
     /// Subcommand for IPC client operations
     #[command(subcommand)]
     pub command: Option<Commands>,
@@ -723,6 +727,18 @@ mod tests {
     fn test_cli_default_no_update_is_false() {
         let cli = Cli::parse_from(["oit"]);
         assert!(!cli.no_update);
+    }
+
+    #[test]
+    fn test_cli_parses_update_flag() {
+        let cli = Cli::parse_from(["oit", "--update"]);
+        assert!(cli.update);
+    }
+
+    #[test]
+    fn test_cli_default_update_is_false() {
+        let cli = Cli::parse_from(["oit"]);
+        assert!(!cli.update);
     }
 
     #[test]

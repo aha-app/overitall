@@ -40,6 +40,20 @@ async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let config_path = &cli.config;
 
+    // Handle --update flag: check for updates and exit
+    if cli.update {
+        match updater::check_and_update(VERSION) {
+            Ok(()) => {
+                println!("oit {} is up to date", VERSION);
+            }
+            Err(e) => {
+                eprintln!("Error checking for updates: {}", e);
+                std::process::exit(1);
+            }
+        }
+        return Ok(());
+    }
+
     // Check for updates (unless disabled via --no-update or config file)
     // If update succeeds, this will re-exec and never return
     let config_disables_update = Config::from_file(config_path)
