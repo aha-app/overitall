@@ -210,11 +210,13 @@ async fn run_app(
     let mut kill_signals_sent = false;
     let ipc_handler = IpcCommandHandler::new(VERSION);
 
-    // Set up signal handlers for graceful shutdown on SIGINT/SIGTERM
+    // Set up signal handlers for graceful shutdown on SIGINT/SIGTERM/SIGHUP
     // SIGINT is typically Ctrl+C when not in raw mode, or sent via `kill -INT <pid>`
     // SIGTERM is sent by `kill <pid>` without arguments
+    // SIGHUP is sent when the controlling terminal is closed (e.g., VS Code terminal)
     let mut sigint = signal(SignalKind::interrupt())?;
     let mut sigterm = signal(SignalKind::terminate())?;
+    let mut sighup = signal(SignalKind::hangup())?;
 
     // Create async event stream for terminal events
     let mut event_stream = EventStream::new();
@@ -311,6 +313,10 @@ async fn run_app(
             }
             _ = sigterm.recv() => {
                 // SIGTERM received (e.g., kill <pid>)
+                app.start_shutdown();
+            }
+            _ = sighup.recv() => {
+                // SIGHUP received (e.g., terminal closed)
                 app.start_shutdown();
             }
             // Handle terminal events (keyboard, mouse, resize)
