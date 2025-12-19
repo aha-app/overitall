@@ -6,17 +6,21 @@ import { ProcessTreeProvider } from './providers/processTree';
 import { StatusBarManager } from './providers/statusBar';
 import { SocketWatcher } from './utils/socketWatcher';
 import { ProcessInfo } from './ipc/types';
+import { log, getOutputChannel, disposeLogger } from './utils/logger';
 
 export function activate(context: vscode.ExtensionContext) {
-  console.log('Overitall extension activated');
+  log('Overitall extension activating...');
 
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
   if (!workspaceFolder) {
+    log('No workspace folder found, extension will not activate');
     return;
   }
 
   const workspacePath = workspaceFolder.uri.fsPath;
   const socketPath = path.join(workspacePath, '.oit.sock');
+  log(`Workspace: ${workspacePath}`);
+  log(`Socket path: ${socketPath}`);
 
   const processTreeProvider = new ProcessTreeProvider();
   const statusBarManager = new StatusBarManager();
@@ -30,12 +34,14 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   const onSocketAvailable = () => {
+    log('Socket available - connecting to oit');
     const client = new OitClient(socketPath);
     processTreeProvider.setClient(client);
     statusBarManager.setClient(client);
   };
 
   const onSocketUnavailable = () => {
+    log('Socket unavailable - disconnecting from oit');
     processTreeProvider.setClient(undefined);
     statusBarManager.setClient(undefined);
   };
@@ -43,11 +49,15 @@ export function activate(context: vscode.ExtensionContext) {
   socketWatcher.start(onSocketAvailable, onSocketUnavailable);
 
   if (socketWatcher.isAvailable()) {
+    log('Socket already exists on activation');
     onSocketAvailable();
   }
 
+  context.subscriptions.push(getOutputChannel());
+
   context.subscriptions.push(
     vscode.commands.registerCommand('overitall.start', () => {
+      log('Command: overitall.start');
       startOit();
     }),
 
