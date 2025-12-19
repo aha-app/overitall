@@ -48,12 +48,17 @@ export async function startOit(): Promise<vscode.Terminal | undefined> {
 }
 
 export function showOitTerminal(): void {
+  log(`showOitTerminal called, oitTerminal=${oitTerminal ? 'set' : 'undefined'}`);
   if (oitTerminal) {
     const terminals = vscode.window.terminals;
-    if (terminals.includes(oitTerminal)) {
-      oitTerminal.show();
+    const found = terminals.some(t => t === oitTerminal);
+    log(`Terminal count: ${terminals.length}, found in list: ${found}`);
+    if (found) {
+      log('Showing terminal');
+      oitTerminal.show(false); // false = take focus
       return;
     }
+    log('Terminal not found in list, clearing reference');
     oitTerminal = undefined;
   }
   vscode.window.showInformationMessage('Overitall terminal is not running. Use "Start Overitall" to launch it.');

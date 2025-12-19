@@ -208,6 +208,7 @@ async fn run_app(
 ) -> anyhow::Result<()> {
     let mut shutdown_ui_shown = false;
     let mut kill_signals_sent = false;
+    let mut headless_shutdown = false; // True when terminal is gone (SIGHUP)
     let ipc_handler = IpcCommandHandler::new(VERSION);
 
     // Set up signal handlers for graceful shutdown on SIGINT/SIGTERM/SIGHUP
@@ -256,10 +257,12 @@ async fn run_app(
             }
         }
 
-        // Draw UI
-        terminal.draw(|f| {
-            ui::draw(f, app, manager);
-        })?;
+        // Draw UI (skip if terminal is gone during headless shutdown)
+        if !headless_shutdown {
+            terminal.draw(|f| {
+                ui::draw(f, app, manager);
+            })?;
+        }
 
         // Handle pending restarts (after UI has been drawn showing "Restarting" status)
         if manager.has_pending_restarts() {
@@ -276,9 +279,9 @@ async fn run_app(
 
         // Check if we're shutting down
         if app.shutting_down {
-            if shutdown_ui_shown {
-                // UI has been drawn with "Terminating" status
-                // Now send kill signals if we haven't already
+            // In headless mode (SIGHUP), skip the UI drawing step and send signals immediately
+            if headless_shutdown || shutdown_ui_shown {
+                // Send kill signals if we haven't already
                 if !kill_signals_sent {
                     manager.send_kill_signals().await?;
                     kill_signals_sent = true;
@@ -317,6 +320,8 @@ async fn run_app(
             }
             _ = sighup.recv() => {
                 // SIGHUP received (e.g., terminal closed)
+                // Use headless shutdown since the terminal is gone
+                headless_shutdown = true;
                 app.start_shutdown();
             }
             // Handle terminal events (keyboard, mouse, resize)
