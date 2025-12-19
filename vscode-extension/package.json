@@ -1,0 +1,50 @@
+{
+  "name": "vscode-overitall",
+  "displayName": "Overitall",
+  "description": "Process management and log viewing for Overitall",
+  "version": "0.1.0",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "workspaceContains:Procfile",
+    "workspaceContains:.oit.sock"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "overitall.start",
+        "title": "Start Overitall",
+        "icon": "$(play)"
+      }
+    ],
+    "views": {
+      "explorer": [
+        {
+          "id": "overitallProcesses",
+          "name": "Overitall"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "overitallProcesses",
+        "contents": "Overitall is not running.\n[Start Overitall](command:overitall.start)"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.0.0"
+  }
+}
