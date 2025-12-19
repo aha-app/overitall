@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { startOit, setExtensionContext } from './commands/start';
+import { startOit, setExtensionContext, showOitTerminal, getOitTerminal, clearOitTerminal } from './commands/start';
 import { OitClient } from './ipc/client';
 import { ProcessTreeProvider } from './providers/processTree';
 import { StatusBarManager } from './providers/statusBar';
@@ -58,10 +58,26 @@ export function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(getOutputChannel());
 
+  // Handle terminal close events to clean up our terminal reference
+  context.subscriptions.push(
+    vscode.window.onDidCloseTerminal((terminal) => {
+      const oitTerminal = getOitTerminal();
+      if (oitTerminal && terminal === oitTerminal) {
+        log('Overitall terminal was closed');
+        clearOitTerminal();
+      }
+    })
+  );
+
   context.subscriptions.push(
     vscode.commands.registerCommand('overitall.start', () => {
       log('Command: overitall.start');
       startOit();
+    }),
+
+    vscode.commands.registerCommand('overitall.showTerminal', () => {
+      log('Command: overitall.showTerminal');
+      showOitTerminal();
     }),
 
     vscode.commands.registerCommand('overitall.refresh', () => {

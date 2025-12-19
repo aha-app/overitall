@@ -4,12 +4,32 @@ import * as path from 'path';
 import { log } from '../utils/logger';
 
 let extensionContext: vscode.ExtensionContext | undefined;
+let oitTerminal: vscode.Terminal | undefined;
 
 export function setExtensionContext(context: vscode.ExtensionContext): void {
   extensionContext = context;
 }
 
+export function getOitTerminal(): vscode.Terminal | undefined {
+  return oitTerminal;
+}
+
+export function clearOitTerminal(): void {
+  oitTerminal = undefined;
+}
+
 export async function startOit(): Promise<vscode.Terminal | undefined> {
+  // If terminal already exists and is still valid, just show it
+  if (oitTerminal) {
+    const terminals = vscode.window.terminals;
+    if (terminals.includes(oitTerminal)) {
+      log('Reusing existing Overitall terminal');
+      oitTerminal.show();
+      return oitTerminal;
+    }
+    // Terminal was closed, clear reference
+    oitTerminal = undefined;
+  }
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
   if (!workspaceFolder) {
     vscode.window.showErrorMessage('No workspace folder open');
@@ -18,13 +38,25 @@ export async function startOit(): Promise<vscode.Terminal | undefined> {
 
   const oitCommand = getOitCommand(workspaceFolder.uri.fsPath);
 
-  const terminal = vscode.window.createTerminal({
+  oitTerminal = vscode.window.createTerminal({
     name: 'Overitall',
     cwd: workspaceFolder.uri.fsPath,
   });
-  terminal.show();
-  terminal.sendText(oitCommand);
-  return terminal;
+  oitTerminal.show();
+  oitTerminal.sendText(oitCommand);
+  return oitTerminal;
+}
+
+export function showOitTerminal(): void {
+  if (oitTerminal) {
+    const terminals = vscode.window.terminals;
+    if (terminals.includes(oitTerminal)) {
+      oitTerminal.show();
+      return;
+    }
+    oitTerminal = undefined;
+  }
+  vscode.window.showInformationMessage('Overitall terminal is not running. Use "Start Overitall" to launch it.');
 }
 
 function getOitCommand(workspacePath: string): string {
