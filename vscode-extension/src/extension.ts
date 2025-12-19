@@ -3,6 +3,7 @@ import * as path from 'path';
 import { startOit } from './commands/start';
 import { OitClient } from './ipc/client';
 import { ProcessTreeProvider } from './providers/processTree';
+import { StatusBarManager } from './providers/statusBar';
 import { SocketWatcher } from './utils/socketWatcher';
 import { ProcessInfo } from './ipc/types';
 
@@ -18,7 +19,10 @@ export function activate(context: vscode.ExtensionContext) {
   const socketPath = path.join(workspacePath, '.oit.sock');
 
   const processTreeProvider = new ProcessTreeProvider();
+  const statusBarManager = new StatusBarManager();
   const socketWatcher = new SocketWatcher(workspacePath);
+
+  statusBarManager.show();
 
   const treeView = vscode.window.createTreeView('overitallProcesses', {
     treeDataProvider: processTreeProvider,
@@ -28,10 +32,12 @@ export function activate(context: vscode.ExtensionContext) {
   const onSocketAvailable = () => {
     const client = new OitClient(socketPath);
     processTreeProvider.setClient(client);
+    statusBarManager.setClient(client);
   };
 
   const onSocketUnavailable = () => {
     processTreeProvider.setClient(undefined);
+    statusBarManager.setClient(undefined);
   };
 
   socketWatcher.start(onSocketAvailable, onSocketUnavailable);
@@ -47,6 +53,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     vscode.commands.registerCommand('overitall.refresh', () => {
       processTreeProvider.refresh();
+      statusBarManager.refresh();
     }),
 
     vscode.commands.registerCommand('overitall.restart', async (process: ProcessInfo) => {
@@ -58,6 +65,7 @@ export function activate(context: vscode.ExtensionContext) {
       const response = await client.restart(process.name);
       if (response.success) {
         processTreeProvider.refresh();
+        statusBarManager.refresh();
       } else {
         vscode.window.showErrorMessage(`Failed to restart ${process.name}: ${response.error}`);
       }
@@ -72,12 +80,14 @@ export function activate(context: vscode.ExtensionContext) {
       const response = await client.kill(process.name);
       if (response.success) {
         processTreeProvider.refresh();
+        statusBarManager.refresh();
       } else {
         vscode.window.showErrorMessage(`Failed to stop ${process.name}: ${response.error}`);
       }
     }),
 
     treeView,
+    statusBarManager,
   );
 
   context.subscriptions.push({
