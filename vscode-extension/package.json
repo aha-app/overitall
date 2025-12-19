@@ -20,6 +20,21 @@
         "command": "overitall.start",
         "title": "Start Overitall",
         "icon": "$(play)"
+      },
+      {
+        "command": "overitall.refresh",
+        "title": "Refresh Processes",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "overitall.restart",
+        "title": "Restart Process",
+        "icon": "$(debug-restart)"
+      },
+      {
+        "command": "overitall.stop",
+        "title": "Stop Process",
+        "icon": "$(debug-stop)"
       }
     ],
     "views": {
@@ -35,7 +50,28 @@
         "view": "overitallProcesses",
         "contents": "Overitall is not running.\n[Start Overitall](command:overitall.start)"
       }
-    ]
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "overitall.refresh",
+          "when": "view == overitallProcesses",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "overitall.restart",
+          "when": "view == overitallProcesses && viewItem == process",
+          "group": "inline"
+        },
+        {
+          "command": "overitall.stop",
+          "when": "view == overitallProcesses && viewItem == process",
+          "group": "inline"
+        }
+      ]
+    }
   },
   "scripts": {
     "compile": "tsc -p ./",

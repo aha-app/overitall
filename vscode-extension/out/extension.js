@@ -36,11 +36,70 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.activate = activate;
 exports.deactivate = deactivate;
 const vscode = __importStar(require("vscode"));
+const path = __importStar(require("path"));
+const start_1 = require("./commands/start");
+const client_1 = require("./ipc/client");
+const processTree_1 = require("./providers/processTree");
+const socketWatcher_1 = require("./utils/socketWatcher");
 function activate(context) {
     console.log('Overitall extension activated');
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    if (!workspaceFolder) {
+        return;
+    }
+    const workspacePath = workspaceFolder.uri.fsPath;
+    const socketPath = path.join(workspacePath, '.oit.sock');
+    const processTreeProvider = new processTree_1.ProcessTreeProvider();
+    const socketWatcher = new socketWatcher_1.SocketWatcher(workspacePath);
+    const treeView = vscode.window.createTreeView('overitallProcesses', {
+        treeDataProvider: processTreeProvider,
+        showCollapseAll: false,
+    });
+    const onSocketAvailable = () => {
+        const client = new client_1.OitClient(socketPath);
+        processTreeProvider.setClient(client);
+    };
+    const onSocketUnavailable = () => {
+        processTreeProvider.setClient(undefined);
+    };
+    socketWatcher.start(onSocketAvailable, onSocketUnavailable);
+    if (socketWatcher.isAvailable()) {
+        onSocketAvailable();
+    }
     context.subscriptions.push(vscode.commands.registerCommand('overitall.start', () => {
-        vscode.window.showInformationMessage('Starting Overitall...');
-    }));
+        (0, start_1.startOit)();
+    }), vscode.commands.registerCommand('overitall.refresh', () => {
+        processTreeProvider.refresh();
+    }), vscode.commands.registerCommand('overitall.restart', async (process) => {
+        if (!socketWatcher.isAvailable()) {
+            vscode.window.showWarningMessage('Overitall is not running');
+            return;
+        }
+        const client = new client_1.OitClient(socketPath);
+        const response = await client.restart(process.name);
+        if (response.success) {
+            processTreeProvider.refresh();
+        }
+        else {
+            vscode.window.showErrorMessage(`Failed to restart ${process.name}: ${response.error}`);
+        }
+    }), vscode.commands.registerCommand('overitall.stop', async (process) => {
+        if (!socketWatcher.isAvailable()) {
+            vscode.window.showWarningMessage('Overitall is not running');
+            return;
+        }
+        const client = new client_1.OitClient(socketPath);
+        const response = await client.kill(process.name);
+        if (response.success) {
+            processTreeProvider.refresh();
+        }
+        else {
+            vscode.window.showErrorMessage(`Failed to stop ${process.name}: ${response.error}`);
+        }
+    }), treeView);
+    context.subscriptions.push({
+        dispose: () => socketWatcher.stop(),
+    });
 }
 function deactivate() { }
 //# sourceMappingURL=extension.js.map
