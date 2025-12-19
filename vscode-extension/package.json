@@ -3,6 +3,12 @@
   "displayName": "Overitall",
   "description": "Process management and log viewing for Overitall",
   "version": "0.1.0",
+  "publisher": "jemmyw",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jemmyw/overitall"
+  },
+  "license": "MIT",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -95,11 +101,13 @@
   "scripts": {
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "lint": "eslint src --ext ts"
+    "lint": "eslint src --ext ts",
+    "package": "vsce package"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.2.0",
     "typescript": "^5.0.0"
   }
 }

@@ -37,13 +37,26 @@ echo "Bumping version: ${CARGO_VERSION} -> ${NEW_VERSION} (${BUMP_TYPE})"
 
 sed -i '' "s/^version = \".*\"/version = \"${NEW_VERSION}\"/" Cargo.toml
 
+# Update VS Code extension version to match
+echo "Updating VS Code extension version..."
+cd vscode-extension
+npm version ${NEW_VERSION} --no-git-tag-version
+cd ..
+
 BINARY_NAME="oit-macos-arm64"
 
 echo "Building release binary..."
 cargo build --release
 
+echo "Building VS Code extension..."
+cd vscode-extension
+npm run compile
+npm run package
+VSIX_FILE="vscode-overitall-${NEW_VERSION}.vsix"
+cd ..
+
 echo "Committing version bump..."
-git add Cargo.toml Cargo.lock
+git add Cargo.toml Cargo.lock vscode-extension/package.json vscode-extension/package-lock.json
 git commit -m "Bump version to ${NEW_VERSION}"
 git push
 
@@ -60,11 +73,18 @@ echo "Creating GitHub release..."
 gh release create ${VERSION} \
   --title "Release ${VERSION}" \
   --generate-notes \
-  target/release/${BINARY_NAME}.tar.gz
+  target/release/${BINARY_NAME}.tar.gz \
+  vscode-extension/${VSIX_FILE}
+
+REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
 
 echo ""
 echo "✓ Release ${VERSION} created!"
 echo ""
-echo "You can install with:"
-echo "  curl -L https://github.com/$(gh repo view --json nameWithOwner -q .nameWithOwner)/releases/download/${VERSION}/${BINARY_NAME}.tar.gz | tar xz"
+echo "Install oit binary:"
+echo "  curl -L https://github.com/${REPO}/releases/download/${VERSION}/${BINARY_NAME}.tar.gz | tar xz"
 echo "  mv oit /usr/local/bin/"
+echo ""
+echo "Install VS Code extension:"
+echo "  Download: https://github.com/${REPO}/releases/download/${VERSION}/${VSIX_FILE}"
+echo "  Then: code --install-extension ${VSIX_FILE}"
