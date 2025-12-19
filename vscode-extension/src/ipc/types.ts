@@ -13,6 +13,8 @@ export interface ProcessInfo {
   name: string;
   status: string;
   error?: string;
+  custom_label?: string;
+  custom_color?: string;
 }
 
 export interface ProcessesResponse {

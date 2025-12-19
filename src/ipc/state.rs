@@ -60,6 +60,14 @@ pub struct ProcessInfo {
 
     /// Error message for failed processes
     pub error: Option<String>,
+
+    /// Custom status label from config (e.g., "Ready", "Building")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub custom_label: Option<String>,
+
+    /// Custom status color from config (e.g., "green", "yellow")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub custom_color: Option<String>,
 }
 
 /// Information about a filter
@@ -176,6 +184,8 @@ mod tests {
             name: "web".to_string(),
             status: "running".to_string(),
             error: None,
+            custom_label: None,
+            custom_color: None,
         };
 
         let json = serde_json::to_string(&info).unwrap();
@@ -192,6 +202,8 @@ mod tests {
             name: "worker".to_string(),
             status: "failed".to_string(),
             error: Some("command not found: node".to_string()),
+            custom_label: None,
+            custom_color: None,
         };
 
         let json = serde_json::to_string(&info).unwrap();
@@ -260,11 +272,15 @@ mod tests {
                     name: "web".to_string(),
                     status: "running".to_string(),
                     error: None,
+                    custom_label: None,
+                    custom_color: None,
                 },
                 ProcessInfo {
                     name: "worker".to_string(),
                     status: "stopped".to_string(),
                     error: None,
+                    custom_label: None,
+                    custom_color: None,
                 },
             ],
             log_files: Vec::new(),
@@ -354,6 +370,8 @@ mod tests {
                 name: "web".to_string(),
                 status: "running".to_string(),
                 error: None,
+                custom_label: None,
+                custom_color: None,
             }],
             log_files: Vec::new(),
             filter_count: 1,

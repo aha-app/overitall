@@ -29,7 +29,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use futures::StreamExt;
-use ratatui::{backend::CrosstermBackend, Terminal};
+use ratatui::{backend::CrosstermBackend, style::Color, Terminal};
 use tokio::signal::unix::{signal, SignalKind};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -337,6 +337,22 @@ async fn run_app(
     Ok(())
 }
 
+/// Convert a ratatui Color to a string name
+fn color_to_string(color: Color) -> String {
+    match color {
+        Color::Green => "green",
+        Color::Yellow => "yellow",
+        Color::Red => "red",
+        Color::Blue => "blue",
+        Color::Cyan => "cyan",
+        Color::Magenta => "magenta",
+        Color::White => "white",
+        Color::Gray => "gray",
+        _ => "white",
+    }
+    .to_string()
+}
+
 /// Create a StateSnapshot from current App and ProcessManager state for IPC commands
 fn create_state_snapshot(app: &App, manager: &ProcessManager) -> StateSnapshot {
     // Build process info list
@@ -351,10 +367,19 @@ fn create_state_snapshot(app: &App, manager: &ProcessManager) -> StateSnapshot {
                 ProcessStatus::Restarting => ("restarting".to_string(), None),
                 ProcessStatus::Failed(msg) => ("failed".to_string(), Some(msg.clone())),
             };
+            let (custom_label, custom_color) = handle
+                .get_custom_status()
+                .map(|(label, color)| {
+                    let color_str = color.map(|c| color_to_string(c));
+                    (Some(label.to_string()), color_str)
+                })
+                .unwrap_or((None, None));
             ProcessInfo {
                 name: name.clone(),
                 status,
                 error,
+                custom_label,
+                custom_color,
             }
         })
         .collect();

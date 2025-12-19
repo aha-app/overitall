@@ -37,13 +37,43 @@ export class ProcessTreeProvider implements vscode.TreeDataProvider<ProcessInfo>
 
   getTreeItem(element: ProcessInfo): vscode.TreeItem {
     const item = new vscode.TreeItem(element.name);
-    item.description = element.status;
-    item.iconPath = this.getIconForStatus(element.status);
+    // Use custom label if available, otherwise fall back to status
+    item.description = element.custom_label || element.status;
+    item.iconPath = this.getIconForProcess(element);
     item.contextValue = 'process';
     if (element.error) {
       item.tooltip = element.error;
     }
     return item;
+  }
+
+  private getIconForProcess(process: ProcessInfo): vscode.ThemeIcon {
+    // If custom color is set, use it with a play icon (for running processes)
+    if (process.custom_color && process.status === 'running') {
+      const themeColor = this.getThemeColorForCustomColor(process.custom_color);
+      return new vscode.ThemeIcon('play', themeColor);
+    }
+    // Fall back to status-based icons
+    return this.getIconForStatus(process.status);
+  }
+
+  private getThemeColorForCustomColor(color: string): vscode.ThemeColor | undefined {
+    switch (color) {
+      case 'green':
+        return new vscode.ThemeColor('testing.iconPassed');
+      case 'yellow':
+        return new vscode.ThemeColor('editorWarning.foreground');
+      case 'red':
+        return new vscode.ThemeColor('testing.iconFailed');
+      case 'blue':
+        return new vscode.ThemeColor('textLink.foreground');
+      case 'cyan':
+        return new vscode.ThemeColor('terminal.ansiCyan');
+      case 'magenta':
+        return new vscode.ThemeColor('terminal.ansiMagenta');
+      default:
+        return undefined;
+    }
   }
 
   private getIconForStatus(status: string): vscode.ThemeIcon {

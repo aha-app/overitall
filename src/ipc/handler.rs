@@ -99,11 +99,18 @@ impl IpcCommandHandler {
                     .processes
                     .iter()
                     .map(|p| {
-                        json!({
+                        let mut obj = json!({
                             "name": p.name,
                             "status": p.status,
                             "error": p.error
-                        })
+                        });
+                        if let Some(label) = &p.custom_label {
+                            obj["custom_label"] = json!(label);
+                        }
+                        if let Some(color) = &p.custom_color {
+                            obj["custom_color"] = json!(color);
+                        }
+                        obj
                     })
                     .collect();
                 IpcResponse::ok(json!({ "processes": processes }))
@@ -574,11 +581,18 @@ impl IpcCommandHandler {
                     .iter()
                     .map(|p| {
                         let is_hidden = snapshot.hidden_processes.contains(&p.name);
-                        json!({
+                        let mut obj = json!({
                             "name": p.name,
                             "visible": !is_hidden,
                             "status": p.status
-                        })
+                        });
+                        if let Some(label) = &p.custom_label {
+                            obj["custom_label"] = json!(label);
+                        }
+                        if let Some(color) = &p.custom_color {
+                            obj["custom_color"] = json!(color);
+                        }
+                        obj
                     })
                     .collect();
 
@@ -1034,6 +1048,12 @@ impl IpcCommandHandler {
                         if let Some(err) = &p.error {
                             obj["error"] = json!(err);
                         }
+                        if let Some(label) = &p.custom_label {
+                            obj["custom_label"] = json!(label);
+                        }
+                        if let Some(color) = &p.custom_color {
+                            obj["custom_color"] = json!(color);
+                        }
                         obj
                     })
                     .collect();
@@ -1349,11 +1369,15 @@ mod tests {
                     name: "web".to_string(),
                     status: "running".to_string(),
                     error: None,
+                    custom_label: None,
+                    custom_color: None,
                 },
                 ProcessInfo {
                     name: "worker".to_string(),
                     status: "stopped".to_string(),
                     error: None,
+                    custom_label: None,
+                    custom_color: None,
                 },
             ],
             log_files: Vec::new(),
@@ -1433,11 +1457,15 @@ mod tests {
                     name: "web".to_string(),
                     status: "running".to_string(),
                     error: None,
+                    custom_label: None,
+                    custom_color: None,
                 },
                 ProcessInfo {
                     name: "worker".to_string(),
                     status: "failed".to_string(),
                     error: Some("Exit code: 1".to_string()),
+                    custom_label: None,
+                    custom_color: None,
                 },
             ],
             log_files: Vec::new(),
@@ -2715,11 +2743,15 @@ mod tests {
                     name: "web".to_string(),
                     status: "running".to_string(),
                     error: None,
+                    custom_label: None,
+                    custom_color: None,
                 },
                 ProcessInfo {
                     name: "worker".to_string(),
                     status: "running".to_string(),
                     error: None,
+                    custom_label: None,
+                    custom_color: None,
                 },
             ],
             log_files: Vec::new(),
@@ -3362,11 +3394,15 @@ mod tests {
                     name: "web".to_string(),
                     status: "running".to_string(),
                     error: None,
+                    custom_label: None,
+                    custom_color: None,
                 },
                 ProcessInfo {
                     name: "worker".to_string(),
                     status: "failed".to_string(),
                     error: Some("Exit code: 1".to_string()),
+                    custom_label: None,
+                    custom_color: None,
                 },
             ],
             log_files: Vec::new(),
