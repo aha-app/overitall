@@ -13,7 +13,7 @@ mod traces;
 mod ui;
 mod updater;
 
-use cli::{check_already_running, get_socket_path, Cli, init_config, run_ipc_command};
+use cli::{check_already_running, get_socket_path, Cli, Commands, VscodeAction, init_config, install_vscode_extension, run_ipc_command};
 use config::Config;
 use event_handler::EventHandler;
 use ipc::state::{BufferStats, FilterInfo, LogLineInfo, ProcessInfo, StateSnapshot, ViewModeInfo};
@@ -54,6 +54,13 @@ async fn main() -> anyhow::Result<()> {
     // Handle --init flag
     if cli.init {
         return init_config(config_path);
+    }
+
+    // Handle vscode subcommand (doesn't need IPC)
+    if let Some(Commands::Vscode { action }) = &cli.command {
+        return match action {
+            VscodeAction::Install => install_vscode_extension(),
+        };
     }
 
     // Handle IPC subcommands (ping, status, etc.)

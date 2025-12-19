@@ -179,6 +179,138 @@ pub enum Commands {
         #[arg(long)]
         scroll: bool,
     },
+    /// VS Code extension management
+    Vscode {
+        #[command(subcommand)]
+        action: VscodeAction,
+    },
+}
+
+/// VS Code extension subcommands
+#[derive(Subcommand, Debug, Clone)]
+pub enum VscodeAction {
+    /// Install the VS Code extension from GitHub releases
+    Install,
+}
+
+const REPO: &str = "jemmyw/overitall";
+const VSIX_PATTERN: &str = "vscode-overitall-*.vsix";
+
+/// Install the VS Code extension from GitHub releases
+pub fn install_vscode_extension() -> anyhow::Result<()> {
+    use std::process::{Command, Stdio};
+
+    // Check if gh CLI is available
+    let gh_status = Command::new("gh")
+        .args(["auth", "status"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+
+    if !gh_status.map(|s| s.success()).unwrap_or(false) {
+        return Err(anyhow!(
+            "gh CLI not found or not authenticated.\n\
+             Install gh and run: gh auth login"
+        ));
+    }
+
+    // Check if VS Code CLI is available
+    let code_status = Command::new("code")
+        .args(["--version"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+
+    if !code_status.map(|s| s.success()).unwrap_or(false) {
+        return Err(anyhow!(
+            "VS Code CLI 'code' not found.\n\
+             Install VS Code and ensure 'code' is in your PATH.\n\
+             In VS Code: Cmd+Shift+P > 'Shell Command: Install code command in PATH'"
+        ));
+    }
+
+    // Get the latest release tag
+    println!("Checking for latest release...");
+    let tag_output = Command::new("gh")
+        .args([
+            "release",
+            "view",
+            "--repo",
+            REPO,
+            "--json",
+            "tagName",
+            "-q",
+            ".tagName",
+        ])
+        .output()?;
+
+    if !tag_output.status.success() {
+        let stderr = String::from_utf8_lossy(&tag_output.stderr);
+        return Err(anyhow!("Failed to get latest release: {}", stderr));
+    }
+
+    let tag = String::from_utf8(tag_output.stdout)?
+        .trim()
+        .to_string();
+
+    let version = tag.trim_start_matches('v');
+    println!("Latest release: {} ({})", tag, version);
+
+    // Create temp directory and download the VSIX
+    let temp_dir = tempfile::tempdir()?;
+    let temp_path = temp_dir.path();
+
+    println!("Downloading VS Code extension...");
+    let download_status = Command::new("gh")
+        .args([
+            "release",
+            "download",
+            &tag,
+            "--repo",
+            REPO,
+            "--pattern",
+            VSIX_PATTERN,
+            "--dir",
+            temp_path.to_str().unwrap(),
+        ])
+        .status()?;
+
+    if !download_status.success() {
+        return Err(anyhow!("Failed to download extension"));
+    }
+
+    // Find the downloaded VSIX file
+    let vsix_file = std::fs::read_dir(temp_path)?
+        .filter_map(|e| e.ok())
+        .find(|e| {
+            e.file_name()
+                .to_string_lossy()
+                .ends_with(".vsix")
+        })
+        .ok_or_else(|| anyhow!("VSIX file not found in download"))?;
+
+    let vsix_path = vsix_file.path();
+    println!("Downloaded: {}", vsix_file.file_name().to_string_lossy());
+
+    // Install the extension
+    println!("Installing extension...");
+    let install_status = Command::new("code")
+        .args([
+            "--install-extension",
+            vsix_path.to_str().unwrap(),
+            "--force",
+        ])
+        .status()?;
+
+    if !install_status.success() {
+        return Err(anyhow!("Failed to install extension"));
+    }
+
+    println!("\n✓ VS Code extension installed successfully!");
+    println!("\nThe Overitall extension is now available in VS Code.");
+    println!("Look for the Overitall icon in the activity bar when you have a Procfile.");
+
+    Ok(())
 }
 
 /// Initialize a new config file from an existing Procfile
@@ -414,6 +546,10 @@ pub async fn run_ipc_command(command: &Commands) -> anyhow::Result<()> {
         Commands::Summary => IpcRequest::new("summary"),
         Commands::Batch { id, scroll } => {
             IpcRequest::with_args("batch", serde_json::json!({"id": id, "scroll": scroll}))
+        }
+        Commands::Vscode { .. } => {
+            // This should be handled separately in main.rs, not via IPC
+            return Err(anyhow!("vscode commands don't use IPC"));
         }
     };
 
@@ -1034,6 +1170,15 @@ mod tests {
                 assert!(scroll);
             }
             _ => panic!("Expected Batch command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_vscode_install_subcommand() {
+        let cli = Cli::parse_from(["oit", "vscode", "install"]);
+        match cli.command {
+            Some(Commands::Vscode { action: VscodeAction::Install }) => {}
+            _ => panic!("Expected Vscode Install command"),
         }
     }
 }
