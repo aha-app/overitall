@@ -28,6 +28,10 @@ pub struct Cli {
     #[arg(short, long, default_value = ".overitall.toml")]
     pub config: String,
 
+    /// Path to Procfile (overrides config file setting)
+    #[arg(short = 'f', long = "file")]
+    pub procfile: Option<String>,
+
     /// Initialize a new .overitall.toml config file from Procfile
     #[arg(long)]
     pub init: bool,
@@ -318,18 +322,18 @@ pub fn install_vscode_extension() -> anyhow::Result<()> {
 }
 
 /// Initialize a new config file from an existing Procfile
-pub fn init_config(config_path: &str) -> anyhow::Result<()> {
+pub fn init_config(config_path: &str, procfile_override: Option<&str>) -> anyhow::Result<()> {
     let config_exists = Path::new(config_path).exists();
 
     // Only create config if it doesn't exist
     if !config_exists {
-        // Default Procfile location
-        let procfile_path = "Procfile";
+        // Use override or default Procfile location
+        let procfile_path = procfile_override.unwrap_or("Procfile");
 
         // Check if Procfile exists and provide helpful error if not
         if !Path::new(procfile_path).exists() {
             return Err(anyhow!(
-                "No Procfile found in current directory.\n\n\
+                "Procfile not found at '{}'.\n\n\
                 To use --init, first create a Procfile with your processes.\n\
                 Example Procfile:\n\
                 \n\
@@ -338,7 +342,9 @@ pub fn init_config(config_path: &str) -> anyhow::Result<()> {
                 \n\
                 See: https://devcenter.heroku.com/articles/procfile\n\
                 \n\
-                Then run 'oit --init' again to generate the config file."
+                Then run 'oit --init' again to generate the config file.\n\
+                Or specify a Procfile with: oit --init -f <path>",
+                procfile_path
             ));
         }
 
@@ -606,7 +612,7 @@ mod tests {
         std::env::set_current_dir(temp_path).unwrap();
 
         // Call init_config
-        let result = init_config(config_path.to_str().unwrap());
+        let result = init_config(config_path.to_str().unwrap(), None);
 
         // Restore original directory
         std::env::set_current_dir(original_dir).unwrap();
@@ -644,7 +650,7 @@ mod tests {
         std::env::set_current_dir(temp_path).unwrap();
 
         // Call init_config (no Procfile needed since config exists)
-        let result = init_config(config_path.to_str().unwrap());
+        let result = init_config(config_path.to_str().unwrap(), None);
 
         // Restore original directory
         std::env::set_current_dir(original_dir).unwrap();
@@ -672,7 +678,7 @@ mod tests {
         std::env::set_current_dir(temp_path).unwrap();
 
         // Call init_config
-        let result = init_config(config_path.to_str().unwrap());
+        let result = init_config(config_path.to_str().unwrap(), None);
 
         // Restore original directory
         std::env::set_current_dir(original_dir).unwrap();
@@ -714,6 +720,60 @@ mod tests {
         let cli = Cli::parse_from(["oit", "--init", "-c", "custom.toml"]);
         assert!(cli.init);
         assert_eq!(cli.config, "custom.toml");
+    }
+
+    #[test]
+    fn test_cli_parses_procfile_short_flag() {
+        let cli = Cli::parse_from(["oit", "-f", "Procfile.dev"]);
+        assert_eq!(cli.procfile, Some("Procfile.dev".to_string()));
+    }
+
+    #[test]
+    fn test_cli_parses_procfile_long_flag() {
+        let cli = Cli::parse_from(["oit", "--file", "Procfile.test"]);
+        assert_eq!(cli.procfile, Some("Procfile.test".to_string()));
+    }
+
+    #[test]
+    fn test_cli_default_procfile_is_none() {
+        let cli = Cli::parse_from(["oit"]);
+        assert!(cli.procfile.is_none());
+    }
+
+    #[test]
+    fn test_cli_parses_procfile_with_init() {
+        let cli = Cli::parse_from(["oit", "--init", "-f", "Procfile.custom"]);
+        assert!(cli.init);
+        assert_eq!(cli.procfile, Some("Procfile.custom".to_string()));
+    }
+
+    #[test]
+    fn test_init_config_with_custom_procfile() {
+        let _guard = CWD_MUTEX.lock().unwrap();
+
+        let temp_dir = TempDir::new().unwrap();
+        let temp_path = temp_dir.path();
+
+        // Create a custom Procfile
+        let procfile_path = temp_path.join("Procfile.dev");
+        fs::write(&procfile_path, "api: node server.js\n").unwrap();
+
+        let config_path = temp_path.join(".overitall.toml");
+
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(temp_path).unwrap();
+
+        // Call init_config with custom procfile
+        let result = init_config(config_path.to_str().unwrap(), Some("Procfile.dev"));
+
+        std::env::set_current_dir(original_dir).unwrap();
+
+        assert!(result.is_ok(), "init_config should succeed: {:?}", result.err());
+        assert!(config_path.exists(), "Config file should be created");
+
+        let config_content = fs::read_to_string(&config_path).unwrap();
+        assert!(config_content.contains("procfile = \"Procfile.dev\""));
+        assert!(config_content.contains("[processes.api]"));
     }
 
     #[test]

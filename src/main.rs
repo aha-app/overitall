@@ -67,7 +67,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Handle --init flag
     if cli.init {
-        return init_config(config_path);
+        return init_config(config_path, cli.procfile.as_deref());
     }
 
     // Handle vscode subcommand (doesn't need IPC)
@@ -108,6 +108,11 @@ async fn main() -> anyhow::Result<()> {
     // Load config
     let mut config = Config::from_file(config_path)?;
     config.config_path = Some(std::path::PathBuf::from(config_path));
+
+    // Override procfile path if specified on command line
+    if let Some(ref procfile_path) = cli.procfile {
+        config.procfile = std::path::PathBuf::from(procfile_path);
+    }
 
     // Parse procfile
     let procfile = Procfile::from_file(&config.procfile)?;

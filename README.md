@@ -89,6 +89,9 @@ Alternatively, you can create the config file manually or specify a custom path:
 
 ```bash
 oit --init -c custom-config.toml
+
+# Use a different Procfile for initialization
+oit --init -f Procfile.dev
 ```
 
 3. Run `oit`:
@@ -97,11 +100,15 @@ oit --init -c custom-config.toml
 oit
 ```
 
-Or specify a custom config file:
+Or specify a custom config file or Procfile:
 
 ```bash
 oit --config path/to/config.toml
 oit -c path/to/config.toml
+
+# Use a different Procfile (overrides config file setting)
+oit -f Procfile.dev
+oit --file Procfile.other
 ```
 
 ## Usage
