@@ -11,7 +11,7 @@ use tokio::task::JoinHandle;
 // Re-export log types for compatibility
 pub use crate::log::{LogLine, LogSource};
 use crate::config::StatusConfig;
-use crate::log::{LogBuffer, FileReader};
+use crate::log::{LogBuffer, FileReader, LogVelocityTracker};
 use crate::status_matcher::StatusMatcher;
 
 /// Status of a managed process
@@ -31,6 +31,7 @@ pub struct BufferStats {
     pub limit_mb: usize,
     pub percent: f64,
     pub line_count: usize,
+    pub sparkline: String,
 }
 
 /// Handle for a single managed process
@@ -266,6 +267,7 @@ pub struct ProcessManager {
     log_sources: Vec<FileReader>,
     standalone_log_files: Vec<FileReader>,
     log_buffer: LogBuffer,
+    velocity_tracker: LogVelocityTracker,
     log_tx: mpsc::UnboundedSender<LogLine>,
     log_rx: mpsc::UnboundedReceiver<LogLine>,
 }
@@ -282,6 +284,7 @@ impl ProcessManager {
             log_sources: Vec::new(),
             standalone_log_files: Vec::new(),
             log_buffer: LogBuffer::new_with_memory_limit(max_log_buffer_mb),
+            velocity_tracker: LogVelocityTracker::default(),
             log_tx,
             log_rx,
         }
@@ -504,6 +507,8 @@ impl ProcessManager {
     /// Also checks each log line against status patterns for the corresponding process
     pub fn process_logs(&mut self) {
         while let Ok(log) = self.log_rx.try_recv() {
+            // Track log velocity for sparkline display
+            self.velocity_tracker.record(log.arrival_time);
             // Check log line against status patterns for the corresponding process
             let process_name = log.source.process_name();
             if let Some(handle) = self.processes.get_mut(process_name) {
@@ -528,7 +533,13 @@ impl ProcessManager {
             limit_mb: self.log_buffer.get_memory_limit_mb(),
             percent: self.log_buffer.get_memory_usage_percent(),
             line_count: self.log_buffer.len(),
+            sparkline: self.velocity_tracker.sparkline(),
         }
+    }
+
+    /// Get sparkline showing log velocity over time
+    pub fn get_velocity_sparkline(&self) -> String {
+        self.velocity_tracker.sparkline()
     }
 
     /// Try to receive a log line (non-blocking)
