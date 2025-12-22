@@ -73,7 +73,7 @@ impl IpcCommandHandler {
                         "frozen": snapshot.view_mode.frozen,
                         "batch_view": snapshot.view_mode.batch_view,
                         "trace_filter": snapshot.view_mode.trace_filter,
-                        "compact": snapshot.view_mode.compact
+                        "display_mode": snapshot.view_mode.display_mode
                     },
                     "buffer": {
                         "bytes": snapshot.buffer_stats.buffer_bytes,
@@ -1112,7 +1112,7 @@ impl IpcCommandHandler {
                     "view": {
                         "frozen": snapshot.view_mode.frozen,
                         "auto_scroll": snapshot.auto_scroll,
-                        "compact": snapshot.view_mode.compact,
+                        "display_mode": snapshot.view_mode.display_mode,
                         "trace_recording": snapshot.trace_recording
                     }
                 }))
@@ -1389,7 +1389,7 @@ mod tests {
                 batch_view: false,
                 trace_filter: true,
                 trace_selection: false,
-                compact: true,
+                display_mode: "compact".to_string(),
             },
             auto_scroll: false,
             log_count: 1500,
@@ -1425,7 +1425,7 @@ mod tests {
         assert_eq!(data["view_mode"]["frozen"], true);
         assert_eq!(data["view_mode"]["batch_view"], false);
         assert_eq!(data["view_mode"]["trace_filter"], true);
-        assert_eq!(data["view_mode"]["compact"], true);
+        assert_eq!(data["view_mode"]["display_mode"], "compact");
 
         // Buffer stats
         assert_eq!(data["buffer"]["bytes"], 5000000);
@@ -2077,7 +2077,7 @@ mod tests {
                 batch_view: false,
                 trace_filter: true,
                 trace_selection: false,
-                compact: false,
+                display_mode: "full".to_string(),
             },
             auto_scroll: true,
             log_count: 0,
@@ -2394,7 +2394,7 @@ mod tests {
                 batch_view: false,
                 trace_filter: false,
                 trace_selection: false,
-                compact: false,
+                display_mode: "compact".to_string(),
             },
             auto_scroll: true,
             log_count: 0,
@@ -2437,7 +2437,7 @@ mod tests {
                 batch_view: false,
                 trace_filter: false,
                 trace_selection: false,
-                compact: false,
+                display_mode: "compact".to_string(),
             },
             auto_scroll: false,
             log_count: 0,
@@ -3417,7 +3417,7 @@ mod tests {
                 batch_view: false,
                 trace_filter: false,
                 trace_selection: false,
-                compact: true,
+                display_mode: "compact".to_string(),
             },
             auto_scroll: false,
             log_count: 100,
@@ -3479,7 +3479,7 @@ mod tests {
         // View
         assert_eq!(data["view"]["frozen"], true);
         assert_eq!(data["view"]["auto_scroll"], false);
-        assert_eq!(data["view"]["compact"], true);
+        assert_eq!(data["view"]["display_mode"], "compact");
         assert_eq!(data["view"]["trace_recording"], true);
     }
 

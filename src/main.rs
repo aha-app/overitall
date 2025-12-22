@@ -20,7 +20,7 @@ use ipc::state::{BufferStats, FilterInfo, LogLineInfo, ProcessInfo, StateSnapsho
 use ipc::{IpcAction, IpcCommandHandler, IpcServer};
 use procfile::Procfile;
 use process::{ProcessManager, ProcessStatus};
-use ui::{App, FilterType};
+use ui::{App, DisplayMode, FilterType};
 
 use clap::Parser;
 use crossterm::{
@@ -185,9 +185,14 @@ async fn main() -> anyhow::Result<()> {
     // Load hidden processes from config
     app.hidden_processes = config.hidden_processes.iter().cloned().collect();
 
-    // Load compact mode from config (default: true if not specified)
+    // Load display mode from config (default: Compact if not specified)
+    // Config stores bool for backwards compat: true = Compact, false = Full
     if let Some(compact_mode) = config.compact_mode {
-        app.compact_mode = compact_mode;
+        if compact_mode {
+            app.display_mode = DisplayMode::Compact;
+        } else {
+            app.display_mode = DisplayMode::Full;
+        }
     }
 
     // Show startup failures in status bar
@@ -472,7 +477,7 @@ fn create_state_snapshot(app: &App, manager: &ProcessManager) -> StateSnapshot {
             batch_view: app.batch_view_mode,
             trace_filter: app.trace_filter_mode,
             trace_selection: app.trace_selection_mode,
-            compact: app.compact_mode,
+            display_mode: app.display_mode.name().to_string(),
         },
         auto_scroll: app.auto_scroll,
         log_count: stats.line_count,

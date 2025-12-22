@@ -9,6 +9,38 @@ use super::batch_cache::BatchCache;
 use super::filter::{Filter, FilterType};
 use super::types::StatusType;
 
+/// Display mode for log lines
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DisplayMode {
+    /// Condense [key:value] metadata, truncate long lines
+    #[default]
+    Compact,
+    /// Show all content, truncate long lines
+    Full,
+    /// Show all content, wrap long lines
+    Wrap,
+}
+
+impl DisplayMode {
+    /// Cycle to the next display mode
+    pub fn next(self) -> Self {
+        match self {
+            DisplayMode::Compact => DisplayMode::Full,
+            DisplayMode::Full => DisplayMode::Wrap,
+            DisplayMode::Wrap => DisplayMode::Compact,
+        }
+    }
+
+    /// Get a human-readable name for the mode
+    pub fn name(self) -> &'static str {
+        match self {
+            DisplayMode::Compact => "compact",
+            DisplayMode::Full => "full",
+            DisplayMode::Wrap => "wrap",
+        }
+    }
+}
+
 /// Application state for the TUI
 pub struct App {
     /// Current command input text
@@ -89,8 +121,8 @@ pub struct App {
     pub help_scroll_offset: u16,
 
     // Display mode
-    /// Whether to show logs in compact mode (collapse [key:value] metadata)
-    pub compact_mode: bool,
+    /// Current display mode (compact, full, or wrap)
+    pub display_mode: DisplayMode,
 
     // Performance
     /// Cache for batch detection results
@@ -152,7 +184,7 @@ impl App {
             help_scroll_offset: 0,
 
             // Display mode
-            compact_mode: true, // Default to compact mode
+            display_mode: DisplayMode::Compact, // Default to compact mode
 
             // Performance
             batch_cache: BatchCache::new(),
@@ -506,8 +538,18 @@ impl App {
         self.selected_line_id = None;
     }
 
-    /// Toggle compact display mode
-    pub fn toggle_compact_mode(&mut self) {
-        self.compact_mode = !self.compact_mode;
+    /// Cycle through display modes: Compact → Full → Wrap → Compact
+    pub fn cycle_display_mode(&mut self) {
+        self.display_mode = self.display_mode.next();
+    }
+
+    /// Check if display mode is compact (for condense logic)
+    pub fn is_compact(&self) -> bool {
+        self.display_mode == DisplayMode::Compact
+    }
+
+    /// Check if display mode is wrap (for line wrapping logic)
+    pub fn is_wrap(&self) -> bool {
+        self.display_mode == DisplayMode::Wrap
     }
 }

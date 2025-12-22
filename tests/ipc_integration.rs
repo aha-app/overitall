@@ -687,7 +687,7 @@ async fn test_summary_command_returns_comprehensive_state() {
             batch_view: false,
             trace_filter: false,
             trace_selection: false,
-            compact: true,
+            display_mode: "compact".to_string(),
         },
         auto_scroll: false,
         log_count: 500,
@@ -755,7 +755,7 @@ async fn test_summary_command_returns_comprehensive_state() {
     // Verify view section
     assert_eq!(result["view"]["frozen"], true);
     assert_eq!(result["view"]["auto_scroll"], false);
-    assert_eq!(result["view"]["compact"], true);
+    assert_eq!(result["view"]["display_mode"], "compact");
     assert_eq!(result["view"]["trace_recording"], true);
 }
 

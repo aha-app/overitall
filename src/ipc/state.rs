@@ -95,8 +95,8 @@ pub struct ViewModeInfo {
     /// Whether trace selection overlay is active
     pub trace_selection: bool,
 
-    /// Whether compact mode is enabled
-    pub compact: bool,
+    /// Display mode: "compact", "full", or "wrap"
+    pub display_mode: String,
 }
 
 /// Information about a log line for IPC responses
@@ -159,7 +159,7 @@ impl Default for ViewModeInfo {
             batch_view: false,
             trace_filter: false,
             trace_selection: false,
-            compact: false,
+            display_mode: "compact".to_string(),
         }
     }
 }
@@ -235,7 +235,7 @@ mod tests {
             batch_view: false,
             trace_filter: true,
             trace_selection: false,
-            compact: true,
+            display_mode: "compact".to_string(),
         };
 
         let json = serde_json::to_string(&view).unwrap();
@@ -245,7 +245,7 @@ mod tests {
         assert!(!parsed.batch_view);
         assert!(parsed.trace_filter);
         assert!(!parsed.trace_selection);
-        assert!(parsed.compact);
+        assert_eq!(parsed.display_mode, "compact");
     }
 
     #[test]
@@ -301,7 +301,7 @@ mod tests {
                 batch_view: false,
                 trace_filter: false,
                 trace_selection: false,
-                compact: true,
+                display_mode: "compact".to_string(),
             },
             auto_scroll: false,
             log_count: 1523,
@@ -332,7 +332,7 @@ mod tests {
         assert_eq!(parsed.active_filters.len(), 2);
         assert_eq!(parsed.search_pattern, Some("panic".to_string()));
         assert!(parsed.view_mode.frozen);
-        assert!(parsed.view_mode.compact);
+        assert_eq!(parsed.view_mode.display_mode, "compact");
         assert!(!parsed.auto_scroll);
         assert_eq!(parsed.log_count, 1523);
         assert_eq!(parsed.buffer_stats.buffer_bytes, 5120000);

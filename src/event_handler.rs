@@ -180,10 +180,10 @@ impl<'a> EventHandler<'a> {
                 self.handle_manual_trace_toggle();
                 Ok(false)
             }
-            // Toggle compact mode (condense metadata tags)
+            // Cycle display mode (compact/full/wrap)
             KeyCode::Char('w') if !self.app.command_mode && !self.app.search_mode
                 && !self.app.show_help && !self.app.expanded_line_view => {
-                self.handle_toggle_compact_mode();
+                self.handle_cycle_display_mode();
                 Ok(false)
             }
             // Line selection and scrolling
@@ -347,8 +347,8 @@ impl<'a> EventHandler<'a> {
         }
     }
 
-    fn handle_toggle_compact_mode(&mut self) {
-        let mode = display::toggle_compact_mode(self.app, self.config);
+    fn handle_cycle_display_mode(&mut self) {
+        let mode = display::cycle_display_mode(self.app, self.config);
         self.app.set_status_info(format!("Display mode: {}", mode));
     }
 

@@ -343,7 +343,7 @@ pub fn draw_log_viewer(
         let process_part = format!("{}: ", process_name);
 
         // Apply condensing in compact mode (but not in batch view mode, which shows full content)
-        let log_content = if app.compact_mode && current_batch_validated.is_none() {
+        let log_content = if app.is_compact() && current_batch_validated.is_none() {
             condense_log_line(&log.line)
         } else {
             log.line.clone()
@@ -432,7 +432,7 @@ pub fn draw_log_viewer(
             };
 
             // Use cache: key includes compact mode since content may differ
-            let cache_key = AnsiCacheKey::new(log.id, app.compact_mode);
+            let cache_key = AnsiCacheKey::new(log.id, app.is_compact());
             let cached = app.ansi_cache.get_or_parse(cache_key, &full_line_with_ansi);
             AnsiCache::to_line_with_overrides(cached, bg_color, fg_override)
         };
