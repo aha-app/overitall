@@ -21,10 +21,20 @@ static ISO8601_TIMESTAMP_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     ).unwrap()
 });
 
-/// Remove ISO8601 timestamps from log content and clean up surrounding whitespace.
+// Regex for leading time-only timestamps that should be removed from log content
+// Matches at start: 03:57:56, [14:30:45], (03:57:56.123), etc.
+// Optional surrounding brackets/parens, trailing whitespace consumed
+static LEADING_TIME_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^[\[\(\{]?\d{2}:\d{2}:\d{2}(?:\.\d+)?[\]\)\}]?\s*").unwrap()
+});
+
+/// Remove timestamps from log content and clean up surrounding whitespace.
 /// Since we display arrival time in the log view, embedded timestamps are redundant.
-fn remove_iso8601_timestamps(content: &str) -> String {
+/// Removes both ISO8601 timestamps and bare time-only timestamps (e.g., 03:57:56).
+fn remove_timestamps(content: &str) -> String {
     let result = ISO8601_TIMESTAMP_REGEX.replace_all(content, "");
+    // Remove leading time-only timestamp (only at start of line)
+    let result = LEADING_TIME_REGEX.replace(&result, "");
     // Clean up any double spaces left behind and trim leading/trailing spaces
     let mut cleaned = String::with_capacity(result.len());
     let mut prev_was_space = true; // Start true to skip leading spaces
@@ -54,8 +64,8 @@ fn remove_iso8601_timestamps(content: &str) -> String {
 ///   Input:  "[23:47:16] web: 2025-12-17T16:16:14+13:00 [user_id:0] Processing..."
 ///   Output: "[23:47:16] web: [+1] Processing..."
 pub fn condense_log_line(content: &str) -> String {
-    // First pass: remove ISO8601 timestamps
-    let content = remove_iso8601_timestamps(content);
+    // First pass: remove timestamps (ISO8601 and bare time-only)
+    let content = remove_timestamps(content);
 
     let mut result = String::with_capacity(content.len());
     let mut last_end = 0;
@@ -157,9 +167,15 @@ mod tests {
     }
 
     #[test]
-    fn test_condense_preserves_timestamp() {
+    fn test_condense_removes_leading_timestamp() {
         let input = "[23:47:16] web: [user_id:0] [account_id:0] Processing";
-        assert_eq!(condense_log_line(input), "[23:47:16] web: [+2] Processing");
+        assert_eq!(condense_log_line(input), "web: [+2] Processing");
+    }
+
+    #[test]
+    fn test_condense_removes_bare_leading_timestamp() {
+        let input = "03:57:56 [DEBUG] (13) hyper::proto::h1::conn: incoming body";
+        assert_eq!(condense_log_line(input), "[DEBUG] (13) hyper::proto::h1::conn: incoming body");
     }
 
     #[test]

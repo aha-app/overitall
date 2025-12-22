@@ -69,15 +69,15 @@ mod tests {
     }
 
     #[test]
-    fn test_condense_preserves_timestamp() {
+    fn test_condense_removes_leading_timestamp() {
         let input = "[23:47:16] web: [user_id:0] [account_id:0] Processing";
-        assert_eq!(condense_log_line(input), "[23:47:16] web: [+2] Processing");
+        assert_eq!(condense_log_line(input), "web: [+2] Processing");
     }
 
     #[test]
-    fn test_condense_preserves_timestamp_with_millis() {
+    fn test_condense_removes_leading_timestamp_with_millis() {
         let input = "[14:30:45.123] [pod:xyz] Message";
-        assert_eq!(condense_log_line(input), "[14:30:45.123] [+1] Message");
+        assert_eq!(condense_log_line(input), "[+1] Message");
     }
 
     #[test]
@@ -89,7 +89,7 @@ mod tests {
     #[test]
     fn test_condense_real_world_example() {
         let input = "[23:47:16] web: [user_id:0] [account_id:0] [request_uuid:web.2025-01-15] [pod:iad-dev1] Processing by Api::V1::ProjectsController#nav_pinned_features as JSON";
-        let expected = "[23:47:16] web: [+4] Processing by Api::V1::ProjectsController#nav_pinned_features as JSON";
+        let expected = "web: [+4] Processing by Api::V1::ProjectsController#nav_pinned_features as JSON";
         assert_eq!(condense_log_line(input), expected);
     }
 
@@ -99,9 +99,9 @@ mod tests {
     }
 
     #[test]
-    fn test_condense_only_timestamp() {
+    fn test_condense_removes_only_leading_timestamp() {
         let input = "[12:00:00] Just a timestamp and message";
-        assert_eq!(condense_log_line(input), input);
+        assert_eq!(condense_log_line(input), "Just a timestamp and message");
     }
 
     #[test]
@@ -137,7 +137,7 @@ mod tests {
     #[test]
     fn test_condense_combined_iso8601_and_metadata() {
         let input = "[23:47:16] web: 2025-12-17T23:47:16+13:00 [user_id:0] [account_id:0] Processing";
-        assert_eq!(condense_log_line(input), "[23:47:16] web: [+2] Processing");
+        assert_eq!(condense_log_line(input), "web: [+2] Processing");
     }
 
     #[test]
