@@ -33,38 +33,29 @@ fn create_manager_with_batched_logs() -> ProcessManager {
 
     // Batch 1: Three logs arriving within 100ms (at 12:00:00.000)
     let batch1_time = Local.with_ymd_and_hms(2024, 12, 10, 12, 0, 0).unwrap();
-    let mut log1 = LogLine::new(LogSource::ProcessStdout("web".to_string()), "Starting web server on port 3000".to_string());
-    log1.timestamp = batch1_time;
-    log1.arrival_time = batch1_time;
+    let log1 = LogLine::new_with_time(LogSource::ProcessStdout("web".to_string()), "Starting web server on port 3000".to_string(), batch1_time);
     manager.add_test_log(log1);
 
-    let mut log2 = LogLine::new(LogSource::ProcessStdout("web".to_string()), "Loading configuration".to_string());
-    log2.timestamp = batch1_time;
+    let mut log2 = LogLine::new_with_time(LogSource::ProcessStdout("web".to_string()), "Loading configuration".to_string(), batch1_time);
     log2.arrival_time = batch1_time + chrono::Duration::milliseconds(50);
     manager.add_test_log(log2);
 
-    let mut log3 = LogLine::new(LogSource::ProcessStdout("web".to_string()), "Database connected".to_string());
-    log3.timestamp = batch1_time;
+    let mut log3 = LogLine::new_with_time(LogSource::ProcessStdout("web".to_string()), "Database connected".to_string(), batch1_time);
     log3.arrival_time = batch1_time + chrono::Duration::milliseconds(90);
     manager.add_test_log(log3);
 
     // Batch 2: Two logs arriving 500ms later (at 12:00:00.500)
     let batch2_time = batch1_time + chrono::Duration::milliseconds(500);
-    let mut log4 = LogLine::new(LogSource::ProcessStdout("worker".to_string()), "Processing job #1234".to_string());
-    log4.timestamp = batch2_time;
-    log4.arrival_time = batch2_time;
+    let log4 = LogLine::new_with_time(LogSource::ProcessStdout("worker".to_string()), "Processing job #1234".to_string(), batch2_time);
     manager.add_test_log(log4);
 
-    let mut log5 = LogLine::new(LogSource::ProcessStdout("worker".to_string()), "Job #1234 completed".to_string());
-    log5.timestamp = batch2_time;
+    let mut log5 = LogLine::new_with_time(LogSource::ProcessStdout("worker".to_string()), "Job #1234 completed".to_string(), batch2_time);
     log5.arrival_time = batch2_time + chrono::Duration::milliseconds(80);
     manager.add_test_log(log5);
 
     // Batch 3: Single log 1 second later (at 12:00:01.500)
     let batch3_time = batch2_time + chrono::Duration::milliseconds(1000);
-    let mut log6 = LogLine::new(LogSource::ProcessStdout("web".to_string()), "GET /api/users 200 OK".to_string());
-    log6.timestamp = batch3_time;
-    log6.arrival_time = batch3_time;
+    let log6 = LogLine::new_with_time(LogSource::ProcessStdout("web".to_string()), "GET /api/users 200 OK".to_string(), batch3_time);
     manager.add_test_log(log6);
 
     manager

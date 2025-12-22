@@ -13,7 +13,6 @@ use crate::ui::ansi_cache::{AnsiCache, AnsiCacheKey};
 use crate::ui::app::App;
 use crate::ui::batch_cache::BatchCacheKey;
 use crate::ui::filter::FilterType;
-use crate::ui::utils::condense_log_line;
 
 /// Draw the log viewer in the middle of the screen
 pub fn draw_log_viewer(
@@ -328,7 +327,6 @@ pub fn draw_log_viewer(
             }
         }
 
-        let timestamp = log.timestamp.format("%H:%M:%S").to_string();
         let process_name = log.source.process_name();
 
         // Check if this line is selected by ID
@@ -339,21 +337,24 @@ pub fn draw_log_viewer(
         let is_match = false;
 
         // Format timestamp and process name parts (no ANSI codes)
-        let timestamp_part = format!("[{}] ", timestamp);
+        // Use cached formatted timestamp
+        let timestamp_part = format!("[{}] ", log.formatted_timestamp());
         let process_part = format!("{}: ", process_name);
 
         // Apply condensing in compact mode (but not in batch view mode, which shows full content)
-        let log_content = if app.is_compact() && current_batch_validated.is_none() {
-            condense_log_line(&log.line)
+        // Use cached condensed line
+        let (log_content, log_content_stripped): (&str, &str) = if app.is_compact() && current_batch_validated.is_none() {
+            (log.condensed_line(), log.condensed_stripped_line())
         } else {
-            log.line.clone()
+            (&log.line, log.stripped_line())
         };
 
         // Build the full line with ANSI codes preserved
         let full_line_with_ansi = format!("{}{}{}", timestamp_part, process_part, log_content);
 
-        // For width calculations, strip ANSI codes
-        let full_line_clean = strip_ansi_escapes::strip_str(&full_line_with_ansi);
+        // For width calculations, use cached stripped content
+        // Since timestamp_part and process_part have no ANSI codes, we can compose directly
+        let full_line_clean = format!("{}{}{}", timestamp_part, process_part, log_content_stripped);
 
         // Calculate max width (account for borders: 2 chars)
         let max_line_width = (area.width as usize).saturating_sub(3); // -2 for borders, -1 for safety

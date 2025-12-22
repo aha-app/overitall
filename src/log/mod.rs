@@ -3,9 +3,11 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 pub mod buffer;
+pub mod display;
 pub mod file;
 pub mod velocity;
 
+pub use display::{condense_log_line, strip_ansi};
 pub use velocity::LogVelocityTracker;
 
 // Re-export commonly used types
@@ -26,12 +28,24 @@ pub struct LogLine {
     pub line: String,
     /// Pre-computed lowercase version of line for case-insensitive matching
     line_lowercase: String,
+    /// Pre-computed formatted timestamp (HH:MM:SS)
+    formatted_timestamp: String,
+    /// Pre-computed line with ANSI codes stripped
+    stripped_line: String,
+    /// Pre-computed condensed version of line (metadata collapsed)
+    condensed_line: String,
+    /// Pre-computed condensed line with ANSI codes stripped
+    condensed_stripped_line: String,
 }
 
 impl LogLine {
     pub fn new(source: LogSource, line: String) -> Self {
         let now = Local::now();
         let line_lowercase = line.to_lowercase();
+        let formatted_timestamp = now.format("%H:%M:%S").to_string();
+        let stripped_line = strip_ansi(&line);
+        let condensed_line = condense_log_line(&line);
+        let condensed_stripped_line = strip_ansi(&condensed_line);
         Self {
             id: NEXT_LOG_ID.fetch_add(1, Ordering::Relaxed),
             timestamp: now,  // Will be updated by parser if found
@@ -39,12 +53,20 @@ impl LogLine {
             source,
             line,
             line_lowercase,
+            formatted_timestamp,
+            stripped_line,
+            condensed_line,
+            condensed_stripped_line,
         }
     }
 
     /// Create a log line with specific timestamp (for benchmarks and tests)
     pub fn new_with_time(source: LogSource, line: String, time: DateTime<Local>) -> Self {
         let line_lowercase = line.to_lowercase();
+        let formatted_timestamp = time.format("%H:%M:%S").to_string();
+        let stripped_line = strip_ansi(&line);
+        let condensed_line = condense_log_line(&line);
+        let condensed_stripped_line = strip_ansi(&condensed_line);
         Self {
             id: NEXT_LOG_ID.fetch_add(1, Ordering::Relaxed),
             timestamp: time,
@@ -52,6 +74,10 @@ impl LogLine {
             source,
             line,
             line_lowercase,
+            formatted_timestamp,
+            stripped_line,
+            condensed_line,
+            condensed_stripped_line,
         }
     }
 
@@ -60,11 +86,35 @@ impl LogLine {
         &self.line_lowercase
     }
 
+    /// Get the pre-computed formatted timestamp (HH:MM:SS)
+    pub fn formatted_timestamp(&self) -> &str {
+        &self.formatted_timestamp
+    }
+
+    /// Get the pre-computed line with ANSI codes stripped
+    pub fn stripped_line(&self) -> &str {
+        &self.stripped_line
+    }
+
+    /// Get the pre-computed condensed version of line
+    pub fn condensed_line(&self) -> &str {
+        &self.condensed_line
+    }
+
+    /// Get the pre-computed condensed line with ANSI codes stripped
+    pub fn condensed_stripped_line(&self) -> &str {
+        &self.condensed_stripped_line
+    }
+
     pub fn memory_size(&self) -> usize {
         let mut size = std::mem::size_of::<LogLine>();
 
         size += self.line.capacity();
         size += self.line_lowercase.capacity();
+        size += self.formatted_timestamp.capacity();
+        size += self.stripped_line.capacity();
+        size += self.condensed_line.capacity();
+        size += self.condensed_stripped_line.capacity();
 
         match &self.source {
             LogSource::ProcessStdout(name) => size += name.capacity(),
