@@ -3,7 +3,7 @@ use insta::assert_snapshot;
 use overitall::{
     log::{LogLine, LogSource},
     process::ProcessManager,
-    ui::App,
+    ui::{App, DisplayMode},
 };
 use ratatui::{backend::TestBackend, Terminal};
 
@@ -1207,4 +1207,51 @@ fn test_hidden_process_overrides_custom_status() {
         output.contains("web") && output.contains("Hidden"),
         "Web process should be marked as Hidden"
     );
+}
+
+/// Helper to create a ProcessManager with long log lines for testing wrap/truncate
+fn create_manager_with_long_logs() -> ProcessManager {
+    let mut manager = ProcessManager::new();
+
+    manager.add_process("web".to_string(), "ruby web.rb".to_string(), None, None);
+    manager.add_process("worker".to_string(), "ruby worker.rb".to_string(), None, None);
+
+    // Add logs with varying lengths - some short, some very long
+    manager.add_test_log(create_test_log_line("web", "Short log message"));
+    manager.add_test_log(create_test_log_line("web", "This is a much longer log message that will definitely exceed the terminal width and need to be either truncated or wrapped depending on the display mode setting"));
+    manager.add_test_log(create_test_log_line("worker", "Processing job #1234"));
+    manager.add_test_log(create_test_log_line("worker", "ERROR: Failed to connect to database at host=db.example.com port=5432 user=app_user database=production reason=connection_refused after_attempts=3 retry_delay_ms=1000"));
+    manager.add_test_log(create_test_log_line("web", "GET /api/users HTTP/1.1 200 OK response_time=45ms user_agent=Mozilla/5.0 referer=https://example.com/dashboard"));
+
+    manager
+}
+
+#[test]
+fn test_snapshot_display_mode_compact() {
+    let mut app = create_test_app();
+    app.display_mode = DisplayMode::Compact;
+    let manager = create_manager_with_long_logs();
+
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_snapshot_display_mode_full() {
+    let mut app = create_test_app();
+    app.display_mode = DisplayMode::Full;
+    let manager = create_manager_with_long_logs();
+
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_snapshot_display_mode_wrap() {
+    let mut app = create_test_app();
+    app.display_mode = DisplayMode::Wrap;
+    let manager = create_manager_with_long_logs();
+
+    let output = render_app_to_string(&mut app, &manager, 120, 40);
+    assert_snapshot!(output);
 }
