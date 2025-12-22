@@ -43,7 +43,7 @@ pub fn draw_help_overlay(f: &mut Frame, scroll_offset: u16) {
         ]),
         Line::from(vec![
             Span::styled("  w", Style::default().fg(Color::Yellow)),
-            Span::raw("       Toggle compact mode (condense metadata)"),
+            Span::raw("       Cycle display: compact → full → wrap"),
         ]),
         Line::from(""),
         Line::from(vec![

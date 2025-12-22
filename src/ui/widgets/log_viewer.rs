@@ -359,8 +359,9 @@ pub fn draw_log_viewer(
         let max_line_width = (area.width as usize).saturating_sub(3); // -2 for borders, -1 for safety
 
         // Determine if we need to truncate and render accordingly
-        let line = if current_batch_validated.is_some() {
-            // In batch view mode: show full content with cached ANSI parsing
+        let line = if current_batch_validated.is_some() || app.is_wrap() {
+            // In batch view mode or wrap mode: show full content with cached ANSI parsing
+            // Paragraph wrapping is applied at the widget level
             let bg_color = if is_selected {
                 Some(Color::Blue)
             } else if is_match {
@@ -375,7 +376,7 @@ pub fn draw_log_viewer(
                 None
             };
 
-            // Use cache: batch view mode always uses non-compact content
+            // Use cache: batch/wrap view mode always uses non-compact content
             let cache_key = AnsiCacheKey::new(log.id, false);
             let cached = app.ansi_cache.get_or_parse(cache_key, &full_line_with_ansi);
             AnsiCache::to_line_with_overrides(cached, bg_color, fg_override)
@@ -468,8 +469,8 @@ pub fn draw_log_viewer(
             .title_style(Style::default().add_modifier(Modifier::BOLD)),
     );
 
-    // Enable word wrapping when in batch view mode so full lines are visible
-    if current_batch_validated.is_some() {
+    // Enable word wrapping in batch view mode or wrap mode so full lines are visible
+    if current_batch_validated.is_some() || app.is_wrap() {
         paragraph = paragraph.wrap(Wrap { trim: true });
     }
 
