@@ -4,6 +4,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 pub mod buffer;
 pub mod file;
+pub mod velocity;
+
+pub use velocity::LogVelocityTracker;
 
 // Re-export commonly used types
 pub use buffer::LogBuffer;
