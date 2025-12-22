@@ -23,11 +23,12 @@ pub fn draw_status_bar(
     let buffer_stats = manager.get_buffer_stats();
     let mut status_parts = vec![
         format!(
-            "Buffer: {:.1}/{} MB ({:.0}%) | {} lines",
+            "Buffer: {:.1}/{} MB ({:.0}%) | {} lines {}",
             buffer_stats.memory_mb,
             buffer_stats.limit_mb,
             buffer_stats.percent,
-            buffer_stats.line_count
+            buffer_stats.line_count,
+            buffer_stats.sparkline
         )
     ];
 
