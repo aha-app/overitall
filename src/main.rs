@@ -109,13 +109,14 @@ async fn main() -> anyhow::Result<()> {
     let mut config = Config::from_file(config_path)?;
     config.config_path = Some(std::path::PathBuf::from(config_path));
 
-    // Override procfile path if specified on command line
-    if let Some(ref procfile_path) = cli.procfile {
-        config.procfile = std::path::PathBuf::from(procfile_path);
-    }
+    // Use CLI-specified procfile as a temporary override (not saved to config)
+    let runtime_procfile_path = cli.procfile
+        .as_ref()
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| config.procfile.clone());
 
     // Parse procfile
-    let procfile = Procfile::from_file(&config.procfile)?;
+    let procfile = Procfile::from_file(&runtime_procfile_path)?;
 
     // Validate config (check for name collisions between processes and log files)
     let process_names: Vec<String> = procfile.processes.keys().cloned().collect();
@@ -124,7 +125,7 @@ async fn main() -> anyhow::Result<()> {
     // Determine working directory from Procfile path
     // If procfile is just "Procfile" (no directory), parent() returns Some("")
     // We need to filter out empty paths and use current_dir instead
-    let procfile_dir = config.procfile
+    let procfile_dir = runtime_procfile_path
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
         .map(|p| p.to_path_buf())
