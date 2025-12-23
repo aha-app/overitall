@@ -149,6 +149,10 @@ pub fn draw_help_overlay(f: &mut Frame, scroll_offset: u16) {
             Span::styled("  +/-", Style::default().fg(Color::Yellow)),
             Span::raw("     Increase/decrease batch window by 100ms"),
         ]),
+        Line::from(vec![
+            Span::styled("  :g/:goto <time>", Style::default().fg(Color::Yellow)),
+            Span::raw("  Jump to timestamp (HH:MM or -5m)"),
+        ]),
         Line::from(""),
         Line::from(vec![
             Span::styled("Clipboard & Batch:", Style::default().add_modifier(Modifier::BOLD)),

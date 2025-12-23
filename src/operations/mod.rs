@@ -5,6 +5,7 @@ pub mod coloring;
 pub mod config;
 pub mod display;
 pub mod filter;
+pub mod goto;
 pub mod logs;
 pub mod manual_trace;
 pub mod navigation;

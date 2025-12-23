@@ -1,8 +1,15 @@
 use crate::config::Config;
-use crate::operations::{batch, batch_window, coloring, filter, process, traces, visibility};
+use crate::operations::{batch, batch_window, coloring, filter, goto, process, traces, visibility};
 use crate::process::ProcessManager;
 use crate::ui::App;
 use anyhow::Result;
+
+/// Target for goto command - absolute or relative time
+#[derive(Debug, PartialEq, Clone)]
+pub enum GotoTarget {
+    AbsoluteTime { hour: u32, minute: u32, second: Option<u32> },
+    RelativeTime { seconds: i64 },
+}
 
 /// Command parsed from user input
 #[derive(Debug, PartialEq)]
@@ -27,6 +34,7 @@ pub enum Command {
     Only(String),
     Traces,
     ColorToggle,
+    Goto(GotoTarget),
     Unknown(String),
 }
 
@@ -129,7 +137,61 @@ pub fn parse_command(input: &str) -> Command {
         }
         "traces" => Command::Traces,
         "color" | "colors" => Command::ColorToggle,
+        "g" | "goto" => {
+            if parts.len() < 2 {
+                Command::Unknown("Usage: :goto HH:MM[:SS] or :goto -Ns/-Nm/-Nh".to_string())
+            } else {
+                parse_goto_target(parts[1])
+            }
+        }
         _ => Command::Unknown(format!("Unknown command: {}", parts[0])),
+    }
+}
+
+/// Parse a goto target (absolute or relative time)
+fn parse_goto_target(input: &str) -> Command {
+    // Check for relative time format: -Ns, -Nm, -Nh
+    if input.starts_with('-') && input.len() >= 2 {
+        let last_char = input.chars().last().unwrap();
+        if let Some(num_str) = input.get(1..input.len() - 1) {
+            if let Ok(value) = num_str.parse::<i64>() {
+                let seconds = match last_char {
+                    's' => value,
+                    'm' => value * 60,
+                    'h' => value * 3600,
+                    _ => return Command::Unknown(format!(
+                        "Invalid time unit '{}'. Use s (seconds), m (minutes), or h (hours)",
+                        last_char
+                    )),
+                };
+                return Command::Goto(GotoTarget::RelativeTime { seconds: -seconds });
+            }
+        }
+        return Command::Unknown("Invalid relative time format. Use -Ns, -Nm, or -Nh".to_string());
+    }
+
+    // Check for absolute time format: HH:MM or HH:MM:SS
+    let parts: Vec<&str> = input.split(':').collect();
+    match parts.len() {
+        2 => {
+            // HH:MM format
+            match (parts[0].parse::<u32>(), parts[1].parse::<u32>()) {
+                (Ok(hour), Ok(minute)) if hour < 24 && minute < 60 => {
+                    Command::Goto(GotoTarget::AbsoluteTime { hour, minute, second: None })
+                }
+                _ => Command::Unknown("Invalid time format. Use HH:MM (00:00 to 23:59)".to_string()),
+            }
+        }
+        3 => {
+            // HH:MM:SS format
+            match (parts[0].parse::<u32>(), parts[1].parse::<u32>(), parts[2].parse::<u32>()) {
+                (Ok(hour), Ok(minute), Ok(second)) if hour < 24 && minute < 60 && second < 60 => {
+                    Command::Goto(GotoTarget::AbsoluteTime { hour, minute, second: Some(second) })
+                }
+                _ => Command::Unknown("Invalid time format. Use HH:MM:SS (00:00:00 to 23:59:59)".to_string()),
+            }
+        }
+        _ => Command::Unknown("Invalid format. Use HH:MM[:SS] or -Ns/-Nm/-Nh".to_string()),
     }
 }
 
@@ -209,6 +271,9 @@ impl<'a> CommandExecutor<'a> {
             }
             Command::ColorToggle => {
                 self.execute_color_toggle();
+            }
+            Command::Goto(target) => {
+                self.execute_goto(target);
             }
             Command::Unknown(msg) => {
                 self.app.set_status_error(format!("Error: {}", msg));
@@ -362,6 +427,13 @@ impl<'a> CommandExecutor<'a> {
             self.app.set_status_success("Process coloring enabled".to_string());
         } else {
             self.app.set_status_info("Process coloring disabled".to_string());
+        }
+    }
+
+    fn execute_goto(&mut self, target: GotoTarget) {
+        match goto::goto_timestamp(self.app, self.manager, target) {
+            Ok(msg) => self.app.set_status_success(msg),
+            Err(msg) => self.app.set_status_error(msg),
         }
     }
 }
@@ -567,5 +639,105 @@ mod tests {
         assert_eq!(parse_command("  q  "), Command::Quit);
         assert_eq!(parse_command("  quit  "), Command::Quit);
         assert_eq!(parse_command("  exit  "), Command::Quit);
+    }
+
+    #[test]
+    fn test_parse_goto_absolute_time_hhmm() {
+        match parse_command("goto 14:30") {
+            Command::Goto(GotoTarget::AbsoluteTime { hour, minute, second }) => {
+                assert_eq!(hour, 14);
+                assert_eq!(minute, 30);
+                assert_eq!(second, None);
+            }
+            other => panic!("Expected Goto AbsoluteTime, got {:?}", other),
+        }
+
+        match parse_command("g 09:05") {
+            Command::Goto(GotoTarget::AbsoluteTime { hour, minute, second }) => {
+                assert_eq!(hour, 9);
+                assert_eq!(minute, 5);
+                assert_eq!(second, None);
+            }
+            other => panic!("Expected Goto AbsoluteTime, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_parse_goto_absolute_time_hhmmss() {
+        match parse_command("goto 14:30:45") {
+            Command::Goto(GotoTarget::AbsoluteTime { hour, minute, second }) => {
+                assert_eq!(hour, 14);
+                assert_eq!(minute, 30);
+                assert_eq!(second, Some(45));
+            }
+            other => panic!("Expected Goto AbsoluteTime with seconds, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_parse_goto_relative_seconds() {
+        match parse_command("goto -30s") {
+            Command::Goto(GotoTarget::RelativeTime { seconds }) => {
+                assert_eq!(seconds, -30);
+            }
+            other => panic!("Expected Goto RelativeTime, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_parse_goto_relative_minutes() {
+        match parse_command("g -5m") {
+            Command::Goto(GotoTarget::RelativeTime { seconds }) => {
+                assert_eq!(seconds, -300); // 5 * 60
+            }
+            other => panic!("Expected Goto RelativeTime, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_parse_goto_relative_hours() {
+        match parse_command("goto -2h") {
+            Command::Goto(GotoTarget::RelativeTime { seconds }) => {
+                assert_eq!(seconds, -7200); // 2 * 3600
+            }
+            other => panic!("Expected Goto RelativeTime, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_parse_goto_missing_argument() {
+        match parse_command("goto") {
+            Command::Unknown(msg) => {
+                assert!(msg.contains("Usage"), "Expected usage message, got: {}", msg);
+            }
+            other => panic!("Expected Unknown for missing argument, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_parse_goto_invalid_time() {
+        match parse_command("goto 25:00") {
+            Command::Unknown(msg) => {
+                assert!(msg.contains("Invalid"), "Expected invalid message, got: {}", msg);
+            }
+            other => panic!("Expected Unknown for invalid hour, got {:?}", other),
+        }
+
+        match parse_command("goto 12:60") {
+            Command::Unknown(msg) => {
+                assert!(msg.contains("Invalid"), "Expected invalid message, got: {}", msg);
+            }
+            other => panic!("Expected Unknown for invalid minute, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_parse_goto_invalid_relative() {
+        match parse_command("goto -5x") {
+            Command::Unknown(msg) => {
+                assert!(msg.contains("time unit"), "Expected time unit error, got: {}", msg);
+            }
+            other => panic!("Expected Unknown for invalid unit, got {:?}", other),
+        }
     }
 }
