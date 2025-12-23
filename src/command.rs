@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::operations::{batch, batch_window, filter, process, traces, visibility};
+use crate::operations::{batch, batch_window, coloring, filter, process, traces, visibility};
 use crate::process::ProcessManager;
 use crate::ui::App;
 use anyhow::Result;
@@ -26,6 +26,7 @@ pub enum Command {
     ShowAll,
     Only(String),
     Traces,
+    ColorToggle,
     Unknown(String),
 }
 
@@ -127,6 +128,7 @@ pub fn parse_command(input: &str) -> Command {
             }
         }
         "traces" => Command::Traces,
+        "color" | "colors" => Command::ColorToggle,
         _ => Command::Unknown(format!("Unknown command: {}", parts[0])),
     }
 }
@@ -204,6 +206,9 @@ impl<'a> CommandExecutor<'a> {
             }
             Command::Traces => {
                 self.execute_traces();
+            }
+            Command::ColorToggle => {
+                self.execute_color_toggle();
             }
             Command::Unknown(msg) => {
                 self.app.set_status_error(format!("Error: {}", msg));
@@ -349,6 +354,15 @@ impl<'a> CommandExecutor<'a> {
 
     fn execute_traces(&mut self) {
         traces::execute_traces(self.app, self.manager);
+    }
+
+    fn execute_color_toggle(&mut self) {
+        let enabled = coloring::toggle_coloring(self.app, self.manager, self.config);
+        if enabled {
+            self.app.set_status_success("Process coloring enabled".to_string());
+        } else {
+            self.app.set_status_info("Process coloring disabled".to_string());
+        }
     }
 }
 

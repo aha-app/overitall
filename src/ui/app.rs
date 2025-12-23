@@ -149,6 +149,8 @@ pub struct App {
     pub process_regions: Vec<(String, Rect)>,
     /// Colors assigned to each process/log file
     pub process_colors: ProcessColors,
+    /// Whether process coloring is enabled
+    pub coloring_enabled: bool,
 }
 
 impl App {
@@ -215,6 +217,7 @@ impl App {
             process_regions: Vec::new(),
             // Process colors (initialized empty, set via init_process_colors)
             process_colors: ProcessColors::new(&[], &[], &HashMap::new()),
+            coloring_enabled: false,
         }
     }
 

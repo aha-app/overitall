@@ -191,6 +191,7 @@ async fn main() -> anyhow::Result<()> {
         let process_names: Vec<String> = manager.get_processes().keys().cloned().collect();
         let log_file_names = manager.get_standalone_log_file_names();
         app.init_process_colors(&process_names, &log_file_names, &config.colors);
+        app.coloring_enabled = true;
     }
 
     // Load display mode from config (default: Compact if not specified)

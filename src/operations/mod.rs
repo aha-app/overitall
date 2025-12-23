@@ -1,6 +1,7 @@
 pub mod batch;
 pub mod batch_window;
 pub mod clipboard;
+pub mod coloring;
 pub mod config;
 pub mod display;
 pub mod filter;
