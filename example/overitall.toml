@@ -3,11 +3,19 @@ batch_window_ms = 5000
 max_log_buffer_mb = 50
 hidden_processes = []
 compact_mode = true
+process_coloring = false
+
+[processes.monitor.status]
+default = "Starting"
+
+[[processes.monitor.status.transitions]]
+pattern = "CPU:"
+label = "Active"
+color = "blue"
 
 [processes.web]
 log_file = "web.log"
 
-# Custom status: Shows "Starting" initially, then "Ready" when the server starts logging requests
 [processes.web.status]
 default = "Starting"
 
@@ -19,7 +27,6 @@ color = "green"
 [processes.worker]
 log_file = "worker.log"
 
-# Custom status: Shows "Starting" initially, then "Processing" when jobs begin
 [processes.worker.status]
 default = "Starting"
 
@@ -28,20 +35,6 @@ pattern = "Processing"
 label = "Processing"
 color = "cyan"
 
-# Monitor process - shows "Starting" then "Active" when metrics start flowing
-[processes.monitor]
-
-[processes.monitor.status]
-default = "Starting"
-
-[[processes.monitor.status.transitions]]
-pattern = "CPU:"
-label = "Active"
-color = "blue"
-
-# Standalone log file (not associated with any process)
-# This appears in the process list with [LOG] indicator
-# You can hide/show it with :hide shared or :show shared
 [[log_files]]
 name = "shared"
 path = "shared.log"
@@ -49,3 +42,5 @@ path = "shared.log"
 [filters]
 include = []
 exclude = []
+
+[colors]
