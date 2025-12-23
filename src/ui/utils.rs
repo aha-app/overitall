@@ -4,9 +4,6 @@ use ratatui::{
 };
 use ansi_to_tui::IntoText;
 
-// Re-export condense_log_line from the log module for backwards compatibility
-pub use crate::log::condense_log_line;
-
 /// Helper function to create a centered rect using percentage of the available area
 pub fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
     let popup_layout = Layout::default()
@@ -48,7 +45,7 @@ pub fn parse_ansi_to_spans(text: &str) -> Vec<(String, Style)> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::log::condense_log_line;
 
     #[test]
     fn test_condense_no_metadata() {

@@ -273,6 +273,7 @@ pub struct ProcessManager {
 }
 
 impl ProcessManager {
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self::new_with_buffer_limit(50)
     }
@@ -324,6 +325,7 @@ impl ProcessManager {
         process.kill().await
     }
 
+    #[allow(dead_code)]
     pub async fn restart_process(&mut self, name: &str) -> Result<()> {
         let process = self.processes.get_mut(name)
             .ok_or_else(|| anyhow::anyhow!("Process '{}' not found", name))?;
@@ -458,6 +460,7 @@ impl ProcessManager {
         newly_failed
     }
 
+    #[allow(dead_code)]
     pub fn get_status(&self, name: &str) -> Option<ProcessStatus> {
         self.processes.get(name).map(|p| p.status.clone())
     }
@@ -538,21 +541,25 @@ impl ProcessManager {
     }
 
     /// Get sparkline showing log velocity over time
+    #[allow(dead_code)]
     pub fn get_velocity_sparkline(&self) -> String {
         self.velocity_tracker.sparkline()
     }
 
     /// Try to receive a log line (non-blocking)
+    #[allow(dead_code)]
     pub fn try_recv_log(&mut self) -> Option<LogLine> {
         self.log_rx.try_recv().ok()
     }
 
     /// Receive a log line (blocking)
+    #[allow(dead_code)]
     pub async fn recv_log(&mut self) -> Option<LogLine> {
         self.log_rx.recv().await
     }
 
     /// Add a log line directly to the buffer (for testing)
+    #[allow(dead_code)]
     pub fn add_test_log(&mut self, log: LogLine) {
         self.log_buffer.push(log);
     }

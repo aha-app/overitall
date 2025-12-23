@@ -3,6 +3,7 @@
 
 /// Actions that IPC command handlers can emit to update TUI state
 #[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)]
 pub enum IpcAction {
     /// Set the search pattern and activate search highlighting
     SetSearch { pattern: String },

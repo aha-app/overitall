@@ -292,6 +292,7 @@ impl App {
         self.status_message = Some((message, StatusType::Info));
     }
 
+    #[allow(dead_code)]
     pub fn clear_status(&mut self) {
         self.status_message = None;
     }
@@ -445,10 +446,12 @@ impl App {
         self.help_scroll_offset = self.help_scroll_offset.saturating_add(1);
     }
 
+    #[allow(dead_code)]
     pub fn select_line_by_id(&mut self, id: Option<u64>) {
         self.selected_line_id = id;
     }
 
+    #[allow(dead_code)]
     pub fn clear_selection(&mut self) {
         self.selected_line_id = None;
     }

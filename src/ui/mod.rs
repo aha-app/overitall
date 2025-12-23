@@ -9,10 +9,10 @@ mod types;
 pub mod utils;
 mod widgets;
 
-// Public API (maintains backward compatibility)
-pub use ansi_cache::{AnsiCache, AnsiCacheKey};
+// Public API
 pub use app::{App, DisplayMode};
 pub use batch::detect_batches_from_logs;
+#[allow(unused_imports)]
 pub use batch_cache::{BatchCache, BatchCacheKey};
 pub use draw::draw;
 pub use filter::{apply_filters, Filter, FilterType};

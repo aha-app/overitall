@@ -40,6 +40,7 @@ pub struct IpcResponse {
     pub error: Option<String>,
 }
 
+#[allow(dead_code)]
 impl IpcResponse {
     pub fn ok(result: Value) -> Self {
         Self {

@@ -61,6 +61,7 @@ impl LogLine {
     }
 
     /// Create a log line with specific timestamp (for benchmarks and tests)
+    #[allow(dead_code)]
     pub fn new_with_time(source: LogSource, line: String, time: DateTime<Local>) -> Self {
         let line_lowercase = line.to_lowercase();
         let formatted_timestamp = time.format("%H:%M:%S").to_string();
@@ -148,6 +149,7 @@ pub enum LogSource {
     },
 }
 
+#[allow(dead_code)]
 impl LogSource {
     pub fn process_name(&self) -> &str {
         match self {

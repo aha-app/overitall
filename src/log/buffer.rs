@@ -9,6 +9,7 @@ pub struct LogBuffer {
     current_memory_bytes: usize,
 }
 
+#[allow(dead_code)]
 impl LogBuffer {
     pub fn new(max_size: usize) -> Self {
         Self {

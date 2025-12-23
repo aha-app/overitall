@@ -39,6 +39,7 @@ impl FileReader {
         &self.name
     }
 
+    #[allow(dead_code)]
     pub fn is_standalone(&self) -> bool {
         self.is_standalone
     }

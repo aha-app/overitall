@@ -68,6 +68,7 @@ impl Procfile {
         names
     }
 
+    #[allow(dead_code)]
     pub fn get_command(&self, name: &str) -> Option<&str> {
         self.processes.get(name).map(|s| s.as_str())
     }

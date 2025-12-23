@@ -71,6 +71,7 @@ impl LogVelocityTracker {
     }
 
     /// Get current bucket counts for rendering
+    #[allow(dead_code)]
     pub fn get_buckets(&self) -> &VecDeque<u32> {
         &self.buckets
     }
@@ -97,6 +98,7 @@ impl LogVelocityTracker {
     }
 
     /// Generate sparkline with minimum bar for zero (maintains visual line)
+    #[allow(dead_code)]
     pub fn sparkline_with_baseline(&self) -> String {
         if self.buckets.is_empty() {
             return String::new();

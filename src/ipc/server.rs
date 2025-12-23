@@ -63,6 +63,7 @@ impl IpcServer {
     }
 
     /// Get the socket path
+    #[allow(dead_code)]
     pub fn socket_path(&self) -> &Path {
         &self.socket_path
     }
@@ -181,16 +182,19 @@ impl IpcServer {
     }
 
     /// Close a specific client connection
+    #[allow(dead_code)]
     pub fn close_connection(&mut self, conn_id: ConnectionId) {
         self.connections.remove(&conn_id);
     }
 
     /// Get the number of active connections
+    #[allow(dead_code)]
     pub fn connection_count(&self) -> usize {
         self.connections.len()
     }
 
     /// Check if a connection exists
+    #[allow(dead_code)]
     pub fn has_connection(&self, conn_id: ConnectionId) -> bool {
         self.connections.contains_key(&conn_id)
     }

@@ -70,6 +70,7 @@ impl BatchCache {
         &self.batches
     }
 
+    #[allow(dead_code)]
     pub fn hit_rate(&self) -> f64 {
         let total = self.hits + self.misses;
         if total == 0 {
@@ -79,6 +80,7 @@ impl BatchCache {
         }
     }
 
+    #[allow(dead_code)]
     pub fn invalidate(&mut self) {
         self.key = None;
     }
