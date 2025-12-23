@@ -471,13 +471,35 @@ impl<'a> EventHandler<'a> {
                         // Check if click is on a specific process
                         for (name, rect) in &self.app.process_regions.clone() {
                             if rect.contains(pos) {
-                                // Toggle visibility for this process
-                                if self.app.hidden_processes.contains(name) {
-                                    self.app.hidden_processes.remove(name);
-                                    self.app.set_status_info(format!("Showing: {}", name));
-                                } else {
+                                // 3-state cycle: Solo -> Mute -> Normal -> Solo...
+                                let all_names: Vec<String> = self
+                                    .app
+                                    .process_regions
+                                    .iter()
+                                    .map(|(n, _)| n.clone())
+                                    .collect();
+                                let total = all_names.len();
+                                let hidden_count = self.app.hidden_processes.len();
+                                let is_hidden = self.app.hidden_processes.contains(name);
+
+                                if !is_hidden && hidden_count == total - 1 {
+                                    // Solo mode (this is the only visible process) -> Mute mode
+                                    self.app.hidden_processes.clear();
                                     self.app.hidden_processes.insert(name.clone());
-                                    self.app.set_status_info(format!("Hiding: {}", name));
+                                    self.app.set_status_info(format!("Muting: {}", name));
+                                } else if is_hidden && hidden_count == 1 {
+                                    // Mute mode (this is the only hidden process) -> Normal mode
+                                    self.app.hidden_processes.clear();
+                                    self.app.set_status_info("Showing all".to_string());
+                                } else {
+                                    // Normal or other state -> Solo mode
+                                    self.app.hidden_processes.clear();
+                                    for n in &all_names {
+                                        if n != name {
+                                            self.app.hidden_processes.insert(n.clone());
+                                        }
+                                    }
+                                    self.app.set_status_info(format!("Solo: {}", name));
                                 }
                                 return Ok(false);
                             }
