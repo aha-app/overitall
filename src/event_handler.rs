@@ -474,7 +474,7 @@ impl<'a> EventHandler<'a> {
                 }
                 if let Some(area) = self.app.log_viewer_area {
                     if area.contains(pos) {
-                        self.app.set_status_info(format!("Clicked log viewer at ({}, {})", col, row));
+                        navigation::select_line_at_row(self.app, self.manager, row, area.y);
                         return Ok(false);
                     }
                 }

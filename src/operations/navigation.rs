@@ -259,6 +259,39 @@ pub fn page_up(app: &mut App, manager: &ProcessManager) {
     }
 }
 
+/// Select the log line at a specific screen row (from a mouse click).
+/// Takes the absolute row coordinate and the log viewer area's top Y position.
+pub fn select_line_at_row(app: &mut App, manager: &ProcessManager, row: u16, area_y: u16) {
+    // Account for the border (1 row at top)
+    let relative_row = (row.saturating_sub(area_y)).saturating_sub(1) as usize;
+    let clicked_line_index = app.scroll_offset + relative_row;
+
+    let display_logs = get_display_logs(app, manager);
+
+    if display_logs.is_empty() {
+        app.set_status_info("No logs to select".to_string());
+        return;
+    }
+
+    if clicked_line_index >= display_logs.len() {
+        app.set_status_info("Clicked below last log line".to_string());
+        return;
+    }
+
+    // Create snapshot on first selection (if not already frozen)
+    if app.snapshot.is_none() {
+        let logs = manager.get_all_logs();
+        let filtered = crate::ui::apply_filters(logs, &app.filters);
+        app.create_snapshot(filtered);
+    }
+
+    let clicked_log = &display_logs[clicked_line_index];
+    app.selected_line_id = Some(clicked_log.id);
+    app.auto_scroll = false;
+    app.freeze_display();
+    app.set_status_info(format!("Selected line {}", clicked_line_index + 1));
+}
+
 /// Move the selection down by a page (20 lines).
 /// If no line is selected, scrolls the view instead.
 pub fn page_down(app: &mut App, manager: &ProcessManager) {
