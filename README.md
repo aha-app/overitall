@@ -19,6 +19,7 @@ Overitall (`oit`) is a Rust-based TUI that helps you manage multiple processes a
 - **Trace Detection**: Find correlation IDs (UUIDs, trace IDs) and filter to specific traces
 - **Persistent Configuration**: Filters and settings are automatically saved
 - **Compact Mode**: Collapse verbose metadata tags (`[key:value]`) into `[+N]` for cleaner log viewing
+- **Process Coloring**: Optional distinct colors per process for easier visual identification
 - **Vim-style Commands**: Familiar `:command` interface for power users
 - **Auto-Update**: Automatically checks for and installs updates on startup
 - **AI Integration**: Install Claude Code/Cursor skill to let AI control the TUI via CLI
@@ -211,6 +212,10 @@ The batch window determines how close in time log lines must be to be grouped to
 
 The search filters logs in real-time as you type. Press Enter to enter selection mode where you can navigate through the filtered results with arrow keys. Press Esc to step back: from selection mode back to typing, or from typing mode to exit search completely.
 
+#### Display
+
+- `:color` - Toggle process coloring on/off (persists to config)
+
 ## Configuration
 
 The configuration file (`.overitall.toml` by default) uses TOML format:
@@ -251,6 +256,7 @@ hidden_processes = ["worker"]
 - `batch_window_ms` - Batch grouping window in milliseconds (default: 100)
 - `disable_auto_update` - Set to `true` to disable auto-update checks (default: false)
 - `compact_mode` - Set to `false` to show full log lines by default (default: true)
+- `process_coloring` - Set to `true` to colorize process names in the log view (default: false)
 
 ### Standalone Log Files
 
@@ -301,6 +307,25 @@ When the process starts, it shows the default status ("Starting"). When a log li
 Available colors: `red`, `green`, `yellow`, `blue`, `magenta`, `cyan`, `gray`, `dark_gray`, `light_red`, `light_green`, `light_yellow`, `light_blue`, `light_magenta`, `light_cyan`, `white`
 
 The status resets to the default when the process is restarted.
+
+### Process Coloring
+
+Enable distinct colors for each process/log file name in the log view. This makes it easier to visually distinguish logs from different sources.
+
+```toml
+# Enable colored process names (disabled by default)
+process_coloring = true
+
+# Optional: override specific process colors
+[colors]
+web = "green"
+worker = "yellow"
+rails = "cyan"
+```
+
+Available colors: `red`, `green`, `yellow`, `blue`, `magenta`, `cyan`, `white`, `gray`, plus light variants: `light_red`, `light_green`, `light_yellow`, `light_blue`, `light_magenta`, `light_cyan`
+
+You can also toggle coloring at runtime with the `:color` command, which persists the setting to your config file.
 
 ### Auto-Update
 

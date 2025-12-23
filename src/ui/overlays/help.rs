@@ -191,6 +191,14 @@ pub fn draw_help_overlay(f: &mut Frame, scroll_offset: u16) {
         ]),
         Line::from(""),
         Line::from(vec![
+            Span::styled("Display:", Style::default().add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(vec![
+            Span::styled("  :color", Style::default().fg(Color::Yellow)),
+            Span::raw("      Toggle process coloring on/off"),
+        ]),
+        Line::from(""),
+        Line::from(vec![
             Span::styled("Trace Detection:", Style::default().add_modifier(Modifier::BOLD)),
         ]),
         Line::from(vec![
