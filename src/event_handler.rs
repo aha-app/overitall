@@ -468,7 +468,21 @@ impl<'a> EventHandler<'a> {
                 // Check which region was clicked
                 if let Some(area) = self.app.process_list_area {
                     if area.contains(pos) {
-                        self.app.set_status_info(format!("Clicked process list at ({}, {})", col, row));
+                        // Check if click is on a specific process
+                        for (name, rect) in &self.app.process_regions.clone() {
+                            if rect.contains(pos) {
+                                // Toggle visibility for this process
+                                if self.app.hidden_processes.contains(name) {
+                                    self.app.hidden_processes.remove(name);
+                                    self.app.set_status_info(format!("Showing: {}", name));
+                                } else {
+                                    self.app.hidden_processes.insert(name.clone());
+                                    self.app.set_status_info(format!("Hiding: {}", name));
+                                }
+                                return Ok(false);
+                            }
+                        }
+                        // Click was in process list area but not on a specific process
                         return Ok(false);
                     }
                 }

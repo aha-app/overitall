@@ -10,7 +10,10 @@ use crate::process::{ProcessManager, ProcessStatus};
 use crate::ui::app::App;
 
 /// Draw the process list at the top of the screen
-pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, app: &App) {
+pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, app: &mut App) {
+    // Clear previous process regions
+    app.process_regions.clear();
+
     let processes = manager.get_processes();
 
     // Sort process names for consistent display
@@ -18,7 +21,9 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
     names.sort();
 
     // Build a horizontal layout of processes with separators
+    // Track character position for click region mapping
     let mut spans = Vec::new();
+    let mut char_pos: u16 = 0;
 
     for (i, name) in names.iter().enumerate() {
         let handle = &processes[*name];
@@ -26,6 +31,7 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
         // Add separator between processes (but not before the first one)
         if i > 0 {
             spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
+            char_pos += 3; // " | " is 3 chars
         }
 
         // Check if process is hidden
@@ -57,6 +63,16 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
             }
         };
 
+        // Calculate the full width of this process entry: "name [status]"
+        let entry_width = name.len() + 3 + status_text.len(); // " [" + status + "]"
+
+        // Record the clickable region for this process
+        // Note: area.x is the start of the process list area
+        app.process_regions.push((
+            (*name).clone(),
+            Rect::new(area.x + char_pos, area.y, entry_width as u16, 1),
+        ));
+
         // Add process name and status
         spans.push(Span::styled(
             (*name).clone(),
@@ -65,6 +81,8 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
         spans.push(Span::raw(" ["));
         spans.push(Span::styled(status_text, Style::default().fg(color)));
         spans.push(Span::raw("]"));
+
+        char_pos += entry_width as u16;
     }
 
     // Add standalone log files after processes
@@ -75,6 +93,7 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
         // Add separator if there are any previous items
         if !spans.is_empty() {
             spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
+            char_pos += 3;
         }
 
         // Check if log file is hidden
@@ -84,6 +103,15 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
             ("LOG".to_string(), Color::Cyan)
         };
 
+        // Calculate the full width of this log file entry
+        let entry_width = name.len() + 3 + status_text.len();
+
+        // Record the clickable region for this log file
+        app.process_regions.push((
+            name.clone(),
+            Rect::new(area.x + char_pos, area.y, entry_width as u16, 1),
+        ));
+
         // Add log file name and status
         spans.push(Span::styled(
             name.clone(),
@@ -92,6 +120,8 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
         spans.push(Span::raw(" ["));
         spans.push(Span::styled(status_text, Style::default().fg(color)));
         spans.push(Span::raw("]"));
+
+        char_pos += entry_width as u16;
     }
 
     // If no processes or log files, show a message

@@ -144,6 +144,8 @@ pub struct App {
     pub log_viewer_area: Option<Rect>,
     /// Area of the status bar
     pub status_bar_area: Option<Rect>,
+    /// Clickable regions for each process name (name, bounding rect)
+    pub process_regions: Vec<(String, Rect)>,
 }
 
 impl App {
@@ -207,6 +209,7 @@ impl App {
             process_list_area: None,
             log_viewer_area: None,
             status_bar_area: None,
+            process_regions: Vec::new(),
         }
     }
 
