@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use chrono::{DateTime, Duration, Local};
+use ratatui::layout::Rect;
 
 use crate::log::LogLine;
 use crate::traces::TraceCandidate;
@@ -135,6 +136,14 @@ pub struct App {
     pub cached_batch_count: usize,
     /// Cached batch info for status bar display: (batch_index, total_batches, line_count_in_batch)
     pub cached_batch_info: Option<(usize, usize, usize)>,
+
+    // Mouse click regions (updated during draw)
+    /// Area of the process list widget
+    pub process_list_area: Option<Rect>,
+    /// Area of the log viewer widget
+    pub log_viewer_area: Option<Rect>,
+    /// Area of the status bar
+    pub status_bar_area: Option<Rect>,
 }
 
 impl App {
@@ -193,6 +202,11 @@ impl App {
             // Cached render info
             cached_batch_count: 0,
             cached_batch_info: None,
+
+            // Mouse click regions
+            process_list_area: None,
+            log_viewer_area: None,
+            status_bar_area: None,
         }
     }
 

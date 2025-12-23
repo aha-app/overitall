@@ -95,6 +95,11 @@ pub fn draw(f: &mut Frame, app: &mut App, manager: &ProcessManager) {
         ])
         .split(f.area());
 
+    // Store layout areas for mouse click detection
+    app.process_list_area = Some(chunks[0]);
+    app.log_viewer_area = Some(chunks[1]);
+    app.status_bar_area = Some(chunks[2]);
+
     // Draw process list
     draw_process_list(f, chunks[0], manager, app);
 

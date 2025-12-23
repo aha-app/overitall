@@ -463,6 +463,27 @@ impl<'a> EventHandler<'a> {
             MouseEventKind::Down(MouseButton::Left) => {
                 let col = mouse.column;
                 let row = mouse.row;
+                let pos = ratatui::layout::Position::new(col, row);
+
+                // Check which region was clicked
+                if let Some(area) = self.app.process_list_area {
+                    if area.contains(pos) {
+                        self.app.set_status_info(format!("Clicked process list at ({}, {})", col, row));
+                        return Ok(false);
+                    }
+                }
+                if let Some(area) = self.app.log_viewer_area {
+                    if area.contains(pos) {
+                        self.app.set_status_info(format!("Clicked log viewer at ({}, {})", col, row));
+                        return Ok(false);
+                    }
+                }
+                if let Some(area) = self.app.status_bar_area {
+                    if area.contains(pos) {
+                        self.app.set_status_info(format!("Clicked status bar at ({}, {})", col, row));
+                        return Ok(false);
+                    }
+                }
                 self.app.set_status_info(format!("Click at ({}, {})", col, row));
             }
             _ => {}
