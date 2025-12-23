@@ -186,10 +186,12 @@ async fn main() -> anyhow::Result<()> {
     // Load hidden processes from config
     app.hidden_processes = config.hidden_processes.iter().cloned().collect();
 
-    // Initialize process colors from config
-    let process_names: Vec<String> = manager.get_processes().keys().cloned().collect();
-    let log_file_names = manager.get_standalone_log_file_names();
-    app.init_process_colors(&process_names, &log_file_names, &config.colors);
+    // Initialize process colors from config (only if enabled)
+    if config.process_coloring == Some(true) {
+        let process_names: Vec<String> = manager.get_processes().keys().cloned().collect();
+        let log_file_names = manager.get_standalone_log_file_names();
+        app.init_process_colors(&process_names, &log_file_names, &config.colors);
+    }
 
     // Load display mode from config (default: Compact if not specified)
     // Config stores bool for backwards compat: true = Compact, false = Full

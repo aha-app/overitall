@@ -23,6 +23,8 @@ pub struct Config {
     pub compact_mode: Option<bool>,
     #[serde(default)]
     pub colors: HashMap<String, String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub process_coloring: Option<bool>,
 
     // This field is not serialized, just used at runtime
     #[serde(skip)]
@@ -146,6 +148,7 @@ mod tests {
             disable_auto_update: None,
             compact_mode: None,
             colors: HashMap::new(),
+            process_coloring: None,
             config_path: None,
         }
     }
@@ -766,5 +769,79 @@ procfile = "Procfile"
         assert_eq!(loaded.colors.len(), 2);
         assert_eq!(loaded.colors.get("web"), Some(&"green".to_string()));
         assert_eq!(loaded.colors.get("worker"), Some(&"yellow".to_string()));
+    }
+
+    #[test]
+    fn test_process_coloring_loads_from_config() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(
+            temp_file,
+            r#"
+procfile = "Procfile"
+process_coloring = true
+
+[processes]
+"#
+        )
+        .unwrap();
+
+        let config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert_eq!(config.process_coloring, Some(true));
+    }
+
+    #[test]
+    fn test_process_coloring_defaults_when_missing() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(
+            temp_file,
+            r#"
+procfile = "Procfile"
+
+[processes]
+"#
+        )
+        .unwrap();
+
+        let config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert_eq!(config.process_coloring, None);
+    }
+
+    #[test]
+    fn test_process_coloring_none_not_serialized() {
+        let config = test_config();
+
+        let toml_string = toml::to_string_pretty(&config).unwrap();
+        assert!(
+            !toml_string.contains("process_coloring"),
+            "process_coloring should not be serialized when None"
+        );
+    }
+
+    #[test]
+    fn test_process_coloring_some_is_serialized() {
+        let config = Config {
+            process_coloring: Some(true),
+            ..test_config()
+        };
+
+        let toml_string = toml::to_string_pretty(&config).unwrap();
+        assert!(
+            toml_string.contains("process_coloring = true"),
+            "process_coloring should be serialized when Some(true)"
+        );
+    }
+
+    #[test]
+    fn test_process_coloring_roundtrip() {
+        let config = Config {
+            process_coloring: Some(true),
+            ..test_config()
+        };
+
+        let temp_file = NamedTempFile::new().unwrap();
+        config.save(temp_file.path().to_str().unwrap()).unwrap();
+
+        let loaded = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert_eq!(loaded.process_coloring, Some(true));
     }
 }

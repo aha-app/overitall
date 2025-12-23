@@ -381,12 +381,23 @@ pub fn init_config(config_path: &str, procfile_override: Option<&str>) -> anyhow
             disable_auto_update: None,
             compact_mode: None,
             colors: std::collections::HashMap::new(),
+            process_coloring: None,
             config_path: None,
         };
 
         // Save the config
         config.save(config_path)
             .with_context(|| format!("Failed to write config to '{}'", config_path))?;
+
+        // Append commented-out process_coloring option
+        use std::fs::OpenOptions;
+        use std::io::Write;
+        let mut file = OpenOptions::new()
+            .append(true)
+            .open(config_path)
+            .with_context(|| format!("Failed to append to '{}'", config_path))?;
+        writeln!(file, "\n# Enable colored process names (disabled by default)")?;
+        writeln!(file, "# process_coloring = true")?;
 
         // Print success message
         println!("Created {} with {} processes:", config_path, process_names.len());
