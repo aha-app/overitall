@@ -359,14 +359,20 @@ async fn run_app(
             // Handle terminal events (keyboard, mouse, resize)
             maybe_event = event_stream.next() => {
                 if let Some(Ok(event)) = maybe_event {
-                    // Only process key press events (not release/repeat)
-                    if let Event::Key(key) = event {
-                        if key.kind == KeyEventKind::Press {
-                            let mut event_handler = EventHandler::new(app, manager, config);
-                            if event_handler.handle_key_event(key).await? {
-                                return Ok(()); // Quit was requested
+                    match event {
+                        Event::Key(key) => {
+                            if key.kind == KeyEventKind::Press {
+                                let mut event_handler = EventHandler::new(app, manager, config);
+                                if event_handler.handle_key_event(key).await? {
+                                    return Ok(()); // Quit was requested
+                                }
                             }
                         }
+                        Event::Mouse(mouse) => {
+                            let mut event_handler = EventHandler::new(app, manager, config);
+                            event_handler.handle_mouse_event(mouse)?;
+                        }
+                        _ => {}
                     }
                 }
             }

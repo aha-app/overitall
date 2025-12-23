@@ -3,7 +3,7 @@ use crate::config::Config;
 use crate::operations::{batch, batch_window, clipboard, display, manual_trace, navigation, search, traces};
 use crate::process::ProcessManager;
 use crate::ui::App;
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind, MouseButton};
 use anyhow::Result;
 
 pub struct EventHandler<'a> {
@@ -456,5 +456,17 @@ impl<'a> EventHandler<'a> {
         self.app.scroll_to_bottom();
         self.app.selected_line_id = None;
         self.app.set_status_info("Jumped to latest logs".to_string());
+    }
+
+    pub fn handle_mouse_event(&mut self, mouse: MouseEvent) -> Result<bool> {
+        match mouse.kind {
+            MouseEventKind::Down(MouseButton::Left) => {
+                let col = mouse.column;
+                let row = mouse.row;
+                self.app.set_status_info(format!("Click at ({}, {})", col, row));
+            }
+            _ => {}
+        }
+        Ok(false)
     }
 }
