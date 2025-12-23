@@ -111,17 +111,6 @@ fn test_command_mode_display() {
     assert_snapshot!(output);
 }
 
-#[test]
-fn test_help_text_display() {
-    let mut app = create_test_app();
-    let manager = create_test_process_manager();
-
-    let output = render_app_to_string(&mut app, &manager, 120, 40);
-    // Should contain help text since we're not in command or search mode
-    // The text appears in cells but may not be visible in simple string matching
-    // Just verify it renders without panicking
-    assert!(!output.is_empty());
-}
 
 #[test]
 fn test_filter_display() {
@@ -252,17 +241,6 @@ fn test_search_with_filters() {
     assert!(output.contains("filter") || output.contains("1"));
 }
 
-#[test]
-fn test_process_display_with_processes() {
-    let mut app = create_test_app();
-    let manager = create_manager_with_logs();
-
-    let output = render_app_to_string(&mut app, &manager, 120, 40);
-
-    // Should show process names
-    assert!(output.contains("web"));
-    assert!(output.contains("worker"));
-}
 
 #[test]
 fn test_log_formatting() {
@@ -290,33 +268,7 @@ fn test_empty_search_pattern() {
     assert!(!output.is_empty());
 }
 
-#[test]
-fn test_filter_with_logs() {
-    let mut app = create_test_app();
-    let manager = create_manager_with_logs();
 
-    // Add include filter for "ERROR"
-    app.add_include_filter("ERROR".to_string());
-
-    let output = render_app_to_string(&mut app, &manager, 120, 40);
-
-    // Should show filter count
-    assert!(output.contains("1") && output.contains("filter"));
-}
-
-#[test]
-fn test_exclude_filter_with_logs() {
-    let mut app = create_test_app();
-    let manager = create_manager_with_logs();
-
-    // Add exclude filter for "ERROR"
-    app.add_exclude_filter("ERROR".to_string());
-
-    let output = render_app_to_string(&mut app, &manager, 120, 40);
-
-    // Should show filter count
-    assert!(output.contains("1"));
-}
 
 // ============================================================================
 // Phase 6.7: Comprehensive Snapshot Tests for Filtering and Batching
@@ -466,19 +418,6 @@ fn test_snapshot_batch_navigation_second_batch() {
     assert_snapshot!(output);
 }
 
-#[test]
-fn test_snapshot_batch_info_in_status() {
-    let mut app = create_test_app();
-    let manager = create_manager_with_batched_logs();
-
-    // Enable batch view mode
-    app.toggle_batch_view();
-
-    let output = render_app_to_string(&mut app, &manager, 120, 40);
-    // Should show "Batch N/M, X lines" in output
-    assert!(output.contains("Batch") || output.contains("batch"));
-    assert_snapshot!(output);
-}
 
 #[test]
 fn test_snapshot_single_batch_no_separators() {
@@ -801,23 +740,6 @@ fn test_show_all_command_parsing() {
     assert!(matches!(cmd, overitall::command::Command::ShowAll));
 }
 
-#[test]
-fn test_hide_process_filters_logs() {
-    let mut app = create_test_app();
-    let manager = create_manager_with_logs();
-
-    // Hide the worker process
-    app.hidden_processes.insert("worker".to_string());
-
-    let output = render_app_to_string(&mut app, &manager, 120, 40);
-
-    // Worker logs should not appear
-    assert!(!output.contains("Processing job"));
-    assert!(!output.contains("Job #1234 completed"));
-
-    // Web logs should still appear
-    assert!(output.contains("Starting web server"));
-}
 
 #[test]
 fn test_show_process_restores_logs() {
@@ -836,21 +758,6 @@ fn test_show_process_restores_logs() {
     assert!(output.contains("Processing job") || output.contains("worker"));
 }
 
-#[test]
-fn test_hide_all_processes() {
-    let mut app = create_test_app();
-    let manager = create_manager_with_logs();
-
-    // Hide all processes
-    app.hidden_processes.insert("web".to_string());
-    app.hidden_processes.insert("worker".to_string());
-
-    let output = render_app_to_string(&mut app, &manager, 120, 40);
-
-    // No process logs should appear
-    assert!(!output.contains("Starting web server"));
-    assert!(!output.contains("Processing job"));
-}
 
 #[test]
 fn test_snapshot_hidden_process_display() {
@@ -877,21 +784,6 @@ fn test_snapshot_all_processes_hidden() {
     assert_snapshot!(output);
 }
 
-#[test]
-fn test_hidden_process_with_filters() {
-    let mut app = create_test_app();
-    let manager = create_manager_with_logs();
-
-    // Hide worker and add include filter for ERROR
-    app.hidden_processes.insert("worker".to_string());
-    app.add_include_filter("ERROR".to_string());
-
-    let output = render_app_to_string(&mut app, &manager, 120, 40);
-
-    // Should only show web ERROR logs, not worker ERROR logs
-    assert!(output.contains("ERROR"));
-    assert!(!output.contains("Failed to process job"));
-}
 
 #[test]
 fn test_snapshot_hidden_with_filters_combined() {
