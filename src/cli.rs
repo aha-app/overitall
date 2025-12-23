@@ -380,6 +380,7 @@ pub fn init_config(config_path: &str, procfile_override: Option<&str>) -> anyhow
             hidden_processes: Vec::new(),
             disable_auto_update: None,
             compact_mode: None,
+            colors: std::collections::HashMap::new(),
             config_path: None,
         };
 

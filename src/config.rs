@@ -21,6 +21,8 @@ pub struct Config {
     pub disable_auto_update: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub compact_mode: Option<bool>,
+    #[serde(default)]
+    pub colors: HashMap<String, String>,
 
     // This field is not serialized, just used at runtime
     #[serde(skip)]
@@ -143,6 +145,7 @@ mod tests {
             hidden_processes: Vec::new(),
             disable_auto_update: None,
             compact_mode: None,
+            colors: HashMap::new(),
             config_path: None,
         }
     }
@@ -705,5 +708,63 @@ procfile = "Procfile"
         let result = config.validate(&process_names);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Duplicate log file name"));
+    }
+
+    #[test]
+    fn test_colors_loads_from_config() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(
+            temp_file,
+            r#"
+procfile = "Procfile"
+
+[colors]
+web = "green"
+worker = "yellow"
+rails = "cyan"
+"#
+        )
+        .unwrap();
+
+        let config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert_eq!(config.colors.len(), 3);
+        assert_eq!(config.colors.get("web"), Some(&"green".to_string()));
+        assert_eq!(config.colors.get("worker"), Some(&"yellow".to_string()));
+        assert_eq!(config.colors.get("rails"), Some(&"cyan".to_string()));
+    }
+
+    #[test]
+    fn test_colors_defaults_to_empty() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(
+            temp_file,
+            r#"
+procfile = "Procfile"
+"#
+        )
+        .unwrap();
+
+        let config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert!(config.colors.is_empty());
+    }
+
+    #[test]
+    fn test_colors_roundtrip() {
+        let mut colors = HashMap::new();
+        colors.insert("web".to_string(), "green".to_string());
+        colors.insert("worker".to_string(), "yellow".to_string());
+
+        let config = Config {
+            colors,
+            ..test_config()
+        };
+
+        let temp_file = NamedTempFile::new().unwrap();
+        config.save(temp_file.path().to_str().unwrap()).unwrap();
+
+        let loaded = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert_eq!(loaded.colors.len(), 2);
+        assert_eq!(loaded.colors.get("web"), Some(&"green".to_string()));
+        assert_eq!(loaded.colors.get("worker"), Some(&"yellow".to_string()));
     }
 }

@@ -336,10 +336,18 @@ pub fn draw_log_viewer(
         // Highlighting would make all visible lines gray, which looks bad
         let is_match = false;
 
-        // Format timestamp and process name parts (no ANSI codes)
+        // Format timestamp and process name parts
         // Use cached formatted timestamp
         let timestamp_part = format!("[{}] ", log.formatted_timestamp());
-        let process_part = format!("{}: ", process_name);
+
+        // Get color ANSI codes for this process/log file name
+        let (color_start, color_reset) = app.process_colors.get_ansi(process_name);
+        let process_color = app.process_colors.get(process_name);
+
+        // Process part with ANSI color codes for cached rendering paths
+        let process_part_colored = format!("{}{}{}: ", color_start, process_name, color_reset);
+        // Process part without color for width calculations
+        let process_part_plain = format!("{}: ", process_name);
 
         // Apply condensing in compact mode (but not in batch view mode, which shows full content)
         // Use cached condensed line
@@ -349,12 +357,11 @@ pub fn draw_log_viewer(
             (&log.line, log.stripped_line())
         };
 
-        // Build the full line with ANSI codes preserved
-        let full_line_with_ansi = format!("{}{}{}", timestamp_part, process_part, log_content);
+        // Build the full line with ANSI codes preserved (includes colored process name)
+        let full_line_with_ansi = format!("{}{}{}", timestamp_part, process_part_colored, log_content);
 
-        // For width calculations, use cached stripped content
-        // Since timestamp_part and process_part have no ANSI codes, we can compose directly
-        let full_line_clean = format!("{}{}{}", timestamp_part, process_part, log_content_stripped);
+        // For width calculations, use cached stripped content (no ANSI codes)
+        let full_line_clean = format!("{}{}{}", timestamp_part, process_part_plain, log_content_stripped);
 
         // Calculate max width (account for borders: 2 chars)
         let max_line_width = (area.width as usize).saturating_sub(3); // -2 for borders, -1 for safety
@@ -413,10 +420,31 @@ pub fn draw_log_viewer(
             } else {
                 Style::default().fg(Color::DarkGray)
             };
-            Line::from(vec![
-                Span::styled(truncated_text.to_string(), base_style),
-                Span::styled(suffix, hint_style),
-            ])
+
+            // Split truncated text to apply color to process name
+            // Find the end of the process name in the truncated text
+            let prefix_len = timestamp_part.len() + process_part_plain.len();
+            if truncate_at >= prefix_len {
+                // Process name fully visible in truncated text
+                let process_style = if is_selected {
+                    Style::default().bg(Color::Blue).fg(Color::White)
+                } else {
+                    Style::default().fg(process_color)
+                };
+                let rest_text = &truncated_text[prefix_len..];
+                Line::from(vec![
+                    Span::styled(timestamp_part.clone(), base_style),
+                    Span::styled(process_part_plain.clone(), process_style),
+                    Span::styled(rest_text.to_string(), base_style),
+                    Span::styled(suffix, hint_style),
+                ])
+            } else {
+                // Process name truncated, render as single span
+                Line::from(vec![
+                    Span::styled(truncated_text.to_string(), base_style),
+                    Span::styled(suffix, hint_style),
+                ])
+            }
         } else {
             // Full line fits, parse ANSI codes with caching
             let bg_color = if is_selected {

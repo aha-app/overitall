@@ -74,9 +74,10 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
         ));
 
         // Add process name and status
+        let name_color = app.process_colors.get(name);
         spans.push(Span::styled(
             (*name).clone(),
-            Style::default().add_modifier(Modifier::BOLD),
+            Style::default().fg(name_color).add_modifier(Modifier::BOLD),
         ));
         spans.push(Span::raw(" ["));
         spans.push(Span::styled(status_text, Style::default().fg(color)));
@@ -113,9 +114,10 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
         ));
 
         // Add log file name and status
+        let name_color = app.process_colors.get(name);
         spans.push(Span::styled(
             name.clone(),
-            Style::default().add_modifier(Modifier::BOLD),
+            Style::default().fg(name_color).add_modifier(Modifier::BOLD),
         ));
         spans.push(Span::raw(" ["));
         spans.push(Span::styled(status_text, Style::default().fg(color)));

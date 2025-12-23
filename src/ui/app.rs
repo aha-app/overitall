@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use chrono::{DateTime, Duration, Local};
 use ratatui::layout::Rect;
@@ -8,6 +8,7 @@ use crate::traces::TraceCandidate;
 use super::ansi_cache::AnsiCache;
 use super::batch_cache::BatchCache;
 use super::filter::{Filter, FilterType};
+use super::process_colors::ProcessColors;
 use super::types::StatusType;
 
 /// Display mode for log lines
@@ -146,6 +147,8 @@ pub struct App {
     pub status_bar_area: Option<Rect>,
     /// Clickable regions for each process name (name, bounding rect)
     pub process_regions: Vec<(String, Rect)>,
+    /// Colors assigned to each process/log file
+    pub process_colors: ProcessColors,
 }
 
 impl App {
@@ -210,7 +213,19 @@ impl App {
             log_viewer_area: None,
             status_bar_area: None,
             process_regions: Vec::new(),
+            // Process colors (initialized empty, set via init_process_colors)
+            process_colors: ProcessColors::new(&[], &[], &HashMap::new()),
         }
+    }
+
+    /// Initialize process colors from config and process/log file names.
+    pub fn init_process_colors(
+        &mut self,
+        process_names: &[String],
+        log_file_names: &[String],
+        config_colors: &HashMap<String, String>,
+    ) {
+        self.process_colors = ProcessColors::new(process_names, log_file_names, config_colors);
     }
 
     pub fn quit(&mut self) {
