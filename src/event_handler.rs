@@ -500,6 +500,18 @@ impl<'a> EventHandler<'a> {
                 }
                 self.app.set_status_info(format!("Click at ({}, {})", col, row));
             }
+            MouseEventKind::ScrollUp => {
+                // Use selection navigation (same as keyboard) to properly enter selection mode
+                for _ in 0..3 {
+                    navigation::select_prev_line(self.app, self.manager);
+                }
+            }
+            MouseEventKind::ScrollDown => {
+                // Use selection navigation (same as keyboard) to properly enter selection mode
+                for _ in 0..3 {
+                    navigation::select_next_line(self.app, self.manager);
+                }
+            }
             _ => {}
         }
         Ok(false)
