@@ -26,8 +26,8 @@ impl FilteredLogs {
     /// Returns the number of logs visible in the current view.
     #[allow(dead_code)]
     pub fn visible_count(&self, app: &App) -> usize {
-        if app.batch_view_mode {
-            if let Some(batch_idx) = app.current_batch {
+        if app.batch.batch_view_mode {
+            if let Some(batch_idx) = app.batch.current_batch {
                 if !self.batches.is_empty() && batch_idx < self.batches.len() {
                     let (start, end) = self.batches[batch_idx];
                     return end - start + 1;

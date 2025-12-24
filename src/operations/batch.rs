@@ -7,9 +7,9 @@ use crate::ui::{self, App, apply_filters};
 /// Returns true if a snapshot was created (first entry to batch view).
 pub fn next_batch(app: &mut App, manager: &ProcessManager) -> bool {
     let logs = manager.get_all_logs();
-    let filtered_logs = apply_filters(logs, &app.filters);
+    let filtered_logs = apply_filters(logs, &app.filters.filters);
 
-    let was_none = !app.batch_view_mode;
+    let was_none = !app.batch.batch_view_mode;
     if was_none {
         app.create_snapshot(filtered_logs);
     }
@@ -23,9 +23,9 @@ pub fn next_batch(app: &mut App, manager: &ProcessManager) -> bool {
 /// Returns true if a snapshot was created (first entry to batch view).
 pub fn prev_batch(app: &mut App, manager: &ProcessManager) -> bool {
     let logs = manager.get_all_logs();
-    let filtered_logs = apply_filters(logs, &app.filters);
+    let filtered_logs = apply_filters(logs, &app.filters.filters);
 
-    let was_none = !app.batch_view_mode;
+    let was_none = !app.batch.batch_view_mode;
     if was_none {
         app.create_snapshot(filtered_logs);
     }
@@ -39,9 +39,9 @@ pub fn prev_batch(app: &mut App, manager: &ProcessManager) -> bool {
 /// Returns true if batch view mode is now enabled.
 pub fn toggle_batch_view(app: &mut App, manager: &ProcessManager) -> bool {
     let logs = manager.get_all_logs();
-    let filtered_logs = apply_filters(logs, &app.filters);
+    let filtered_logs = apply_filters(logs, &app.filters.filters);
 
-    let entering_batch_view = !app.batch_view_mode;
+    let entering_batch_view = !app.batch.batch_view_mode;
     if entering_batch_view {
         app.create_snapshot(filtered_logs);
     } else {
@@ -49,20 +49,20 @@ pub fn toggle_batch_view(app: &mut App, manager: &ProcessManager) -> bool {
     }
 
     app.toggle_batch_view();
-    app.batch_view_mode
+    app.batch.batch_view_mode
 }
 
 /// Focus on the batch containing the currently selected line.
 /// Enters batch view mode and navigates to the batch.
 /// Returns Ok with status message on success, Err with error message on failure.
 pub fn focus_batch(app: &mut App, manager: &ProcessManager) -> Result<String, String> {
-    let selected_id = match app.selected_line_id {
+    let selected_id = match app.navigation.selected_line_id {
         Some(id) => id,
         None => return Err("No line selected".to_string()),
     };
 
     let logs = manager.get_all_logs();
-    let filtered_logs = apply_filters(logs, &app.filters);
+    let filtered_logs = apply_filters(logs, &app.filters.filters);
 
     let line_idx = match filtered_logs.iter().position(|log| log.id == selected_id) {
         Some(idx) => idx,
@@ -70,7 +70,7 @@ pub fn focus_batch(app: &mut App, manager: &ProcessManager) -> Result<String, St
     };
 
     let filtered_refs: Vec<&LogLine> = filtered_logs.iter().collect();
-    let batches = ui::detect_batches_from_logs(&filtered_refs, app.batch_window_ms);
+    let batches = ui::detect_batches_from_logs(&filtered_refs, app.batch.batch_window_ms);
 
     let batch_idx = batches
         .iter()
@@ -80,12 +80,12 @@ pub fn focus_batch(app: &mut App, manager: &ProcessManager) -> Result<String, St
 
     match batch_idx {
         Some(idx) => {
-            if !app.batch_view_mode {
+            if !app.batch.batch_view_mode {
                 app.create_snapshot(filtered_logs);
             }
-            app.current_batch = Some(idx);
-            app.batch_view_mode = true;
-            app.scroll_offset = 0;
+            app.batch.current_batch = Some(idx);
+            app.batch.batch_view_mode = true;
+            app.navigation.scroll_offset = 0;
             Ok(format!("Focused on batch {}", idx + 1))
         }
         None => Err("No batch found for selected line".to_string()),

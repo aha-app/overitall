@@ -384,7 +384,7 @@ impl<'a> CommandExecutor<'a> {
     }
 
     fn execute_show_batch_window(&mut self) {
-        self.app.set_status_info(format!("Current batch window: {}ms", self.app.batch_window_ms));
+        self.app.set_status_info(format!("Current batch window: {}ms", self.app.batch.batch_window_ms));
     }
 
     fn execute_hide(&mut self, process: String) {

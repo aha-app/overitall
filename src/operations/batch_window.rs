@@ -11,10 +11,10 @@ pub fn increase_batch_window(
     manager: &ProcessManager,
     config: &mut Config
 ) -> (i64, usize) {
-    let new_window = app.batch_window_ms + 100;
+    let new_window = app.batch.batch_window_ms + 100;
     app.set_batch_window(new_window);
 
-    let filtered = FilteredLogs::from_manager(manager, &app.filters, new_window);
+    let filtered = FilteredLogs::from_manager(manager, &app.filters.filters, new_window);
 
     config.batch_window_ms = Some(new_window);
     save_config_with_error(config, app);
@@ -29,10 +29,10 @@ pub fn decrease_batch_window(
     manager: &ProcessManager,
     config: &mut Config
 ) -> (i64, usize) {
-    let new_window = (app.batch_window_ms - 100).max(1);
+    let new_window = (app.batch.batch_window_ms - 100).max(1);
     app.set_batch_window(new_window);
 
-    let filtered = FilteredLogs::from_manager(manager, &app.filters, new_window);
+    let filtered = FilteredLogs::from_manager(manager, &app.filters.filters, new_window);
 
     config.batch_window_ms = Some(new_window);
     save_config_with_error(config, app);
@@ -50,7 +50,7 @@ pub fn set_batch_window(
 ) -> usize {
     app.set_batch_window(ms);
 
-    let filtered = FilteredLogs::from_manager(manager, &app.filters, ms);
+    let filtered = FilteredLogs::from_manager(manager, &app.filters.filters, ms);
 
     config.batch_window_ms = Some(ms);
     save_config_with_error(config, app);

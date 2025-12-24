@@ -5,17 +5,6 @@ hidden_processes = []
 compact_mode = true
 process_coloring = true
 
-[processes.web]
-log_file = "web.log"
-
-[processes.web.status]
-default = "Starting"
-
-[[processes.web.status.transitions]]
-pattern = "GET|POST|PUT|DELETE"
-label = "Ready"
-color = "green"
-
 [processes.worker]
 log_file = "worker.log"
 
@@ -34,6 +23,17 @@ default = "Starting"
 pattern = "CPU:"
 label = "Active"
 color = "blue"
+
+[processes.web]
+log_file = "web.log"
+
+[processes.web.status]
+default = "Starting"
+
+[[processes.web.status.transitions]]
+pattern = "GET|POST|PUT|DELETE"
+label = "Ready"
+color = "green"
 
 [[log_files]]
 name = "shared"

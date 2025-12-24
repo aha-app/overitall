@@ -6,14 +6,14 @@ use crate::ui::{App, detect_batches_from_logs, FilterType};
 /// This matches the filtering logic in log_viewer.rs exactly.
 fn get_display_logs(app: &App, manager: &ProcessManager) -> Vec<LogLine> {
     // Use snapshot if available (frozen/batch mode), otherwise use live buffer
-    let logs_vec: Vec<&LogLine> = if let Some(ref snapshot) = app.snapshot {
+    let logs_vec: Vec<&LogLine> = if let Some(ref snapshot) = app.navigation.snapshot {
         snapshot.iter().collect()
     } else {
         let mut logs = manager.get_all_logs();
 
         // If display is frozen (without snapshot), only show logs up to the frozen timestamp
-        if app.frozen {
-            if let Some(frozen_at) = app.frozen_at {
+        if app.navigation.frozen {
+            if let Some(frozen_at) = app.navigation.frozen_at {
                 logs.retain(|log| log.timestamp <= frozen_at);
             }
         }
@@ -22,7 +22,7 @@ fn get_display_logs(app: &App, manager: &ProcessManager) -> Vec<LogLine> {
     };
 
     // Apply filters to logs
-    let mut filtered_logs: Vec<&LogLine> = if app.filters.is_empty() {
+    let mut filtered_logs: Vec<&LogLine> = if app.filters.filters.is_empty() {
         logs_vec
     } else {
         logs_vec.into_iter()
@@ -30,7 +30,7 @@ fn get_display_logs(app: &App, manager: &ProcessManager) -> Vec<LogLine> {
                 let line_text = &log.line;
 
                 // Check exclude filters first (if any match, reject the line)
-                for filter in &app.filters {
+                for filter in &app.filters.filters {
                     if matches!(filter.filter_type, FilterType::Exclude) {
                         if filter.matches(line_text) {
                             return false;
@@ -40,7 +40,7 @@ fn get_display_logs(app: &App, manager: &ProcessManager) -> Vec<LogLine> {
 
                 // Check include filters (if any exist, at least one must match)
                 let include_filters: Vec<_> = app
-                    .filters
+                    .filters.filters
                     .iter()
                     .filter(|f| matches!(f.filter_type, FilterType::Include))
                     .collect();
@@ -55,10 +55,10 @@ fn get_display_logs(app: &App, manager: &ProcessManager) -> Vec<LogLine> {
     };
 
     // Apply search filter if active
-    let active_search_pattern = if app.search_mode && !app.input.is_empty() {
-        &app.input
-    } else if !app.search_pattern.is_empty() {
-        &app.search_pattern
+    let active_search_pattern = if app.input.search_mode && !app.input.input.is_empty() {
+        &app.input.input
+    } else if !app.input.search_pattern.is_empty() {
+        &app.input.search_pattern
     } else {
         ""
     };
@@ -73,36 +73,36 @@ fn get_display_logs(app: &App, manager: &ProcessManager) -> Vec<LogLine> {
 
     // Apply process visibility filter
     filtered_logs.retain(|log| {
-        !app.hidden_processes.contains(log.source.process_name())
+        !app.filters.hidden_processes.contains(log.source.process_name())
     });
 
     // Apply trace filter mode if active
-    if app.trace_filter_mode {
+    if app.trace.trace_filter_mode {
         if let (Some(trace_id), Some(start), Some(end)) = (
-            &app.active_trace_id,
-            app.trace_time_start,
-            app.trace_time_end,
+            &app.trace.active_trace_id,
+            app.trace.trace_time_start,
+            app.trace.trace_time_end,
         ) {
-            let expanded_start = start - app.trace_expand_before;
-            let expanded_end = end + app.trace_expand_after;
+            let expanded_start = start - app.trace.trace_expand_before;
+            let expanded_end = end + app.trace.trace_expand_after;
 
             filtered_logs = filtered_logs
                 .into_iter()
                 .filter(|log| {
                     let contains_trace = log.line.contains(trace_id.as_str());
                     let in_time_window = log.arrival_time >= expanded_start && log.arrival_time <= expanded_end;
-                    contains_trace || (in_time_window && (app.trace_expand_before.num_seconds() > 0 || app.trace_expand_after.num_seconds() > 0))
+                    contains_trace || (in_time_window && (app.trace.trace_expand_before.num_seconds() > 0 || app.trace.trace_expand_after.num_seconds() > 0))
                 })
                 .collect();
         }
     }
 
     // Detect batches from filtered logs
-    let batches = detect_batches_from_logs(&filtered_logs, app.batch_window_ms);
+    let batches = detect_batches_from_logs(&filtered_logs, app.batch.batch_window_ms);
 
     // Apply batch view mode filtering if enabled
-    let display_logs: Vec<LogLine> = if app.batch_view_mode {
-        if let Some(batch_idx) = app.current_batch {
+    let display_logs: Vec<LogLine> = if app.batch.batch_view_mode {
+        if let Some(batch_idx) = app.batch.current_batch {
             if !batches.is_empty() && batch_idx < batches.len() {
                 let (start, end) = batches[batch_idx];
                 filtered_logs[start..=end].iter().map(|l| (*l).clone()).collect()
@@ -135,15 +135,15 @@ pub fn select_prev_line(app: &mut App, manager: &ProcessManager) -> Option<u64> 
     }
 
     // Create snapshot on first selection (if not already frozen/in trace mode)
-    let was_none = app.selected_line_id.is_none();
-    if was_none && app.snapshot.is_none() {
+    let was_none = app.navigation.selected_line_id.is_none();
+    if was_none && app.navigation.snapshot.is_none() {
         // Get all logs with filters applied for the snapshot
         let logs = manager.get_all_logs();
-        let filtered = crate::ui::apply_filters(logs, &app.filters);
+        let filtered = crate::ui::apply_filters(logs, &app.filters.filters);
         app.create_snapshot(filtered);
     }
 
-    let new_id = match app.selected_line_id {
+    let new_id = match app.navigation.selected_line_id {
         None => {
             // When tailing, Up arrow selects the last (most recent) line
             display_logs.last().map(|log| log.id)
@@ -167,8 +167,8 @@ pub fn select_prev_line(app: &mut App, manager: &ProcessManager) -> Option<u64> 
         }
     };
 
-    app.selected_line_id = new_id;
-    app.auto_scroll = false;
+    app.navigation.selected_line_id = new_id;
+    app.navigation.auto_scroll = false;
     if was_none {
         app.freeze_display();
     }
@@ -186,15 +186,15 @@ pub fn select_next_line(app: &mut App, manager: &ProcessManager) -> Option<u64> 
     }
 
     // Create snapshot on first selection (if not already frozen/in trace mode)
-    let was_none = app.selected_line_id.is_none();
-    if was_none && app.snapshot.is_none() {
+    let was_none = app.navigation.selected_line_id.is_none();
+    if was_none && app.navigation.snapshot.is_none() {
         // Get all logs with filters applied for the snapshot
         let logs = manager.get_all_logs();
-        let filtered = crate::ui::apply_filters(logs, &app.filters);
+        let filtered = crate::ui::apply_filters(logs, &app.filters.filters);
         app.create_snapshot(filtered);
     }
 
-    let new_id = match app.selected_line_id {
+    let new_id = match app.navigation.selected_line_id {
         None => {
             // Start at first line
             display_logs.first().map(|log| log.id)
@@ -219,8 +219,8 @@ pub fn select_next_line(app: &mut App, manager: &ProcessManager) -> Option<u64> 
         }
     };
 
-    app.selected_line_id = new_id;
-    app.auto_scroll = false;
+    app.navigation.selected_line_id = new_id;
+    app.navigation.auto_scroll = false;
     if was_none {
         app.freeze_display();
     }
@@ -232,17 +232,17 @@ pub fn select_next_line(app: &mut App, manager: &ProcessManager) -> Option<u64> 
 pub fn page_up(app: &mut App, manager: &ProcessManager) {
     const PAGE_SIZE: usize = 20;
 
-    if app.selected_line_id.is_some() {
+    if app.navigation.selected_line_id.is_some() {
         let display_logs = get_display_logs(app, manager);
 
-        if let Some(current_id) = app.selected_line_id {
+        if let Some(current_id) = app.navigation.selected_line_id {
             if let Some(current_idx) = find_index_by_id(&display_logs, current_id) {
                 let new_idx = current_idx.saturating_sub(PAGE_SIZE);
-                app.selected_line_id = Some(display_logs[new_idx].id);
-                app.auto_scroll = false;
+                app.navigation.selected_line_id = Some(display_logs[new_idx].id);
+                app.navigation.auto_scroll = false;
             }
         }
-    } else if app.auto_scroll {
+    } else if app.navigation.auto_scroll {
         // When in auto_scroll mode, we're viewing the bottom of the log.
         // Calculate the effective scroll position and move up from there.
         let display_logs = get_display_logs(app, manager);
@@ -252,8 +252,8 @@ pub fn page_up(app: &mut App, manager: &ProcessManager) {
         // (we use PAGE_SIZE*2 as a reasonable approximation of visible_lines + PAGE_SIZE)
         // After pressing PageUp, we want to show one page earlier
         let effective_offset = total_logs.saturating_sub(PAGE_SIZE * 2);
-        app.scroll_offset = effective_offset;
-        app.auto_scroll = false;
+        app.navigation.scroll_offset = effective_offset;
+        app.navigation.auto_scroll = false;
     } else {
         app.scroll_up(PAGE_SIZE);
     }
@@ -264,7 +264,7 @@ pub fn page_up(app: &mut App, manager: &ProcessManager) {
 pub fn select_line_at_row(app: &mut App, manager: &ProcessManager, row: u16, area_y: u16) {
     // Account for the border (1 row at top)
     let relative_row = (row.saturating_sub(area_y)).saturating_sub(1) as usize;
-    let clicked_line_index = app.scroll_offset + relative_row;
+    let clicked_line_index = app.navigation.scroll_offset + relative_row;
 
     let display_logs = get_display_logs(app, manager);
 
@@ -279,15 +279,15 @@ pub fn select_line_at_row(app: &mut App, manager: &ProcessManager, row: u16, are
     }
 
     // Create snapshot on first selection (if not already frozen)
-    if app.snapshot.is_none() {
+    if app.navigation.snapshot.is_none() {
         let logs = manager.get_all_logs();
-        let filtered = crate::ui::apply_filters(logs, &app.filters);
+        let filtered = crate::ui::apply_filters(logs, &app.filters.filters);
         app.create_snapshot(filtered);
     }
 
     let clicked_log = &display_logs[clicked_line_index];
-    app.selected_line_id = Some(clicked_log.id);
-    app.auto_scroll = false;
+    app.navigation.selected_line_id = Some(clicked_log.id);
+    app.navigation.auto_scroll = false;
     app.freeze_display();
     app.set_status_info(format!("Selected line {}", clicked_line_index + 1));
 }
@@ -297,15 +297,15 @@ pub fn select_line_at_row(app: &mut App, manager: &ProcessManager, row: u16, are
 pub fn page_down(app: &mut App, manager: &ProcessManager) {
     const PAGE_SIZE: usize = 20;
 
-    if app.selected_line_id.is_some() {
+    if app.navigation.selected_line_id.is_some() {
         let display_logs = get_display_logs(app, manager);
         let total_logs = display_logs.len();
 
-        if let Some(current_id) = app.selected_line_id {
+        if let Some(current_id) = app.navigation.selected_line_id {
             if let Some(current_idx) = find_index_by_id(&display_logs, current_id) {
                 let new_idx = (current_idx + PAGE_SIZE).min(total_logs.saturating_sub(1));
-                app.selected_line_id = Some(display_logs[new_idx].id);
-                app.auto_scroll = false;
+                app.navigation.selected_line_id = Some(display_logs[new_idx].id);
+                app.navigation.auto_scroll = false;
             }
         }
     } else {
