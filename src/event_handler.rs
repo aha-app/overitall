@@ -58,31 +58,32 @@ impl<'a> EventHandler<'a> {
             }
             // Command mode
             KeyCode::Char(':') if !self.app.input.command_mode && !self.app.input.search_mode && !self.app.display.show_help => {
-                self.app.enter_command_mode();
+                self.app.input.enter_command_mode();
+                self.app.display.status_message = None;
                 Ok(false)
             }
             KeyCode::Enter if self.app.input.command_mode => {
                 self.handle_command_execute().await
             }
             KeyCode::Backspace if self.app.input.command_mode => {
-                self.app.delete_char();
+                self.app.input.delete_char();
                 Ok(false)
             }
             KeyCode::Up if self.app.input.command_mode => {
-                self.app.history_prev();
+                self.app.input.history_prev();
                 Ok(false)
             }
             KeyCode::Down if self.app.input.command_mode => {
-                self.app.history_next();
+                self.app.input.history_next();
                 Ok(false)
             }
             KeyCode::Char(c) if self.app.input.command_mode => {
-                self.app.add_char(c);
+                self.app.input.add_char(c);
                 Ok(false)
             }
             // Search mode
             KeyCode::Char('/') if !self.app.input.command_mode && !self.app.input.search_mode && !self.app.display.show_help => {
-                self.app.enter_search_mode();
+                self.app.input.enter_search_mode();
                 Ok(false)
             }
             KeyCode::Enter if self.app.input.search_mode => {
@@ -90,11 +91,11 @@ impl<'a> EventHandler<'a> {
                 Ok(false)
             }
             KeyCode::Backspace if self.app.input.search_mode => {
-                self.app.delete_char();
+                self.app.input.delete_char();
                 Ok(false)
             }
             KeyCode::Char(c) if self.app.input.search_mode => {
-                self.app.add_char(c);
+                self.app.input.add_char(c);
                 Ok(false)
             }
             // Trace selection mode
@@ -246,7 +247,7 @@ impl<'a> EventHandler<'a> {
 
         // Save to history before processing (don't save empty or quit commands)
         if !cmd_text.trim().is_empty() && !matches!(cmd, Command::Quit) {
-            self.app.save_to_history(cmd_text);
+            self.app.input.save_to_history(cmd_text);
         }
 
         // Handle quit command specially since it breaks the event loop
@@ -260,7 +261,7 @@ impl<'a> EventHandler<'a> {
         if let Err(e) = executor.execute(cmd).await {
             self.app.set_status_error(format!("Command error: {}", e));
         }
-        self.app.exit_command_mode();
+        self.app.input.exit_command_mode();
         Ok(false)
     }
 
@@ -388,13 +389,13 @@ impl<'a> EventHandler<'a> {
 
         // 3. Command mode
         if self.app.input.command_mode {
-            self.app.exit_command_mode();
+            self.app.input.exit_command_mode();
             return;
         }
 
         // 4. Search mode (actively typing)
         if self.app.input.search_mode {
-            self.app.exit_search_mode();
+            self.app.input.exit_search_mode();
             return;
         }
 

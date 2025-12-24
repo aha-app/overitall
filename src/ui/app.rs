@@ -116,23 +116,6 @@ impl App {
     // Delegation methods for backward compatibility during migration
     // These will be removed in Phase 3 as call sites update to use sub-structs directly
 
-    pub fn enter_command_mode(&mut self) {
-        self.input.enter_command_mode();
-        self.display.status_message = None;
-    }
-
-    pub fn exit_command_mode(&mut self) {
-        self.input.exit_command_mode();
-    }
-
-    pub fn add_char(&mut self, c: char) {
-        self.input.add_char(c);
-    }
-
-    pub fn delete_char(&mut self) {
-        self.input.delete_char();
-    }
-
     pub fn set_status_success(&mut self, message: String) {
         self.display.set_status_success(message);
     }
@@ -148,18 +131,6 @@ impl App {
     #[allow(dead_code)]
     pub fn clear_status(&mut self) {
         self.display.clear_status();
-    }
-
-    pub fn save_to_history(&mut self, command: String) {
-        self.input.save_to_history(command);
-    }
-
-    pub fn history_prev(&mut self) {
-        self.input.history_prev();
-    }
-
-    pub fn history_next(&mut self) {
-        self.input.history_next();
     }
 
     pub fn add_include_filter(&mut self, pattern: String) {
@@ -180,14 +151,6 @@ impl App {
 
     pub fn filter_count(&self) -> usize {
         self.filters.filter_count()
-    }
-
-    pub fn enter_search_mode(&mut self) {
-        self.input.enter_search_mode();
-    }
-
-    pub fn exit_search_mode(&mut self) {
-        self.input.exit_search_mode();
     }
 
     pub fn perform_search(&mut self, pattern: String) {

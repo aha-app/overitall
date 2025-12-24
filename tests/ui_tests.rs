@@ -82,12 +82,12 @@ fn test_basic_ui_rendering() {
 #[test]
 fn test_search_mode_display() {
     let mut app = create_test_app();
-    app.enter_search_mode();
-    app.add_char('E');
-    app.add_char('R');
-    app.add_char('R');
-    app.add_char('O');
-    app.add_char('R');
+    app.input.enter_search_mode();
+    app.input.add_char('E');
+    app.input.add_char('R');
+    app.input.add_char('R');
+    app.input.add_char('O');
+    app.input.add_char('R');
 
     let manager = create_test_process_manager();
 
@@ -98,12 +98,12 @@ fn test_search_mode_display() {
 #[test]
 fn test_command_mode_display() {
     let mut app = create_test_app();
-    app.enter_command_mode();
-    app.add_char('r');
-    app.add_char(' ');
-    app.add_char('w');
-    app.add_char('e');
-    app.add_char('b');
+    app.input.enter_command_mode();
+    app.input.add_char('r');
+    app.input.add_char(' ');
+    app.input.add_char('w');
+    app.input.add_char('e');
+    app.input.add_char('b');
 
     let manager = create_test_process_manager();
 
@@ -178,12 +178,12 @@ fn test_search_with_results() {
     let manager = create_manager_with_logs();
 
     // Enter search mode and search for ERROR
-    app.enter_search_mode();
-    app.add_char('E');
-    app.add_char('R');
-    app.add_char('R');
-    app.add_char('O');
-    app.add_char('R');
+    app.input.enter_search_mode();
+    app.input.add_char('E');
+    app.input.add_char('R');
+    app.input.add_char('R');
+    app.input.add_char('O');
+    app.input.add_char('R');
 
     // Perform the search
     app.perform_search("ERROR".to_string());
@@ -260,7 +260,7 @@ fn test_empty_search_pattern() {
     let manager = create_manager_with_logs();
 
     // Enter search mode but don't type anything
-    app.enter_search_mode();
+    app.input.enter_search_mode();
 
     let output = render_app_to_string(&mut app, &manager, 120, 40);
 
@@ -324,9 +324,9 @@ fn test_snapshot_filter_list_display() {
     app.add_exclude_filter("DEBUG".to_string());
 
     // Enter command mode to show filter list command
-    app.enter_command_mode();
-    app.add_char('f');
-    app.add_char('l');
+    app.input.enter_command_mode();
+    app.input.add_char('f');
+    app.input.add_char('l');
 
     let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
