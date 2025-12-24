@@ -140,7 +140,7 @@ pub fn select_prev_line(app: &mut App, manager: &ProcessManager) -> Option<u64> 
         // Get all logs with filters applied for the snapshot
         let logs = manager.get_all_logs();
         let filtered = crate::ui::apply_filters(logs, &app.filters.filters);
-        app.create_snapshot(filtered);
+        app.navigation.create_snapshot(filtered);
     }
 
     let new_id = match app.navigation.selected_line_id {
@@ -170,7 +170,7 @@ pub fn select_prev_line(app: &mut App, manager: &ProcessManager) -> Option<u64> 
     app.navigation.selected_line_id = new_id;
     app.navigation.auto_scroll = false;
     if was_none {
-        app.freeze_display();
+        app.navigation.freeze_display();
     }
     new_id
 }
@@ -191,7 +191,7 @@ pub fn select_next_line(app: &mut App, manager: &ProcessManager) -> Option<u64> 
         // Get all logs with filters applied for the snapshot
         let logs = manager.get_all_logs();
         let filtered = crate::ui::apply_filters(logs, &app.filters.filters);
-        app.create_snapshot(filtered);
+        app.navigation.create_snapshot(filtered);
     }
 
     let new_id = match app.navigation.selected_line_id {
@@ -222,7 +222,7 @@ pub fn select_next_line(app: &mut App, manager: &ProcessManager) -> Option<u64> 
     app.navigation.selected_line_id = new_id;
     app.navigation.auto_scroll = false;
     if was_none {
-        app.freeze_display();
+        app.navigation.freeze_display();
     }
     new_id
 }
@@ -282,13 +282,13 @@ pub fn select_line_at_row(app: &mut App, manager: &ProcessManager, row: u16, are
     if app.navigation.snapshot.is_none() {
         let logs = manager.get_all_logs();
         let filtered = crate::ui::apply_filters(logs, &app.filters.filters);
-        app.create_snapshot(filtered);
+        app.navigation.create_snapshot(filtered);
     }
 
     let clicked_log = &display_logs[clicked_line_index];
     app.navigation.selected_line_id = Some(clicked_log.id);
     app.navigation.auto_scroll = false;
-    app.freeze_display();
+    app.navigation.freeze_display();
     app.set_status_info(format!("Selected line {}", clicked_line_index + 1));
 }
 

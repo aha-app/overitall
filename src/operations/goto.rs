@@ -146,13 +146,13 @@ pub fn goto_timestamp(app: &mut App, manager: &ProcessManager, target: GotoTarge
             if app.navigation.snapshot.is_none() {
                 let logs = manager.get_all_logs();
                 let filtered = crate::ui::apply_filters(logs, &app.filters.filters);
-                app.create_snapshot(filtered);
+                app.navigation.create_snapshot(filtered);
             }
 
             let log = &display_logs[idx];
             app.navigation.selected_line_id = Some(log.id);
             app.navigation.auto_scroll = false;
-            app.freeze_display();
+            app.navigation.freeze_display();
 
             let time_str = log.timestamp.format("%H:%M:%S").to_string();
             Ok(format!("Jumped to {}", time_str))

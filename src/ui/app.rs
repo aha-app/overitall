@@ -11,7 +11,6 @@ use super::navigation_state::NavigationState;
 use super::process_colors::ProcessColors;
 use super::render_cache::RenderCache;
 use super::trace_state::TraceState;
-use crate::log::LogLine;
 use crate::traces::TraceCandidate;
 
 /// Display mode for log lines
@@ -164,32 +163,6 @@ impl App {
         if self.batch.batch_view_mode {
             self.navigation.scroll_offset = 0;
         }
-    }
-
-    #[allow(dead_code)]
-    pub fn select_line_by_id(&mut self, id: Option<u64>) {
-        self.navigation.select_line_by_id(id);
-    }
-
-    #[allow(dead_code)]
-    pub fn clear_selection(&mut self) {
-        self.navigation.clear_selection();
-    }
-
-    pub fn freeze_display(&mut self) {
-        self.navigation.freeze_display();
-    }
-
-    pub fn unfreeze_display(&mut self) {
-        self.navigation.unfreeze_display();
-    }
-
-    pub fn create_snapshot(&mut self, logs: Vec<LogLine>) {
-        self.navigation.create_snapshot(logs);
-    }
-
-    pub fn discard_snapshot(&mut self) {
-        self.navigation.discard_snapshot();
     }
 
     /// Enter trace selection mode with a list of candidates

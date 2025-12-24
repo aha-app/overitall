@@ -33,10 +33,10 @@ pub fn execute_search(app: &mut App, manager: &ProcessManager, search_text: &str
     app.navigation.selected_line_id = last_id;
 
     // Create snapshot
-    app.create_snapshot(search_filtered);
+    app.navigation.create_snapshot(search_filtered);
 
     // Freeze display
-    app.freeze_display();
+    app.navigation.freeze_display();
 
     // Exit search_mode so user can't type (but keep search_pattern)
     app.input.search_mode = false;
@@ -79,7 +79,7 @@ pub fn show_context(app: &mut App, manager: &ProcessManager) -> Result<String, S
 
     // Create new snapshot with all logs
     // The selected_line_id remains the same - it will still point to the same log
-    app.create_snapshot(filtered_logs);
+    app.navigation.create_snapshot(filtered_logs);
 
     // Display is already frozen, keep it that way
     Ok("Showing context around selected log".to_string())

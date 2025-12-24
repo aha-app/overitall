@@ -34,12 +34,12 @@ pub fn stop_recording(app: &mut App, manager: &ProcessManager) -> Result<String,
     }
 
     // Enter trace filter mode
-    app.create_snapshot(filtered);
+    app.navigation.create_snapshot(filtered);
     app.trace.trace_time_start = Some(start_time);
     app.trace.trace_time_end = Some(end_time);
     app.trace.active_trace_id = None; // No correlation ID for manual traces
     app.trace.trace_filter_mode = true;
-    app.freeze_display();
+    app.navigation.freeze_display();
 
     // Reset recording state
     app.trace.manual_trace_recording = false;

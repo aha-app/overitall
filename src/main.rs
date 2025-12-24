@@ -544,9 +544,9 @@ async fn apply_ipc_action(
         }
         IpcAction::SetFrozen { frozen } => {
             if frozen {
-                app.freeze_display();
+                app.navigation.freeze_display();
             } else {
-                app.unfreeze_display();
+                app.navigation.unfreeze_display();
             }
         }
         IpcAction::AddFilter { pattern, is_exclude } => {

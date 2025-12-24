@@ -11,7 +11,7 @@ pub fn next_batch(app: &mut App, manager: &ProcessManager) -> bool {
 
     let was_none = !app.batch.batch_view_mode;
     if was_none {
-        app.create_snapshot(filtered_logs);
+        app.navigation.create_snapshot(filtered_logs);
     }
 
     app.next_batch();
@@ -27,7 +27,7 @@ pub fn prev_batch(app: &mut App, manager: &ProcessManager) -> bool {
 
     let was_none = !app.batch.batch_view_mode;
     if was_none {
-        app.create_snapshot(filtered_logs);
+        app.navigation.create_snapshot(filtered_logs);
     }
 
     app.prev_batch();
@@ -43,9 +43,9 @@ pub fn toggle_batch_view(app: &mut App, manager: &ProcessManager) -> bool {
 
     let entering_batch_view = !app.batch.batch_view_mode;
     if entering_batch_view {
-        app.create_snapshot(filtered_logs);
+        app.navigation.create_snapshot(filtered_logs);
     } else {
-        app.discard_snapshot();
+        app.navigation.discard_snapshot();
     }
 
     app.toggle_batch_view();
@@ -81,7 +81,7 @@ pub fn focus_batch(app: &mut App, manager: &ProcessManager) -> Result<String, St
     match batch_idx {
         Some(idx) => {
             if !app.batch.batch_view_mode {
-                app.create_snapshot(filtered_logs);
+                app.navigation.create_snapshot(filtered_logs);
             }
             app.batch.current_batch = Some(idx);
             app.batch.batch_view_mode = true;

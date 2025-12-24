@@ -77,7 +77,7 @@ fn test_keyboard_next_batch_creates_snapshot() {
     // Get filtered logs and create snapshot (what handle_next_batch does)
     let logs = manager.get_all_logs();
     let filtered_logs = overitall::ui::apply_filters(logs, &app.filters.filters);
-    app.create_snapshot(filtered_logs);
+    app.navigation.create_snapshot(filtered_logs);
     app.next_batch();
 
     assert!(app.batch.batch_view_mode);
@@ -93,7 +93,7 @@ fn test_keyboard_prev_batch_creates_snapshot() {
     // Simulate keyboard [ press behavior
     let logs = manager.get_all_logs();
     let filtered_logs = overitall::ui::apply_filters(logs, &app.filters.filters);
-    app.create_snapshot(filtered_logs);
+    app.navigation.create_snapshot(filtered_logs);
     app.prev_batch();
 
     assert!(app.batch.batch_view_mode);
@@ -112,7 +112,7 @@ fn test_batch_navigation_increments() {
     let batches = overitall::ui::detect_batches_from_logs(&filtered_refs, app.batch.batch_window_ms);
     let num_batches = batches.len();
 
-    app.create_snapshot(filtered_logs);
+    app.navigation.create_snapshot(filtered_logs);
     app.toggle_batch_view();
 
     // After toggle_batch_view, current_batch is Some(0)
@@ -300,7 +300,7 @@ fn test_reset_clears_selection_first_esc() {
     let mut app = create_test_app();
 
     // Freeze display and select a line (using an arbitrary ID for test purposes)
-    app.freeze_display();
+    app.navigation.freeze_display();
     app.navigation.selected_line_id = Some(12345);
 
     // First Esc: clear selection but stay frozen
@@ -317,12 +317,12 @@ fn test_reset_unfreezes_second_esc() {
     let mut app = create_test_app();
 
     // Freeze display, no selection
-    app.freeze_display();
+    app.navigation.freeze_display();
     app.navigation.selected_line_id = None;
 
     // Second Esc: unfreeze
     if app.navigation.frozen && app.navigation.selected_line_id.is_none() {
-        app.unfreeze_display();
+        app.navigation.unfreeze_display();
     }
 
     assert!(!app.navigation.frozen);
@@ -403,11 +403,11 @@ fn test_command_next_batch_behavior() {
     let filtered_logs = overitall::ui::apply_filters(logs, &app1.filters.filters);
 
     // Simulate keyboard behavior
-    app1.create_snapshot(filtered_logs.clone());
+    app1.navigation.create_snapshot(filtered_logs.clone());
     app1.next_batch();
 
     // Simulate command behavior
-    app2.create_snapshot(filtered_logs);
+    app2.navigation.create_snapshot(filtered_logs);
     app2.next_batch();
 
     // Both should end up in same state

@@ -33,7 +33,7 @@ pub fn select_trace(app: &mut App, manager: &ProcessManager) {
 
         // Create snapshot of logs before entering trace filter mode (clone since we need owned)
         let logs: Vec<_> = manager.get_all_logs().into_iter().cloned().collect();
-        app.create_snapshot(logs);
+        app.navigation.create_snapshot(logs);
 
         // Enter trace filter mode
         app.enter_trace_filter(
