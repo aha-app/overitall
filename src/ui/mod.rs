@@ -26,3 +26,13 @@ pub use batch_cache::{BatchCache, BatchCacheKey};
 pub use draw::draw;
 pub use filter::{apply_filters, Filter, FilterType};
 pub use process_colors::ProcessColors;
+
+// Sub-structs for App composition (exposed for direct access during Phase 3 migration)
+pub use batch_state::BatchState;
+pub use click_regions::ClickRegions;
+pub use display_state::DisplayState;
+pub use filter_state::FilterState;
+pub use input_state::InputState;
+pub use navigation_state::NavigationState;
+pub use render_cache::RenderCache;
+pub use trace_state::TraceState;
