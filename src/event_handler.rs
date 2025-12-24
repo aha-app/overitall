@@ -263,7 +263,7 @@ impl<'a> EventHandler<'a> {
         // Execute all other commands using CommandExecutor
         let mut executor = CommandExecutor::new(self.app, self.manager, self.config);
         if let Err(e) = executor.execute(cmd).await {
-            self.app.set_status_error(format!("Command error: {}", e));
+            self.app.display.set_status_error(format!("Command error: {}", e));
         }
         self.app.input.exit_command_mode();
         Ok(false)
@@ -273,7 +273,7 @@ impl<'a> EventHandler<'a> {
         let search_text = self.app.input.input.clone();
         if let Err(msg) = search::execute_search(self.app, self.manager, &search_text) {
             if msg != "Empty search" {
-                self.app.set_status_error(msg);
+                self.app.display.set_status_error(msg);
             }
         }
     }
@@ -281,32 +281,32 @@ impl<'a> EventHandler<'a> {
 
     fn handle_show_context(&mut self) {
         match search::show_context(self.app, self.manager) {
-            Ok(msg) => self.app.set_status_info(msg),
-            Err(msg) => self.app.set_status_error(msg),
+            Ok(msg) => self.app.display.set_status_info(msg),
+            Err(msg) => self.app.display.set_status_error(msg),
         }
     }
 
     fn handle_increase_batch_window(&mut self) {
         let (new_window, batch_count) = batch_window::increase_batch_window(self.app, self.manager, self.config);
-        self.app.set_status_success(format!("Batch window increased to {}ms ({} batches)", new_window, batch_count));
+        self.app.display.set_status_success(format!("Batch window increased to {}ms ({} batches)", new_window, batch_count));
     }
 
     fn handle_decrease_batch_window(&mut self) {
         let (new_window, batch_count) = batch_window::decrease_batch_window(self.app, self.manager, self.config);
-        self.app.set_status_success(format!("Batch window decreased to {}ms ({} batches)", new_window, batch_count));
+        self.app.display.set_status_success(format!("Batch window decreased to {}ms ({} batches)", new_window, batch_count));
     }
 
     fn handle_copy_line(&mut self) {
         match clipboard::copy_line(self.app, self.manager) {
-            Ok(msg) => self.app.set_status_success(msg),
-            Err(msg) => self.app.set_status_error(msg),
+            Ok(msg) => self.app.display.set_status_success(msg),
+            Err(msg) => self.app.display.set_status_error(msg),
         }
     }
 
     fn handle_copy_batch(&mut self) {
         match clipboard::copy_batch(self.app, self.manager) {
-            Ok(msg) => self.app.set_status_success(msg),
-            Err(msg) => self.app.set_status_error(msg),
+            Ok(msg) => self.app.display.set_status_success(msg),
+            Err(msg) => self.app.display.set_status_error(msg),
         }
     }
 
@@ -320,8 +320,8 @@ impl<'a> EventHandler<'a> {
 
     fn handle_focus_batch(&mut self) {
         match batch::focus_batch(self.app, self.manager) {
-            Ok(msg) => self.app.set_status_info(msg),
-            Err(msg) => self.app.set_status_error(msg),
+            Ok(msg) => self.app.display.set_status_info(msg),
+            Err(msg) => self.app.display.set_status_error(msg),
         }
     }
 
@@ -344,8 +344,8 @@ impl<'a> EventHandler<'a> {
     fn handle_manual_trace_toggle(&mut self) {
         if self.app.trace.manual_trace_recording {
             match manual_trace::stop_recording(self.app, self.manager) {
-                Ok(msg) => self.app.set_status_success(msg),
-                Err(msg) => self.app.set_status_error(msg),
+                Ok(msg) => self.app.display.set_status_success(msg),
+                Err(msg) => self.app.display.set_status_error(msg),
             }
         } else {
             manual_trace::start_recording(self.app);
@@ -354,7 +354,7 @@ impl<'a> EventHandler<'a> {
 
     fn handle_cycle_display_mode(&mut self) {
         let mode = display::cycle_display_mode(self.app, self.config);
-        self.app.set_status_info(format!("Display mode: {}", mode));
+        self.app.display.set_status_info(format!("Display mode: {}", mode));
     }
 
     /// Handle Esc key - all escape logic in one place for clarity.
@@ -374,7 +374,7 @@ impl<'a> EventHandler<'a> {
         // 0. Manual trace recording
         if self.app.trace.manual_trace_recording {
             manual_trace::cancel_recording(self.app);
-            self.app.set_status_info("Recording cancelled".to_string());
+            self.app.display.set_status_info("Recording cancelled".to_string());
             return;
         }
 
@@ -405,7 +405,7 @@ impl<'a> EventHandler<'a> {
         // 5. Trace selection mode
         if self.app.trace.trace_selection_mode {
             self.app.trace.exit_trace_selection();
-            self.app.set_status_info("Trace selection cancelled".to_string());
+            self.app.display.set_status_info("Trace selection cancelled".to_string());
             return;
         }
 
@@ -425,7 +425,7 @@ impl<'a> EventHandler<'a> {
             self.app.navigation.unfreeze_display();
             self.app.navigation.selected_line_id = None;
             self.app.navigation.discard_snapshot();
-            self.app.set_status_info("Exited trace view".to_string());
+            self.app.display.set_status_info("Exited trace view".to_string());
             return;
         }
 
@@ -436,7 +436,7 @@ impl<'a> EventHandler<'a> {
             self.app.navigation.discard_snapshot();
             self.app.input.clear_search();
             self.app.navigation.scroll_to_bottom();
-            self.app.set_status_info("Resumed tailing".to_string());
+            self.app.display.set_status_info("Resumed tailing".to_string());
             return;
         }
 
@@ -447,7 +447,7 @@ impl<'a> EventHandler<'a> {
             self.app.navigation.discard_snapshot();
             self.app.input.clear_search();
             self.app.navigation.scroll_to_bottom();
-            self.app.set_status_info("Exited batch view, resumed tailing".to_string());
+            self.app.display.set_status_info("Exited batch view, resumed tailing".to_string());
             return;
         }
 
@@ -455,7 +455,7 @@ impl<'a> EventHandler<'a> {
         self.app.input.clear_search();
         self.app.navigation.scroll_to_bottom();
         self.app.navigation.selected_line_id = None;
-        self.app.set_status_info("Jumped to latest logs".to_string());
+        self.app.display.set_status_info("Jumped to latest logs".to_string());
     }
 
     pub fn handle_mouse_event(&mut self, mouse: MouseEvent) -> Result<bool> {
@@ -487,11 +487,11 @@ impl<'a> EventHandler<'a> {
                                     // Solo mode (this is the only visible process) -> Mute mode
                                     self.app.filters.hidden_processes.clear();
                                     self.app.filters.hidden_processes.insert(name.clone());
-                                    self.app.set_status_info(format!("Muting: {}", name));
+                                    self.app.display.set_status_info(format!("Muting: {}", name));
                                 } else if is_hidden && hidden_count == 1 {
                                     // Mute mode (this is the only hidden process) -> Normal mode
                                     self.app.filters.hidden_processes.clear();
-                                    self.app.set_status_info("Showing all".to_string());
+                                    self.app.display.set_status_info("Showing all".to_string());
                                 } else {
                                     // Normal or other state -> Solo mode
                                     self.app.filters.hidden_processes.clear();
@@ -500,7 +500,7 @@ impl<'a> EventHandler<'a> {
                                             self.app.filters.hidden_processes.insert(n.clone());
                                         }
                                     }
-                                    self.app.set_status_info(format!("Solo: {}", name));
+                                    self.app.display.set_status_info(format!("Solo: {}", name));
                                 }
                                 return Ok(false);
                             }
@@ -511,11 +511,11 @@ impl<'a> EventHandler<'a> {
                 }
                 if let Some(area) = self.app.regions.status_bar_area {
                     if area.contains(pos) {
-                        self.app.set_status_info(format!("Clicked status bar at ({}, {})", col, row));
+                        self.app.display.set_status_info(format!("Clicked status bar at ({}, {})", col, row));
                         return Ok(false);
                     }
                 }
-                self.app.set_status_info(format!("Click at ({}, {})", col, row));
+                self.app.display.set_status_info(format!("Click at ({}, {})", col, row));
             }
             MouseEventKind::ScrollUp => {
                 // Use selection navigation (same as keyboard) to properly enter selection mode

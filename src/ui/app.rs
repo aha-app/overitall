@@ -106,26 +106,6 @@ impl App {
         self.input.search_mode = false;
         self.display.show_help = false;
         self.display.expanded_line_view = false;
-        self.set_status_info("Shutting down processes...".to_string());
-    }
-
-    // Delegation methods for backward compatibility during migration
-    // These will be removed in Phase 3 as call sites update to use sub-structs directly
-
-    pub fn set_status_success(&mut self, message: String) {
-        self.display.set_status_success(message);
-    }
-
-    pub fn set_status_error(&mut self, message: String) {
-        self.display.set_status_error(message);
-    }
-
-    pub fn set_status_info(&mut self, message: String) {
-        self.display.set_status_info(message);
-    }
-
-    #[allow(dead_code)]
-    pub fn clear_status(&mut self) {
-        self.display.clear_status();
+        self.display.set_status_info("Shutting down processes...".to_string());
     }
 }

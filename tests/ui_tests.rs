@@ -129,7 +129,7 @@ fn test_filter_display() {
 #[test]
 fn test_status_message_success() {
     let mut app = create_test_app();
-    app.set_status_success("Process restarted successfully".to_string());
+    app.display.set_status_success("Process restarted successfully".to_string());
 
     let manager = create_test_process_manager();
 
@@ -141,7 +141,7 @@ fn test_status_message_success() {
 #[test]
 fn test_status_message_error() {
     let mut app = create_test_app();
-    app.set_status_error("Failed to restart process".to_string());
+    app.display.set_status_error("Failed to restart process".to_string());
 
     let manager = create_test_process_manager();
 

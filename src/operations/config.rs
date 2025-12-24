@@ -6,7 +6,7 @@ use crate::ui::App;
 pub fn save_config_with_error(config: &Config, app: &mut App) {
     if let Some(path) = &config.config_path {
         if let Err(e) = config.save_to_file(path) {
-            app.set_status_error(format!("Config save failed: {}", e));
+            app.display.set_status_error(format!("Config save failed: {}", e));
         }
     }
 }

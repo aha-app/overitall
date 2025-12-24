@@ -6,7 +6,7 @@ use crate::ui::App;
 pub fn start_recording(app: &mut App) {
     app.trace.manual_trace_recording = true;
     app.trace.manual_trace_start = Some(Local::now());
-    app.set_status_info("Recording trace... press 's' to stop".to_string());
+    app.display.set_status_info("Recording trace... press 's' to stop".to_string());
 }
 
 /// Stop recording and enter trace filter mode

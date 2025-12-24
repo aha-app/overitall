@@ -8,7 +8,7 @@ pub fn execute_traces(app: &mut App, manager: &ProcessManager) {
     let logs = manager.get_all_logs();
 
     if logs.is_empty() {
-        app.set_status_info("No logs available to scan for traces".to_string());
+        app.display.set_status_info("No logs available to scan for traces".to_string());
         return;
     }
 
@@ -16,13 +16,13 @@ pub fn execute_traces(app: &mut App, manager: &ProcessManager) {
     let candidates = detect_traces(&logs);
 
     if candidates.is_empty() {
-        app.set_status_info("No trace IDs detected in logs".to_string());
+        app.display.set_status_info("No trace IDs detected in logs".to_string());
         return;
     }
 
     let count = candidates.len();
     app.trace.enter_trace_selection(candidates);
-    app.set_status_info(format!("Found {} trace(s) - select one to filter", count));
+    app.display.set_status_info(format!("Found {} trace(s) - select one to filter", count));
 }
 
 /// Apply the selected trace filter and enter trace filter mode
@@ -43,7 +43,7 @@ pub fn select_trace(app: &mut App, manager: &ProcessManager) {
         );
         app.navigation.freeze_display();
 
-        app.set_status_info(format!(
+        app.display.set_status_info(format!(
             "Trace: {} ({} lines) - [ ] to expand, Esc to exit",
             &candidate.token[..8.min(candidate.token.len())],
             candidate.line_count
@@ -55,12 +55,12 @@ pub fn select_trace(app: &mut App, manager: &ProcessManager) {
 pub fn expand_trace_before(app: &mut App) {
     app.trace.expand_trace_before();
     let secs = app.trace.trace_expand_before.num_seconds();
-    app.set_status_info(format!("Expanded trace view: -{}s before", secs));
+    app.display.set_status_info(format!("Expanded trace view: -{}s before", secs));
 }
 
 /// Expand trace view forward
 pub fn expand_trace_after(app: &mut App) {
     app.trace.expand_trace_after();
     let secs = app.trace.trace_expand_after.num_seconds();
-    app.set_status_info(format!("Expanded trace view: +{}s after", secs));
+    app.display.set_status_info(format!("Expanded trace view: +{}s after", secs));
 }

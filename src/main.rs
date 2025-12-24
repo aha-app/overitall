@@ -210,7 +210,7 @@ async fn main() -> anyhow::Result<()> {
     // Show startup failures in status bar
     if !start_failures.is_empty() {
         let failure_names: Vec<&str> = start_failures.iter().map(|(n, _)| n.as_str()).collect();
-        app.set_status_error(format!("Failed to start: {}", failure_names.join(", ")));
+        app.display.set_status_error(format!("Failed to start: {}", failure_names.join(", ")));
     }
 
     // Create IPC server for remote control
@@ -296,7 +296,7 @@ async fn run_app(
             if !newly_failed.is_empty() {
                 // Show the first failure in status bar (to avoid overwhelming)
                 let (name, msg) = &newly_failed[0];
-                app.set_status_error(format!("{}: {}", name, msg));
+                app.display.set_status_error(format!("{}: {}", name, msg));
             }
         }
 
@@ -314,9 +314,9 @@ async fn run_app(
             // Update status bar with result
             if !failed.is_empty() {
                 let failed_names: Vec<&str> = failed.iter().map(|(n, _)| n.as_str()).collect();
-                app.set_status_error(format!("Restart failed: {}", failed_names.join(", ")));
+                app.display.set_status_error(format!("Restart failed: {}", failed_names.join(", ")));
             } else if !succeeded.is_empty() {
-                app.set_status_success(format!("Restarted: {}", succeeded.join(", ")));
+                app.display.set_status_success(format!("Restarted: {}", succeeded.join(", ")));
             }
         }
 
@@ -577,9 +577,9 @@ async fn apply_ipc_action(
         IpcAction::RestartProcess { name } => {
             // Non-blocking: set restart flag, main loop handles actual restart
             if manager.set_restarting(&name) {
-                app.set_status_info(format!("Restarting: {}", name));
+                app.display.set_status_info(format!("Restarting: {}", name));
             } else {
-                app.set_status_error(format!("Process not found: {}", name));
+                app.display.set_status_error(format!("Process not found: {}", name));
             }
         }
         IpcAction::RestartAllProcesses => {
@@ -590,22 +590,22 @@ async fn apply_ipc_action(
                 .map(|(n, _)| n)
                 .collect();
             if names.is_empty() {
-                app.set_status_error("No processes to restart".to_string());
+                app.display.set_status_error("No processes to restart".to_string());
             } else {
                 manager.set_all_restarting();
-                app.set_status_info(format!("Restarting {} process(es)...", names.len()));
+                app.display.set_status_info(format!("Restarting {} process(es)...", names.len()));
             }
         }
         IpcAction::KillProcess { name } => {
             match operations::process::kill_process(manager, &name).await {
-                Ok(msg) => app.set_status_success(msg),
-                Err(msg) => app.set_status_error(msg),
+                Ok(msg) => app.display.set_status_success(msg),
+                Err(msg) => app.display.set_status_error(msg),
             }
         }
         IpcAction::StartProcess { name } => {
             match operations::process::start_process(manager, &name).await {
-                Ok(msg) => app.set_status_success(msg),
-                Err(msg) => app.set_status_error(msg),
+                Ok(msg) => app.display.set_status_success(msg),
+                Err(msg) => app.display.set_status_error(msg),
             }
         }
     }

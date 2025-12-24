@@ -278,7 +278,7 @@ impl<'a> CommandExecutor<'a> {
                 self.execute_goto(target);
             }
             Command::Unknown(msg) => {
-                self.app.set_status_error(format!("Error: {}", msg));
+                self.app.display.set_status_error(format!("Error: {}", msg));
             }
         }
         Ok(())
@@ -287,12 +287,12 @@ impl<'a> CommandExecutor<'a> {
     async fn execute_start(&mut self, name: &str) -> Result<()> {
         // Check if it's a standalone log file first
         if self.manager.has_standalone_log_file(name) {
-            self.app.set_status_error(format!("Cannot start log file: {}", name));
+            self.app.display.set_status_error(format!("Cannot start log file: {}", name));
             return Ok(());
         }
         match process::start_process(self.manager, name).await {
-            Ok(msg) => self.app.set_status_success(msg),
-            Err(msg) => self.app.set_status_error(msg),
+            Ok(msg) => self.app.display.set_status_success(msg),
+            Err(msg) => self.app.display.set_status_error(msg),
         }
         Ok(())
     }
@@ -300,14 +300,14 @@ impl<'a> CommandExecutor<'a> {
     fn execute_restart(&mut self, name: &str) -> Result<()> {
         // Check if it's a standalone log file first
         if self.manager.has_standalone_log_file(name) {
-            self.app.set_status_error(format!("Cannot restart log file: {}", name));
+            self.app.display.set_status_error(format!("Cannot restart log file: {}", name));
             return Ok(());
         }
         // Non-blocking: just set the status and let the main loop handle the actual restart
         if self.manager.set_restarting(name) {
-            self.app.set_status_info(format!("Restarting: {}", name));
+            self.app.display.set_status_info(format!("Restarting: {}", name));
         } else {
-            self.app.set_status_error(format!("Process not found: {}", name));
+            self.app.display.set_status_error(format!("Process not found: {}", name));
         }
         Ok(())
     }
@@ -316,10 +316,10 @@ impl<'a> CommandExecutor<'a> {
         // Non-blocking: just set the status and let the main loop handle the actual restart
         let names: Vec<String> = self.manager.get_all_statuses().into_iter().map(|(n, _)| n).collect();
         if names.is_empty() {
-            self.app.set_status_error("No processes to restart".to_string());
+            self.app.display.set_status_error("No processes to restart".to_string());
         } else {
             self.manager.set_all_restarting();
-            self.app.set_status_info(format!("Restarting {} process(es)...", names.len()));
+            self.app.display.set_status_info(format!("Restarting {} process(es)...", names.len()));
         }
         Ok(())
     }
@@ -327,95 +327,95 @@ impl<'a> CommandExecutor<'a> {
     async fn execute_kill(&mut self, name: &str) -> Result<()> {
         // Check if it's a standalone log file first
         if self.manager.has_standalone_log_file(name) {
-            self.app.set_status_error(format!("Cannot stop log file: {}", name));
+            self.app.display.set_status_error(format!("Cannot stop log file: {}", name));
             return Ok(());
         }
         match process::kill_process(self.manager, name).await {
-            Ok(msg) => self.app.set_status_success(msg),
-            Err(msg) => self.app.set_status_error(msg),
+            Ok(msg) => self.app.display.set_status_success(msg),
+            Err(msg) => self.app.display.set_status_error(msg),
         }
         Ok(())
     }
 
     fn execute_filter_include(&mut self, pattern: String) {
         filter::add_include_filter(self.app, self.config, pattern.clone());
-        self.app.set_status_success(format!("Added include filter: {}", pattern));
+        self.app.display.set_status_success(format!("Added include filter: {}", pattern));
     }
 
     fn execute_filter_exclude(&mut self, pattern: String) {
         filter::add_exclude_filter(self.app, self.config, pattern.clone());
-        self.app.set_status_success(format!("Added exclude filter: {}", pattern));
+        self.app.display.set_status_success(format!("Added exclude filter: {}", pattern));
     }
 
     fn execute_filter_clear(&mut self) {
         let count = filter::clear_filters(self.app, self.config);
-        self.app.set_status_success(format!("Cleared {} filter(s)", count));
+        self.app.display.set_status_success(format!("Cleared {} filter(s)", count));
     }
 
     fn execute_filter_list(&mut self) {
         match filter::list_filters(self.app) {
-            Some(msg) => self.app.set_status_info(msg),
-            None => self.app.set_status_info("No active filters".to_string()),
+            Some(msg) => self.app.display.set_status_info(msg),
+            None => self.app.display.set_status_info("No active filters".to_string()),
         }
     }
 
     fn execute_next_batch(&mut self) {
         batch::next_batch(self.app, self.manager);
-        self.app.set_status_info("Next batch".to_string());
+        self.app.display.set_status_info("Next batch".to_string());
     }
 
     fn execute_prev_batch(&mut self) {
         batch::prev_batch(self.app, self.manager);
-        self.app.set_status_info("Previous batch".to_string());
+        self.app.display.set_status_info("Previous batch".to_string());
     }
 
     fn execute_show_batch(&mut self) {
         let enabled = batch::toggle_batch_view(self.app, self.manager);
         if enabled {
-            self.app.set_status_info("Batch view mode enabled".to_string());
+            self.app.display.set_status_info("Batch view mode enabled".to_string());
         } else {
-            self.app.set_status_info("Batch view mode disabled".to_string());
+            self.app.display.set_status_info("Batch view mode disabled".to_string());
         }
     }
 
     fn execute_set_batch_window(&mut self, ms: i64) {
         let batch_count = batch_window::set_batch_window(self.app, self.manager, self.config, ms);
-        self.app.set_status_success(format!("Batch window set to {}ms ({} batches detected)", ms, batch_count));
+        self.app.display.set_status_success(format!("Batch window set to {}ms ({} batches detected)", ms, batch_count));
     }
 
     fn execute_show_batch_window(&mut self) {
-        self.app.set_status_info(format!("Current batch window: {}ms", self.app.batch.batch_window_ms));
+        self.app.display.set_status_info(format!("Current batch window: {}ms", self.app.batch.batch_window_ms));
     }
 
     fn execute_hide(&mut self, process: String) {
         match visibility::hide_process(self.app, self.manager, self.config, &process) {
-            Ok(()) => self.app.set_status_success(format!("Hidden: {}", process)),
-            Err(msg) => self.app.set_status_error(msg),
+            Ok(()) => self.app.display.set_status_success(format!("Hidden: {}", process)),
+            Err(msg) => self.app.display.set_status_error(msg),
         }
     }
 
     fn execute_show(&mut self, process: String) {
         match visibility::show_process(self.app, self.config, &process) {
-            Ok(true) => self.app.set_status_success(format!("Shown: {}", process)),
-            Ok(false) => self.app.set_status_info(format!("Process was not hidden: {}", process)),
+            Ok(true) => self.app.display.set_status_success(format!("Shown: {}", process)),
+            Ok(false) => self.app.display.set_status_info(format!("Process was not hidden: {}", process)),
             Err(()) => {}
         }
     }
 
     fn execute_hide_all(&mut self) {
         visibility::hide_all(self.app, self.manager, self.config);
-        self.app.set_status_success("Hidden all processes".to_string());
+        self.app.display.set_status_success("Hidden all processes".to_string());
     }
 
     fn execute_show_all(&mut self) {
         let count = visibility::show_all(self.app, self.config);
-        self.app.set_status_success(format!("Shown all processes ({} were hidden)", count));
+        self.app.display.set_status_success(format!("Shown all processes ({} were hidden)", count));
     }
 
     fn execute_only(&mut self, process: String) {
         match visibility::only_process(self.app, self.manager, self.config, &process) {
-            Ok(()) => self.app.set_status_success(format!("Showing only: {}", process)),
-            Err(msg) => self.app.set_status_error(msg),
+            Ok(()) => self.app.display.set_status_success(format!("Showing only: {}", process)),
+            Err(msg) => self.app.display.set_status_error(msg),
         }
     }
 
@@ -426,16 +426,16 @@ impl<'a> CommandExecutor<'a> {
     fn execute_color_toggle(&mut self) {
         let enabled = coloring::toggle_coloring(self.app, self.manager, self.config);
         if enabled {
-            self.app.set_status_success("Process coloring enabled".to_string());
+            self.app.display.set_status_success("Process coloring enabled".to_string());
         } else {
-            self.app.set_status_info("Process coloring disabled".to_string());
+            self.app.display.set_status_info("Process coloring disabled".to_string());
         }
     }
 
     fn execute_goto(&mut self, target: GotoTarget) {
         match goto::goto_timestamp(self.app, self.manager, target) {
-            Ok(msg) => self.app.set_status_success(msg),
-            Err(msg) => self.app.set_status_error(msg),
+            Ok(msg) => self.app.display.set_status_success(msg),
+            Err(msg) => self.app.display.set_status_error(msg),
         }
     }
 }
