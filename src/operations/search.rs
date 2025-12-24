@@ -50,7 +50,7 @@ pub fn execute_search(app: &mut App, manager: &ProcessManager, search_text: &str
 /// Returns Ok with success message on success, or Err with an error message.
 pub fn show_context(app: &mut App, manager: &ProcessManager) -> Result<String, String> {
     // Close expanded view
-    app.close_expanded_view();
+    app.display.close_expanded_view();
 
     // Get the currently selected log line by ID (before we change anything)
     let selected_id = app.navigation.selected_line_id

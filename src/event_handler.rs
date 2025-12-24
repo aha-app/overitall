@@ -39,11 +39,11 @@ impl<'a> EventHandler<'a> {
             }
             // Help overlay scrolling (must come before other navigation handlers)
             KeyCode::Up | KeyCode::Char('k') if self.app.display.show_help => {
-                self.app.scroll_help_up();
+                self.app.display.scroll_help_up();
                 Ok(false)
             }
             KeyCode::Down | KeyCode::Char('j') if self.app.display.show_help => {
-                self.app.scroll_help_down();
+                self.app.display.scroll_help_down();
                 Ok(false)
             }
             // All Esc handling in one place
@@ -231,12 +231,12 @@ impl<'a> EventHandler<'a> {
     }
 
     fn handle_help_toggle(&mut self) {
-        self.app.toggle_help();
+        self.app.display.toggle_help();
     }
 
     fn handle_toggle_expanded_view(&mut self) {
         if self.app.navigation.selected_line_id.is_some() {
-            self.app.toggle_expanded_view();
+            self.app.display.toggle_expanded_view();
         }
     }
 
@@ -376,13 +376,13 @@ impl<'a> EventHandler<'a> {
 
         // 1. Help overlay
         if self.app.display.show_help {
-            self.app.toggle_help();
+            self.app.display.toggle_help();
             return;
         }
 
         // 2. Expanded line view (modal)
         if self.app.display.expanded_line_view {
-            self.app.close_expanded_view();
+            self.app.display.close_expanded_view();
             return;
         }
 

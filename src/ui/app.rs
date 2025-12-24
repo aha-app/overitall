@@ -223,18 +223,6 @@ impl App {
         }
     }
 
-    pub fn toggle_help(&mut self) {
-        self.display.toggle_help();
-    }
-
-    pub fn scroll_help_up(&mut self) {
-        self.display.scroll_help_up();
-    }
-
-    pub fn scroll_help_down(&mut self) {
-        self.display.scroll_help_down();
-    }
-
     #[allow(dead_code)]
     pub fn select_line_by_id(&mut self, id: Option<u64>) {
         self.navigation.select_line_by_id(id);
@@ -243,14 +231,6 @@ impl App {
     #[allow(dead_code)]
     pub fn clear_selection(&mut self) {
         self.navigation.clear_selection();
-    }
-
-    pub fn toggle_expanded_view(&mut self) {
-        self.display.toggle_expanded_view();
-    }
-
-    pub fn close_expanded_view(&mut self) {
-        self.display.close_expanded_view();
     }
 
     pub fn freeze_display(&mut self) {
