@@ -215,7 +215,9 @@ pub fn draw_expanded_line_overlay(f: &mut Frame, manager: &ProcessManager, app: 
         Span::styled("ESC", Style::default().fg(Color::Yellow)),
         Span::styled(" to close | ", Style::default()),
         Span::styled("Enter", Style::default().fg(Color::Yellow)),
-        Span::styled(" to show context", Style::default()),
+        Span::styled(" to show context | ", Style::default()),
+        Span::styled("c", Style::default().fg(Color::Yellow)),
+        Span::styled(" to copy", Style::default()),
     ]));
 
     let block = Block::default()

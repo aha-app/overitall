@@ -367,10 +367,9 @@ impl<'a> EventHandler<'a> {
     /// 5. Trace selection mode - cancel trace selection
     /// 6. Search results with selection - return to search input
     /// 7. Trace filter mode - exit trace view
-    /// 8. Frozen with selection - clear selection
-    /// 9. Frozen without selection - unfreeze and resume tailing
-    /// 10. Batch view mode - exit batch view
-    /// 11. Default - jump to latest logs
+    /// 8. Frozen state - unfreeze and resume tailing
+    /// 9. Batch view mode - exit batch view
+    /// 10. Default - jump to latest logs
     fn handle_escape(&mut self) {
         // 0. Manual trace recording
         if self.app.trace.manual_trace_recording {
@@ -430,24 +429,18 @@ impl<'a> EventHandler<'a> {
             return;
         }
 
-        // 8-9. Frozen state (two-stage Esc)
+        // 8. Frozen state - single Esc resumes tailing
         if self.app.navigation.frozen {
-            if self.app.navigation.selected_line_id.is_some() {
-                // First Esc: clear selection but stay frozen
-                self.app.navigation.selected_line_id = None;
-                self.app.set_status_info("Selection cleared. Press Esc again to resume tailing.".to_string());
-            } else {
-                // Second Esc: unfreeze and resume tailing
-                self.app.navigation.unfreeze_display();
-                self.app.navigation.discard_snapshot();
-                self.app.input.clear_search();
-                self.app.navigation.scroll_to_bottom();
-                self.app.set_status_info("Resumed tailing".to_string());
-            }
+            self.app.navigation.selected_line_id = None;
+            self.app.navigation.unfreeze_display();
+            self.app.navigation.discard_snapshot();
+            self.app.input.clear_search();
+            self.app.navigation.scroll_to_bottom();
+            self.app.set_status_info("Resumed tailing".to_string());
             return;
         }
 
-        // 10. Batch view mode
+        // 9. Batch view mode
         if self.app.batch.batch_view_mode {
             self.app.batch.batch_view_mode = false;
             self.app.batch.current_batch = None;
@@ -458,7 +451,7 @@ impl<'a> EventHandler<'a> {
             return;
         }
 
-        // 11. Default - jump to latest
+        // 10. Default - jump to latest
         self.app.input.clear_search();
         self.app.navigation.scroll_to_bottom();
         self.app.navigation.selected_line_id = None;
