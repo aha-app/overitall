@@ -5,14 +5,14 @@ use crate::ui::{App, FilterType};
 /// Add an include filter and save to config.
 pub fn add_include_filter(app: &mut App, config: &mut Config, pattern: String) {
     app.add_include_filter(pattern);
-    config.update_filters(&app.filters);
+    config.update_filters(&app.filters.filters);
     save_config_with_error(config, app);
 }
 
 /// Add an exclude filter and save to config.
 pub fn add_exclude_filter(app: &mut App, config: &mut Config, pattern: String) {
     app.add_exclude_filter(pattern);
-    config.update_filters(&app.filters);
+    config.update_filters(&app.filters.filters);
     save_config_with_error(config, app);
 }
 
@@ -20,7 +20,7 @@ pub fn add_exclude_filter(app: &mut App, config: &mut Config, pattern: String) {
 pub fn clear_filters(app: &mut App, config: &mut Config) -> usize {
     let count = app.filter_count();
     app.clear_filters();
-    config.update_filters(&app.filters);
+    config.update_filters(&app.filters.filters);
     save_config_with_error(config, app);
     count
 }
@@ -29,7 +29,7 @@ pub fn clear_filters(app: &mut App, config: &mut Config) -> usize {
 pub fn remove_filter(app: &mut App, config: &mut Config, pattern: &str) -> bool {
     let removed = app.remove_filter(pattern);
     if removed {
-        config.update_filters(&app.filters);
+        config.update_filters(&app.filters.filters);
         save_config_with_error(config, app);
     }
     removed
@@ -38,10 +38,11 @@ pub fn remove_filter(app: &mut App, config: &mut Config, pattern: &str) -> bool 
 /// Format the list of current filters for display.
 /// Returns None if there are no filters, otherwise returns a formatted string.
 pub fn list_filters(app: &App) -> Option<String> {
-    if app.filters.is_empty() {
+    if app.filters.filters.is_empty() {
         None
     } else {
         let filter_strs: Vec<String> = app
+            .filters
             .filters
             .iter()
             .map(|f| {

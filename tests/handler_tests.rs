@@ -71,18 +71,18 @@ fn test_keyboard_next_batch_creates_snapshot() {
     let manager = create_manager_with_batched_logs();
 
     // Simulate keyboard ] press behavior: creates snapshot on first batch entry
-    assert!(!app.batch_view_mode);
-    assert!(app.snapshot.is_none());
+    assert!(!app.batch.batch_view_mode);
+    assert!(app.navigation.snapshot.is_none());
 
     // Get filtered logs and create snapshot (what handle_next_batch does)
     let logs = manager.get_all_logs();
-    let filtered_logs = overitall::ui::apply_filters(logs, &app.filters);
+    let filtered_logs = overitall::ui::apply_filters(logs, &app.filters.filters);
     app.create_snapshot(filtered_logs);
     app.next_batch();
 
-    assert!(app.batch_view_mode);
-    assert!(app.snapshot.is_some());
-    assert_eq!(app.current_batch, Some(0));
+    assert!(app.batch.batch_view_mode);
+    assert!(app.navigation.snapshot.is_some());
+    assert_eq!(app.batch.current_batch, Some(0));
 }
 
 #[test]
@@ -92,12 +92,12 @@ fn test_keyboard_prev_batch_creates_snapshot() {
 
     // Simulate keyboard [ press behavior
     let logs = manager.get_all_logs();
-    let filtered_logs = overitall::ui::apply_filters(logs, &app.filters);
+    let filtered_logs = overitall::ui::apply_filters(logs, &app.filters.filters);
     app.create_snapshot(filtered_logs);
     app.prev_batch();
 
-    assert!(app.batch_view_mode);
-    assert!(app.snapshot.is_some());
+    assert!(app.batch.batch_view_mode);
+    assert!(app.navigation.snapshot.is_some());
 }
 
 #[test]
@@ -107,24 +107,24 @@ fn test_batch_navigation_increments() {
 
     // Enter batch view
     let logs = manager.get_all_logs();
-    let filtered_logs = overitall::ui::apply_filters(logs, &app.filters);
+    let filtered_logs = overitall::ui::apply_filters(logs, &app.filters.filters);
     let filtered_refs: Vec<&overitall::log::LogLine> = filtered_logs.iter().collect();
-    let batches = overitall::ui::detect_batches_from_logs(&filtered_refs, app.batch_window_ms);
+    let batches = overitall::ui::detect_batches_from_logs(&filtered_refs, app.batch.batch_window_ms);
     let num_batches = batches.len();
 
     app.create_snapshot(filtered_logs);
     app.toggle_batch_view();
 
     // After toggle_batch_view, current_batch is Some(0)
-    assert_eq!(app.current_batch, Some(0));
+    assert_eq!(app.batch.current_batch, Some(0));
 
     // Navigate to second batch
     app.next_batch();
-    assert_eq!(app.current_batch, Some(1));
+    assert_eq!(app.batch.current_batch, Some(1));
 
     // Navigate to third batch
     app.next_batch();
-    assert_eq!(app.current_batch, Some(2));
+    assert_eq!(app.batch.current_batch, Some(2));
 
     // The App just increments the counter, wrapping happens at render time
     // Let's verify the batches exist
@@ -140,13 +140,13 @@ fn test_increase_batch_window_behavior() {
     let mut app = create_test_app();
 
     // Default is 100ms
-    assert_eq!(app.batch_window_ms, 100);
+    assert_eq!(app.batch.batch_window_ms, 100);
 
     // Increase by 100ms (what handle_increase_batch_window does)
-    let new_window = app.batch_window_ms + 100;
+    let new_window = app.batch.batch_window_ms + 100;
     app.set_batch_window(new_window);
 
-    assert_eq!(app.batch_window_ms, 200);
+    assert_eq!(app.batch.batch_window_ms, 200);
 }
 
 #[test]
@@ -155,13 +155,13 @@ fn test_decrease_batch_window_behavior() {
 
     // Set to 500ms first
     app.set_batch_window(500);
-    assert_eq!(app.batch_window_ms, 500);
+    assert_eq!(app.batch.batch_window_ms, 500);
 
     // Decrease by 100ms (what handle_decrease_batch_window does)
-    let new_window = (app.batch_window_ms - 100).max(1);
+    let new_window = (app.batch.batch_window_ms - 100).max(1);
     app.set_batch_window(new_window);
 
-    assert_eq!(app.batch_window_ms, 400);
+    assert_eq!(app.batch.batch_window_ms, 400);
 }
 
 #[test]
@@ -172,10 +172,10 @@ fn test_decrease_batch_window_minimum() {
     app.set_batch_window(50);
 
     // Decrease - should clamp to 1ms
-    let new_window = (app.batch_window_ms - 100).max(1);
+    let new_window = (app.batch.batch_window_ms - 100).max(1);
     app.set_batch_window(new_window);
 
-    assert_eq!(app.batch_window_ms, 1);
+    assert_eq!(app.batch.batch_window_ms, 1);
 }
 
 // ============================================================================
@@ -189,16 +189,16 @@ fn test_focus_batch_finds_correct_batch() {
 
     // Get batches
     let logs = manager.get_all_logs();
-    let filtered_logs = overitall::ui::apply_filters(logs, &app.filters);
+    let filtered_logs = overitall::ui::apply_filters(logs, &app.filters.filters);
     let filtered_refs: Vec<&overitall::log::LogLine> = filtered_logs.iter().collect();
-    let batches = overitall::ui::detect_batches_from_logs(&filtered_refs, app.batch_window_ms);
+    let batches = overitall::ui::detect_batches_from_logs(&filtered_refs, app.batch.batch_window_ms);
 
     // Select a line in the second batch (if there are multiple batches)
     if batches.len() >= 2 {
         let (start, _) = batches[1];
         // Get the ID of the log at this index
         let selected_id = filtered_logs[start].id;
-        app.selected_line_id = Some(selected_id);
+        app.navigation.selected_line_id = Some(selected_id);
 
         // Now find which batch contains this line (by finding index from ID)
         let line_idx = filtered_logs.iter().position(|log| log.id == selected_id).unwrap();
@@ -229,12 +229,12 @@ fn test_page_up_with_selection_moves_selection() {
 
     // Select a line (using actual log ID)
     let selected_id = logs[2].id;  // Select the 3rd log
-    app.selected_line_id = Some(selected_id);
+    app.navigation.selected_line_id = Some(selected_id);
 
     // The ID-based page up logic would move selection by finding current position,
     // then selecting the log 20 positions earlier (or 0 if less than 20)
     // For this test, we just verify that selection can be set and checked
-    assert!(app.selected_line_id.is_some());
+    assert!(app.navigation.selected_line_id.is_some());
 }
 
 #[test]
@@ -242,13 +242,13 @@ fn test_page_up_without_selection_scrolls_view() {
     let mut app = create_test_app();
 
     // Set scroll offset to 30
-    app.scroll_offset = 30;
-    app.auto_scroll = false;
+    app.navigation.scroll_offset = 30;
+    app.navigation.auto_scroll = false;
 
     // Without selection, page up should scroll the view
     app.scroll_up(20);
 
-    assert_eq!(app.scroll_offset, 10);
+    assert_eq!(app.navigation.scroll_offset, 10);
 }
 
 #[test]
@@ -264,12 +264,12 @@ fn test_page_down_with_selection_moves_selection() {
 
     // Select the first log
     let selected_id = logs[0].id;
-    app.selected_line_id = Some(selected_id);
+    app.navigation.selected_line_id = Some(selected_id);
 
     // The ID-based page down logic would move selection by finding current position,
     // then selecting the log 20 positions later (or last if less than 20 remaining)
     // For this test, we just verify that selection can be set and checked
-    assert!(app.selected_line_id.is_some());
+    assert!(app.navigation.selected_line_id.is_some());
 }
 
 #[test]
@@ -285,10 +285,10 @@ fn test_page_down_clamps_to_max() {
 
     // Select the last log (can't page down past it)
     let last_id = logs.last().unwrap().id;
-    app.selected_line_id = Some(last_id);
+    app.navigation.selected_line_id = Some(last_id);
 
     // Verify the last log is selected
-    assert_eq!(app.selected_line_id, Some(last_id));
+    assert_eq!(app.navigation.selected_line_id, Some(last_id));
 }
 
 // ============================================================================
@@ -301,15 +301,15 @@ fn test_reset_clears_selection_first_esc() {
 
     // Freeze display and select a line (using an arbitrary ID for test purposes)
     app.freeze_display();
-    app.selected_line_id = Some(12345);
+    app.navigation.selected_line_id = Some(12345);
 
     // First Esc: clear selection but stay frozen
-    if app.frozen && app.selected_line_id.is_some() {
-        app.selected_line_id = None;
+    if app.navigation.frozen && app.navigation.selected_line_id.is_some() {
+        app.navigation.selected_line_id = None;
     }
 
-    assert!(app.frozen);
-    assert_eq!(app.selected_line_id, None);
+    assert!(app.navigation.frozen);
+    assert_eq!(app.navigation.selected_line_id, None);
 }
 
 #[test]
@@ -318,14 +318,14 @@ fn test_reset_unfreezes_second_esc() {
 
     // Freeze display, no selection
     app.freeze_display();
-    app.selected_line_id = None;
+    app.navigation.selected_line_id = None;
 
     // Second Esc: unfreeze
-    if app.frozen && app.selected_line_id.is_none() {
+    if app.navigation.frozen && app.navigation.selected_line_id.is_none() {
         app.unfreeze_display();
     }
 
-    assert!(!app.frozen);
+    assert!(!app.navigation.frozen);
 }
 
 #[test]
@@ -334,16 +334,16 @@ fn test_reset_exits_batch_view_mode() {
 
     // Enable batch view mode
     app.toggle_batch_view();
-    app.current_batch = Some(2);
+    app.batch.current_batch = Some(2);
 
-    assert!(app.batch_view_mode);
+    assert!(app.batch.batch_view_mode);
 
     // Reset should exit batch view
-    app.batch_view_mode = false;
-    app.current_batch = None;
+    app.batch.batch_view_mode = false;
+    app.batch.current_batch = None;
 
-    assert!(!app.batch_view_mode);
-    assert_eq!(app.current_batch, None);
+    assert!(!app.batch.batch_view_mode);
+    assert_eq!(app.batch.current_batch, None);
 }
 
 // ============================================================================
@@ -356,9 +356,9 @@ fn test_filter_include_adds_filter() {
 
     app.add_include_filter("ERROR".to_string());
 
-    assert_eq!(app.filters.len(), 1);
-    assert_eq!(app.filters[0].pattern, "ERROR");
-    assert!(matches!(app.filters[0].filter_type, overitall::ui::FilterType::Include));
+    assert_eq!(app.filters.filters.len(), 1);
+    assert_eq!(app.filters.filters[0].pattern, "ERROR");
+    assert!(matches!(app.filters.filters[0].filter_type, overitall::ui::FilterType::Include));
 }
 
 #[test]
@@ -367,9 +367,9 @@ fn test_filter_exclude_adds_filter() {
 
     app.add_exclude_filter("DEBUG".to_string());
 
-    assert_eq!(app.filters.len(), 1);
-    assert_eq!(app.filters[0].pattern, "DEBUG");
-    assert!(matches!(app.filters[0].filter_type, overitall::ui::FilterType::Exclude));
+    assert_eq!(app.filters.filters.len(), 1);
+    assert_eq!(app.filters.filters[0].pattern, "DEBUG");
+    assert!(matches!(app.filters.filters[0].filter_type, overitall::ui::FilterType::Exclude));
 }
 
 #[test]
@@ -378,13 +378,13 @@ fn test_filter_clear_removes_all() {
 
     app.add_include_filter("ERROR".to_string());
     app.add_exclude_filter("DEBUG".to_string());
-    assert_eq!(app.filters.len(), 2);
+    assert_eq!(app.filters.filters.len(), 2);
 
     let count = app.filter_count();
     app.clear_filters();
 
     assert_eq!(count, 2);
-    assert_eq!(app.filters.len(), 0);
+    assert_eq!(app.filters.filters.len(), 0);
 }
 
 // ============================================================================
@@ -400,7 +400,7 @@ fn test_command_next_batch_behavior() {
     let manager = create_manager_with_batched_logs();
 
     let logs = manager.get_all_logs();
-    let filtered_logs = overitall::ui::apply_filters(logs, &app1.filters);
+    let filtered_logs = overitall::ui::apply_filters(logs, &app1.filters.filters);
 
     // Simulate keyboard behavior
     app1.create_snapshot(filtered_logs.clone());
@@ -411,8 +411,8 @@ fn test_command_next_batch_behavior() {
     app2.next_batch();
 
     // Both should end up in same state
-    assert_eq!(app1.batch_view_mode, app2.batch_view_mode);
-    assert_eq!(app1.current_batch, app2.current_batch);
+    assert_eq!(app1.batch.batch_view_mode, app2.batch.batch_view_mode);
+    assert_eq!(app1.batch.current_batch, app2.batch.current_batch);
 }
 
 // ============================================================================
@@ -512,16 +512,16 @@ fn test_manual_trace_start_recording() {
     let mut app = create_test_app();
 
     // Initially not recording
-    assert!(!app.manual_trace_recording);
-    assert!(app.manual_trace_start.is_none());
+    assert!(!app.trace.manual_trace_recording);
+    assert!(app.trace.manual_trace_start.is_none());
 
     // Start recording
     manual_trace::start_recording(&mut app);
 
-    assert!(app.manual_trace_recording);
-    assert!(app.manual_trace_start.is_some());
+    assert!(app.trace.manual_trace_recording);
+    assert!(app.trace.manual_trace_start.is_some());
     // Status message should be set
-    assert!(app.status_message.is_some());
+    assert!(app.display.status_message.is_some());
 }
 
 #[test]
@@ -532,13 +532,13 @@ fn test_manual_trace_cancel_recording() {
 
     // Start recording
     manual_trace::start_recording(&mut app);
-    assert!(app.manual_trace_recording);
+    assert!(app.trace.manual_trace_recording);
 
     // Cancel recording
     manual_trace::cancel_recording(&mut app);
 
-    assert!(!app.manual_trace_recording);
-    assert!(app.manual_trace_start.is_none());
+    assert!(!app.trace.manual_trace_recording);
+    assert!(app.trace.manual_trace_start.is_none());
 }
 
 #[test]
@@ -552,7 +552,7 @@ fn test_manual_trace_stop_recording_with_logs() {
 
     // Start recording
     manual_trace::start_recording(&mut app);
-    assert!(app.manual_trace_recording);
+    assert!(app.trace.manual_trace_recording);
 
     // Add a log that arrives "now" (within the recording window)
     let now_log = LogLine::new(
@@ -573,11 +573,11 @@ fn test_manual_trace_stop_recording_with_logs() {
     assert!(msg.contains("Captured"));
 
     // Should be in trace filter mode
-    assert!(app.trace_filter_mode);
-    assert!(!app.manual_trace_recording);
-    assert!(app.manual_trace_start.is_none());
-    assert!(app.frozen);
-    assert!(app.snapshot.is_some());
+    assert!(app.trace.trace_filter_mode);
+    assert!(!app.trace.manual_trace_recording);
+    assert!(app.trace.manual_trace_start.is_none());
+    assert!(app.navigation.frozen);
+    assert!(app.navigation.snapshot.is_some());
 }
 
 #[test]
@@ -592,7 +592,7 @@ fn test_manual_trace_stop_recording_no_logs() {
     manual_trace::start_recording(&mut app);
 
     // Set start time to the future so no logs match
-    app.manual_trace_start = Some(Local::now() + chrono::Duration::hours(1));
+    app.trace.manual_trace_start = Some(Local::now() + chrono::Duration::hours(1));
 
     // Stop recording
     let result = manual_trace::stop_recording(&mut app, &manager);
@@ -603,8 +603,8 @@ fn test_manual_trace_stop_recording_no_logs() {
     assert!(msg.contains("No logs captured"));
 
     // Should NOT be in trace filter mode
-    assert!(!app.trace_filter_mode);
-    assert!(!app.manual_trace_recording);
+    assert!(!app.trace.trace_filter_mode);
+    assert!(!app.trace.manual_trace_recording);
 }
 
 #[test]

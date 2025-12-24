@@ -22,14 +22,14 @@ pub fn draw_log_viewer(
     app: &mut App,
 ) {
     // Use snapshot if available (frozen/batch mode), otherwise use live buffer
-    let logs_vec: Vec<&LogLine> = if let Some(ref snapshot) = app.snapshot {
+    let logs_vec: Vec<&LogLine> = if let Some(ref snapshot) = app.navigation.snapshot {
         snapshot.iter().collect()
     } else {
         let mut logs = manager.get_all_logs();
 
         // If display is frozen (without snapshot), only show logs up to the frozen timestamp
-        if app.frozen {
-            if let Some(frozen_at) = app.frozen_at {
+        if app.navigation.frozen {
+            if let Some(frozen_at) = app.navigation.frozen_at {
                 logs.retain(|log| log.timestamp <= frozen_at);
             }
         }
@@ -38,7 +38,7 @@ pub fn draw_log_viewer(
     };
 
     // Apply filters to logs
-    let mut filtered_logs: Vec<&LogLine> = if app.filters.is_empty() {
+    let mut filtered_logs: Vec<&LogLine> = if app.filters.filters.is_empty() {
         // No filters, show all logs
         logs_vec
     } else {
@@ -47,7 +47,7 @@ pub fn draw_log_viewer(
                 let line_lower = log.line_lowercase();
 
                 // Check exclude filters first (if any match, reject the line)
-                for filter in &app.filters {
+                for filter in &app.filters.filters {
                     if matches!(filter.filter_type, FilterType::Exclude) {
                         if filter.matches_lowercase(line_lower) {
                             return false; // Excluded
@@ -57,6 +57,7 @@ pub fn draw_log_viewer(
 
                 // Check include filters (if any exist, at least one must match)
                 let include_filters: Vec<_> = app
+                    .filters
                     .filters
                     .iter()
                     .filter(|f| matches!(f.filter_type, FilterType::Include))
@@ -73,11 +74,11 @@ pub fn draw_log_viewer(
     };
 
     // Apply search filter if active (temporary filter)
-    // Use app.input if actively typing, otherwise use saved search_pattern
-    let active_search_pattern = if app.search_mode && !app.input.is_empty() {
-        &app.input
-    } else if !app.search_pattern.is_empty() {
-        &app.search_pattern
+    // Use app.input.input if actively typing, otherwise use saved search_pattern
+    let active_search_pattern = if app.input.search_mode && !app.input.input.is_empty() {
+        &app.input.input
+    } else if !app.input.search_pattern.is_empty() {
+        &app.input.search_pattern
     } else {
         ""
     };
@@ -92,19 +93,19 @@ pub fn draw_log_viewer(
 
     // Apply process visibility filter
     filtered_logs.retain(|log| {
-        !app.hidden_processes.contains(log.source.process_name())
+        !app.filters.hidden_processes.contains(log.source.process_name())
     });
 
     // Apply trace filter mode if active
-    if app.trace_filter_mode {
+    if app.trace.trace_filter_mode {
         if let (Some(trace_id), Some(start), Some(end)) = (
-            &app.active_trace_id,
-            app.trace_time_start,
-            app.trace_time_end,
+            &app.trace.active_trace_id,
+            app.trace.trace_time_start,
+            app.trace.trace_time_end,
         ) {
             // Calculate expanded time window
-            let expanded_start = start - app.trace_expand_before;
-            let expanded_end = end + app.trace_expand_after;
+            let expanded_start = start - app.trace.trace_expand_before;
+            let expanded_end = end + app.trace.trace_expand_after;
 
             filtered_logs = filtered_logs
                 .into_iter()
@@ -112,7 +113,7 @@ pub fn draw_log_viewer(
                     // Include if: contains trace ID OR is within expanded time window
                     let contains_trace = log.line.contains(trace_id.as_str());
                     let in_time_window = log.arrival_time >= expanded_start && log.arrival_time <= expanded_end;
-                    contains_trace || (in_time_window && (app.trace_expand_before.num_seconds() > 0 || app.trace_expand_after.num_seconds() > 0))
+                    contains_trace || (in_time_window && (app.trace.trace_expand_before.num_seconds() > 0 || app.trace.trace_expand_after.num_seconds() > 0))
                 })
                 .collect();
         }
@@ -127,17 +128,17 @@ pub fn draw_log_viewer(
     // Build cache key and detect batches (cached)
     let cache_key = BatchCacheKey::from_context(
         &filtered_logs,
-        app.batch_window_ms,
-        app.filters.len(),
+        app.batch.batch_window_ms,
+        app.filters.filters.len(),
         active_search_pattern.to_string(),
-        app.hidden_processes.len(),
-        app.trace_filter_mode,
-        app.snapshot.is_some(),
+        app.filters.hidden_processes.len(),
+        app.trace.trace_filter_mode,
+        app.navigation.snapshot.is_some(),
     );
-    let batches = app.batch_cache.get_or_compute(&filtered_logs, app.batch_window_ms, cache_key).clone();
+    let batches = app.cache.batch_cache.get_or_compute(&filtered_logs, app.batch.batch_window_ms, cache_key).clone();
 
     // Update cached batch count for status bar (avoids duplicate batch detection)
-    app.cached_batch_count = batches.len();
+    app.cache.cached_batch_count = batches.len();
 
     // Build a map from each log index to its batch number (before consuming filtered_logs)
     let filtered_log_to_batch: Vec<Option<usize>> = if !batches.is_empty() {
@@ -155,8 +156,8 @@ pub fn draw_log_viewer(
     };
 
     // Validate and adjust current_batch if needed
-    let current_batch_validated = if app.batch_view_mode {
-        if let Some(batch_idx) = app.current_batch {
+    let current_batch_validated = if app.batch.batch_view_mode {
+        if let Some(batch_idx) = app.batch.current_batch {
             if batch_idx < batches.len() {
                 Some(batch_idx)
             } else {
@@ -185,14 +186,14 @@ pub fn draw_log_viewer(
             let (start, end) = batches[batch_idx];
             let line_count = end - start + 1;
             // Update cached batch info for status bar
-            app.cached_batch_info = Some((batch_idx, batches.len(), line_count));
+            app.cache.cached_batch_info = Some((batch_idx, batches.len(), line_count));
             (filtered_logs[start..=end].to_vec(), start)
         } else {
-            app.cached_batch_info = None;
+            app.cache.cached_batch_info = None;
             (filtered_logs, 0)
         }
     } else {
-        app.cached_batch_info = None;
+        app.cache.cached_batch_info = None;
         (filtered_logs, 0)
     };
 
@@ -202,12 +203,12 @@ pub fn draw_log_viewer(
     let total_logs = display_logs_source.len();
 
     // Find the selected line index by ID (if any line is selected)
-    let selected_line_index: Option<usize> = app.selected_line_id.and_then(|id| {
+    let selected_line_index: Option<usize> = app.navigation.selected_line_id.and_then(|id| {
         display_logs_source.iter().position(|log| log.id == id)
     });
 
     // Determine which logs to display based on scroll state
-    let (display_logs, scroll_indicator, display_start) = if app.auto_scroll && selected_line_index.is_none() {
+    let (display_logs, scroll_indicator, display_start) = if app.navigation.auto_scroll && selected_line_index.is_none() {
         // Auto-scroll mode: show the last N logs (only when not selecting lines)
         // Account for batch separators: work backwards from the end to find how many logs fit
         let mut start = total_logs;
@@ -257,14 +258,14 @@ pub fn draw_log_viewer(
             (display, String::new(), start)
         } else {
             // Invalid selected index, fall back to manual scroll
-            let start = app.scroll_offset.min(total_logs.saturating_sub(visible_lines));
+            let start = app.navigation.scroll_offset.min(total_logs.saturating_sub(visible_lines));
             let end = (start + visible_lines).min(total_logs);
             let display = &display_logs_source[start..end];
             (display, String::new(), start)
         }
     } else {
         // Manual scroll mode: show logs from scroll_offset
-        let start = app.scroll_offset.min(total_logs.saturating_sub(visible_lines));
+        let start = app.navigation.scroll_offset.min(total_logs.saturating_sub(visible_lines));
         let end = (start + visible_lines).min(total_logs);
         let display = &display_logs_source[start..end];
 
@@ -330,7 +331,7 @@ pub fn draw_log_viewer(
         let process_name = log.source.process_name();
 
         // Check if this line is selected by ID
-        let is_selected = app.selected_line_id == Some(log.id);
+        let is_selected = app.navigation.selected_line_id == Some(log.id);
 
         // Don't highlight search matches - we're already filtering to show only matches
         // Highlighting would make all visible lines gray, which looks bad
@@ -351,7 +352,7 @@ pub fn draw_log_viewer(
 
         // Apply condensing in compact mode (but not in batch view mode, which shows full content)
         // Use cached condensed line
-        let (log_content, log_content_stripped): (&str, &str) = if app.is_compact() && current_batch_validated.is_none() {
+        let (log_content, log_content_stripped): (&str, &str) = if app.display.is_compact() && current_batch_validated.is_none() {
             (log.condensed_line(), log.condensed_stripped_line())
         } else {
             (&log.line, log.stripped_line())
@@ -367,7 +368,7 @@ pub fn draw_log_viewer(
         let max_line_width = (area.width as usize).saturating_sub(3); // -2 for borders, -1 for safety
 
         // Determine if we need to truncate and render accordingly
-        let line = if current_batch_validated.is_some() || app.is_wrap() {
+        let line = if current_batch_validated.is_some() || app.display.is_wrap() {
             // In batch view mode or wrap mode: show full content with cached ANSI parsing
             // Paragraph wrapping is applied at the widget level
             let bg_color = if is_selected {
@@ -386,7 +387,7 @@ pub fn draw_log_viewer(
 
             // Use cache: batch/wrap view mode always uses non-compact content
             let cache_key = AnsiCacheKey::new(log.id, false);
-            let cached = app.ansi_cache.get_or_parse(cache_key, &full_line_with_ansi);
+            let cached = app.cache.ansi_cache.get_or_parse(cache_key, &full_line_with_ansi);
             AnsiCache::to_line_with_overrides(cached, bg_color, fg_override)
         } else if full_line_clean.width() > max_line_width {
             // Truncate based on display width (using clean text for measurement)
@@ -462,8 +463,8 @@ pub fn draw_log_viewer(
             };
 
             // Use cache: key includes compact mode since content may differ
-            let cache_key = AnsiCacheKey::new(log.id, app.is_compact());
-            let cached = app.ansi_cache.get_or_parse(cache_key, &full_line_with_ansi);
+            let cache_key = AnsiCacheKey::new(log.id, app.display.is_compact());
+            let cached = app.cache.ansi_cache.get_or_parse(cache_key, &full_line_with_ansi);
             AnsiCache::to_line_with_overrides(cached, bg_color, fg_override)
         };
 
@@ -499,7 +500,7 @@ pub fn draw_log_viewer(
     );
 
     // Enable word wrapping in batch view mode or wrap mode so full lines are visible
-    if current_batch_validated.is_some() || app.is_wrap() {
+    if current_batch_validated.is_some() || app.display.is_wrap() {
         paragraph = paragraph.wrap(Wrap { trim: true });
     }
 

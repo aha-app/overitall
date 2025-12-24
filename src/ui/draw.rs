@@ -29,7 +29,7 @@ fn calculate_process_list_height(manager: &ProcessManager, app: &App, terminal_w
         let handle = &processes[*name];
 
         // Estimate status text length
-        let status_len = if app.hidden_processes.contains(*name) {
+        let status_len = if app.filters.hidden_processes.contains(*name) {
             6 // "Hidden"
         } else if let Some((custom_label, _)) = handle.get_custom_status() {
             custom_label.len()
@@ -56,7 +56,7 @@ fn calculate_process_list_height(manager: &ProcessManager, app: &App, terminal_w
             total_width += 3; // " | " separator
         }
 
-        let status_len = if app.hidden_processes.contains(name) {
+        let status_len = if app.filters.hidden_processes.contains(name) {
             6 // "Hidden"
         } else {
             3 // "LOG"
@@ -96,9 +96,9 @@ pub fn draw(f: &mut Frame, app: &mut App, manager: &ProcessManager) {
         .split(f.area());
 
     // Store layout areas for mouse click detection
-    app.process_list_area = Some(chunks[0]);
-    app.log_viewer_area = Some(chunks[1]);
-    app.status_bar_area = Some(chunks[2]);
+    app.regions.process_list_area = Some(chunks[0]);
+    app.regions.log_viewer_area = Some(chunks[1]);
+    app.regions.status_bar_area = Some(chunks[2]);
 
     // Draw process list
     draw_process_list(f, chunks[0], manager, app);
@@ -113,17 +113,17 @@ pub fn draw(f: &mut Frame, app: &mut App, manager: &ProcessManager) {
     draw_command_input(f, chunks[3], app);
 
     // Draw help overlay if show_help is true (must be last so it's on top)
-    if app.show_help {
-        draw_help_overlay(f, app.help_scroll_offset);
+    if app.display.show_help {
+        draw_help_overlay(f, app.display.help_scroll_offset);
     }
 
     // Draw expanded line view overlay if enabled (must be last so it's on top)
-    if app.expanded_line_view {
+    if app.display.expanded_line_view {
         draw_expanded_line_overlay(f, manager, app);
     }
 
     // Draw trace selection overlay if in trace selection mode
-    if app.trace_selection_mode {
-        draw_trace_selection_overlay(f, &app.trace_candidates, app.selected_trace_index);
+    if app.trace.trace_selection_mode {
+        draw_trace_selection_overlay(f, &app.trace.trace_candidates, app.trace.selected_trace_index);
     }
 }

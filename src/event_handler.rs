@@ -33,16 +33,16 @@ impl<'a> EventHandler<'a> {
                 Ok(false) // Don't quit immediately - let the loop handle killing
             }
             // Help mode
-            KeyCode::Char('?') if !self.app.command_mode && !self.app.search_mode => {
+            KeyCode::Char('?') if !self.app.input.command_mode && !self.app.input.search_mode => {
                 self.handle_help_toggle();
                 Ok(false)
             }
             // Help overlay scrolling (must come before other navigation handlers)
-            KeyCode::Up | KeyCode::Char('k') if self.app.show_help => {
+            KeyCode::Up | KeyCode::Char('k') if self.app.display.show_help => {
                 self.app.scroll_help_up();
                 Ok(false)
             }
-            KeyCode::Down | KeyCode::Char('j') if self.app.show_help => {
+            KeyCode::Down | KeyCode::Char('j') if self.app.display.show_help => {
                 self.app.scroll_help_down();
                 Ok(false)
             }
@@ -52,162 +52,162 @@ impl<'a> EventHandler<'a> {
                 Ok(false)
             }
             // Expanded line view
-            KeyCode::Enter if self.app.expanded_line_view => {
+            KeyCode::Enter if self.app.display.expanded_line_view => {
                 self.handle_show_context();
                 Ok(false)
             }
             // Command mode
-            KeyCode::Char(':') if !self.app.command_mode && !self.app.search_mode && !self.app.show_help => {
+            KeyCode::Char(':') if !self.app.input.command_mode && !self.app.input.search_mode && !self.app.display.show_help => {
                 self.app.enter_command_mode();
                 Ok(false)
             }
-            KeyCode::Enter if self.app.command_mode => {
+            KeyCode::Enter if self.app.input.command_mode => {
                 self.handle_command_execute().await
             }
-            KeyCode::Backspace if self.app.command_mode => {
+            KeyCode::Backspace if self.app.input.command_mode => {
                 self.app.delete_char();
                 Ok(false)
             }
-            KeyCode::Up if self.app.command_mode => {
+            KeyCode::Up if self.app.input.command_mode => {
                 self.app.history_prev();
                 Ok(false)
             }
-            KeyCode::Down if self.app.command_mode => {
+            KeyCode::Down if self.app.input.command_mode => {
                 self.app.history_next();
                 Ok(false)
             }
-            KeyCode::Char(c) if self.app.command_mode => {
+            KeyCode::Char(c) if self.app.input.command_mode => {
                 self.app.add_char(c);
                 Ok(false)
             }
             // Search mode
-            KeyCode::Char('/') if !self.app.command_mode && !self.app.search_mode && !self.app.show_help => {
+            KeyCode::Char('/') if !self.app.input.command_mode && !self.app.input.search_mode && !self.app.display.show_help => {
                 self.app.enter_search_mode();
                 Ok(false)
             }
-            KeyCode::Enter if self.app.search_mode => {
+            KeyCode::Enter if self.app.input.search_mode => {
                 self.handle_search_execute();
                 Ok(false)
             }
-            KeyCode::Backspace if self.app.search_mode => {
+            KeyCode::Backspace if self.app.input.search_mode => {
                 self.app.delete_char();
                 Ok(false)
             }
-            KeyCode::Char(c) if self.app.search_mode => {
+            KeyCode::Char(c) if self.app.input.search_mode => {
                 self.app.add_char(c);
                 Ok(false)
             }
             // Trace selection mode
-            KeyCode::Enter if self.app.trace_selection_mode => {
+            KeyCode::Enter if self.app.trace.trace_selection_mode => {
                 traces::select_trace(self.app, self.manager);
                 Ok(false)
             }
-            KeyCode::Up if self.app.trace_selection_mode => {
+            KeyCode::Up if self.app.trace.trace_selection_mode => {
                 self.app.select_prev_trace();
                 Ok(false)
             }
-            KeyCode::Down if self.app.trace_selection_mode => {
+            KeyCode::Down if self.app.trace.trace_selection_mode => {
                 self.app.select_next_trace();
                 Ok(false)
             }
-            KeyCode::Char('k') if self.app.trace_selection_mode => {
+            KeyCode::Char('k') if self.app.trace.trace_selection_mode => {
                 self.app.select_prev_trace();
                 Ok(false)
             }
-            KeyCode::Char('j') if self.app.trace_selection_mode => {
+            KeyCode::Char('j') if self.app.trace.trace_selection_mode => {
                 self.app.select_next_trace();
                 Ok(false)
             }
             // Trace filter mode
-            KeyCode::Char('[') if self.app.trace_filter_mode => {
+            KeyCode::Char('[') if self.app.trace.trace_filter_mode => {
                 traces::expand_trace_before(self.app);
                 Ok(false)
             }
-            KeyCode::Char(']') if self.app.trace_filter_mode => {
+            KeyCode::Char(']') if self.app.trace.trace_filter_mode => {
                 traces::expand_trace_after(self.app);
                 Ok(false)
             }
-            KeyCode::Enter if !self.app.command_mode && !self.app.search_mode && !self.app.expanded_line_view => {
+            KeyCode::Enter if !self.app.input.command_mode && !self.app.input.search_mode && !self.app.display.expanded_line_view => {
                 self.handle_toggle_expanded_view();
                 Ok(false)
             }
             // Batch navigation
-            KeyCode::Char('[') if !self.app.command_mode && !self.app.search_mode => {
+            KeyCode::Char('[') if !self.app.input.command_mode && !self.app.input.search_mode => {
                 self.handle_prev_batch();
                 Ok(false)
             }
-            KeyCode::Char(']') if !self.app.command_mode && !self.app.search_mode => {
+            KeyCode::Char(']') if !self.app.input.command_mode && !self.app.input.search_mode => {
                 self.handle_next_batch();
                 Ok(false)
             }
             // Batch window adjustment
-            KeyCode::Char('+') if !self.app.command_mode && !self.app.search_mode => {
+            KeyCode::Char('+') if !self.app.input.command_mode && !self.app.input.search_mode => {
                 self.handle_increase_batch_window();
                 Ok(false)
             }
-            KeyCode::Char('-') if !self.app.command_mode && !self.app.search_mode => {
+            KeyCode::Char('-') if !self.app.input.command_mode && !self.app.input.search_mode => {
                 self.handle_decrease_batch_window();
                 Ok(false)
             }
             // Clipboard operations
-            KeyCode::Char('c') if !self.app.command_mode && !self.app.search_mode && !self.app.expanded_line_view => {
+            KeyCode::Char('c') if !self.app.input.command_mode && !self.app.input.search_mode && !self.app.display.expanded_line_view => {
                 self.handle_copy_line();
                 Ok(false)
             }
-            KeyCode::Char('C') if !self.app.command_mode && !self.app.search_mode && !self.app.expanded_line_view => {
+            KeyCode::Char('C') if !self.app.input.command_mode && !self.app.input.search_mode && !self.app.display.expanded_line_view => {
                 self.handle_copy_batch();
                 Ok(false)
             }
             // Vim-style page navigation (Ctrl+B = page up, Ctrl+F = page down)
             // IMPORTANT: These must come BEFORE plain 'b' handler to match correctly
-            KeyCode::Char('b') if key.modifiers.contains(KeyModifiers::CONTROL) && !self.app.command_mode && !self.app.search_mode => {
+            KeyCode::Char('b') if key.modifiers.contains(KeyModifiers::CONTROL) && !self.app.input.command_mode && !self.app.input.search_mode => {
                 self.handle_page_up();
                 Ok(false)
             }
-            KeyCode::Char('f') if key.modifiers.contains(KeyModifiers::CONTROL) && !self.app.command_mode && !self.app.search_mode => {
+            KeyCode::Char('f') if key.modifiers.contains(KeyModifiers::CONTROL) && !self.app.input.command_mode && !self.app.input.search_mode => {
                 self.handle_page_down();
                 Ok(false)
             }
             // Batch focus
-            KeyCode::Char('b') if !self.app.command_mode && !self.app.search_mode && !self.app.expanded_line_view => {
+            KeyCode::Char('b') if !self.app.input.command_mode && !self.app.input.search_mode && !self.app.display.expanded_line_view => {
                 self.handle_focus_batch();
                 Ok(false)
             }
             // Manual trace capture
-            KeyCode::Char('s') if !self.app.command_mode && !self.app.search_mode
-                && !self.app.trace_filter_mode && !self.app.trace_selection_mode
-                && !self.app.expanded_line_view => {
+            KeyCode::Char('s') if !self.app.input.command_mode && !self.app.input.search_mode
+                && !self.app.trace.trace_filter_mode && !self.app.trace.trace_selection_mode
+                && !self.app.display.expanded_line_view => {
                 self.handle_manual_trace_toggle();
                 Ok(false)
             }
             // Cycle display mode (compact/full/wrap)
-            KeyCode::Char('w') if !self.app.command_mode && !self.app.search_mode
-                && !self.app.show_help && !self.app.expanded_line_view => {
+            KeyCode::Char('w') if !self.app.input.command_mode && !self.app.input.search_mode
+                && !self.app.display.show_help && !self.app.display.expanded_line_view => {
                 self.handle_cycle_display_mode();
                 Ok(false)
             }
             // Line selection and scrolling
-            KeyCode::Up if !self.app.command_mode && !self.app.search_mode => {
+            KeyCode::Up if !self.app.input.command_mode && !self.app.input.search_mode => {
                 self.handle_select_prev_line();
                 Ok(false)
             }
-            KeyCode::Down if !self.app.command_mode && !self.app.search_mode => {
+            KeyCode::Down if !self.app.input.command_mode && !self.app.input.search_mode => {
                 self.handle_select_next_line();
                 Ok(false)
             }
-            KeyCode::PageUp if !self.app.command_mode && !self.app.search_mode => {
+            KeyCode::PageUp if !self.app.input.command_mode && !self.app.input.search_mode => {
                 self.handle_page_up();
                 Ok(false)
             }
-            KeyCode::PageDown if !self.app.command_mode && !self.app.search_mode => {
+            KeyCode::PageDown if !self.app.input.command_mode && !self.app.input.search_mode => {
                 self.handle_page_down();
                 Ok(false)
             }
-            KeyCode::Home if !self.app.command_mode && !self.app.search_mode => {
+            KeyCode::Home if !self.app.input.command_mode && !self.app.input.search_mode => {
                 self.app.scroll_to_top();
                 Ok(false)
             }
-            KeyCode::End if !self.app.command_mode && !self.app.search_mode => {
+            KeyCode::End if !self.app.input.command_mode && !self.app.input.search_mode => {
                 self.app.scroll_to_bottom();
                 Ok(false)
             }
@@ -220,7 +220,7 @@ impl<'a> EventHandler<'a> {
                 Ok(false) // Don't quit immediately - let the loop handle killing
             }
             // Regular 'q' only works when not in command/search mode
-            KeyCode::Char('q') if !self.app.command_mode && !self.app.search_mode && !self.app.shutting_down => {
+            KeyCode::Char('q') if !self.app.input.command_mode && !self.app.input.search_mode && !self.app.shutting_down => {
                 self.app.start_shutdown();
                 // Set all processes to Terminating status immediately (UI will show this on next draw)
                 self.manager.set_all_terminating();
@@ -235,13 +235,13 @@ impl<'a> EventHandler<'a> {
     }
 
     fn handle_toggle_expanded_view(&mut self) {
-        if self.app.selected_line_id.is_some() {
+        if self.app.navigation.selected_line_id.is_some() {
             self.app.toggle_expanded_view();
         }
     }
 
     async fn handle_command_execute(&mut self) -> Result<bool> {
-        let cmd_text = self.app.input.clone();
+        let cmd_text = self.app.input.input.clone();
         let cmd = parse_command(&cmd_text);
 
         // Save to history before processing (don't save empty or quit commands)
@@ -265,7 +265,7 @@ impl<'a> EventHandler<'a> {
     }
 
     fn handle_search_execute(&mut self) {
-        let search_text = self.app.input.clone();
+        let search_text = self.app.input.input.clone();
         if let Err(msg) = search::execute_search(self.app, self.manager, &search_text) {
             if msg != "Empty search" {
                 self.app.set_status_error(msg);
@@ -337,7 +337,7 @@ impl<'a> EventHandler<'a> {
     }
 
     fn handle_manual_trace_toggle(&mut self) {
-        if self.app.manual_trace_recording {
+        if self.app.trace.manual_trace_recording {
             match manual_trace::stop_recording(self.app, self.manager) {
                 Ok(msg) => self.app.set_status_success(msg),
                 Err(msg) => self.app.set_status_error(msg),
@@ -368,55 +368,55 @@ impl<'a> EventHandler<'a> {
     /// 11. Default - jump to latest logs
     fn handle_escape(&mut self) {
         // 0. Manual trace recording
-        if self.app.manual_trace_recording {
+        if self.app.trace.manual_trace_recording {
             manual_trace::cancel_recording(self.app);
             self.app.set_status_info("Recording cancelled".to_string());
             return;
         }
 
         // 1. Help overlay
-        if self.app.show_help {
+        if self.app.display.show_help {
             self.app.toggle_help();
             return;
         }
 
         // 2. Expanded line view (modal)
-        if self.app.expanded_line_view {
+        if self.app.display.expanded_line_view {
             self.app.close_expanded_view();
             return;
         }
 
         // 3. Command mode
-        if self.app.command_mode {
+        if self.app.input.command_mode {
             self.app.exit_command_mode();
             return;
         }
 
         // 4. Search mode (actively typing)
-        if self.app.search_mode {
+        if self.app.input.search_mode {
             self.app.exit_search_mode();
             return;
         }
 
         // 5. Trace selection mode
-        if self.app.trace_selection_mode {
+        if self.app.trace.trace_selection_mode {
             self.app.exit_trace_selection();
             self.app.set_status_info("Trace selection cancelled".to_string());
             return;
         }
 
         // 6. Search results with selection - return to search input
-        if !self.app.search_pattern.is_empty() && self.app.selected_line_id.is_some() {
-            self.app.selected_line_id = None;
+        if !self.app.input.search_pattern.is_empty() && self.app.navigation.selected_line_id.is_some() {
+            self.app.navigation.selected_line_id = None;
             self.app.unfreeze_display();
             self.app.discard_snapshot();
-            self.app.search_mode = true;
-            self.app.input = self.app.search_pattern.clone();
+            self.app.input.search_mode = true;
+            self.app.input.input = self.app.input.search_pattern.clone();
             return;
         }
 
         // 7. Trace filter mode
-        if self.app.trace_filter_mode {
+        if self.app.trace.trace_filter_mode {
             self.app.exit_trace_filter();
             self.app.discard_snapshot();
             self.app.set_status_info("Exited trace view".to_string());
@@ -424,10 +424,10 @@ impl<'a> EventHandler<'a> {
         }
 
         // 8-9. Frozen state (two-stage Esc)
-        if self.app.frozen {
-            if self.app.selected_line_id.is_some() {
+        if self.app.navigation.frozen {
+            if self.app.navigation.selected_line_id.is_some() {
                 // First Esc: clear selection but stay frozen
-                self.app.selected_line_id = None;
+                self.app.navigation.selected_line_id = None;
                 self.app.set_status_info("Selection cleared. Press Esc again to resume tailing.".to_string());
             } else {
                 // Second Esc: unfreeze and resume tailing
@@ -441,9 +441,9 @@ impl<'a> EventHandler<'a> {
         }
 
         // 10. Batch view mode
-        if self.app.batch_view_mode {
-            self.app.batch_view_mode = false;
-            self.app.current_batch = None;
+        if self.app.batch.batch_view_mode {
+            self.app.batch.batch_view_mode = false;
+            self.app.batch.current_batch = None;
             self.app.discard_snapshot();
             self.app.clear_search();
             self.app.scroll_to_bottom();
@@ -454,7 +454,7 @@ impl<'a> EventHandler<'a> {
         // 11. Default - jump to latest
         self.app.clear_search();
         self.app.scroll_to_bottom();
-        self.app.selected_line_id = None;
+        self.app.navigation.selected_line_id = None;
         self.app.set_status_info("Jumped to latest logs".to_string());
     }
 
@@ -466,37 +466,38 @@ impl<'a> EventHandler<'a> {
                 let pos = ratatui::layout::Position::new(col, row);
 
                 // Check which region was clicked
-                if let Some(area) = self.app.process_list_area {
+                if let Some(area) = self.app.regions.process_list_area {
                     if area.contains(pos) {
                         // Check if click is on a specific process
-                        for (name, rect) in &self.app.process_regions.clone() {
+                        for (name, rect) in &self.app.regions.process_regions.clone() {
                             if rect.contains(pos) {
                                 // 3-state cycle: Solo -> Mute -> Normal -> Solo...
                                 let all_names: Vec<String> = self
                                     .app
+                                    .regions
                                     .process_regions
                                     .iter()
                                     .map(|(n, _)| n.clone())
                                     .collect();
                                 let total = all_names.len();
-                                let hidden_count = self.app.hidden_processes.len();
-                                let is_hidden = self.app.hidden_processes.contains(name);
+                                let hidden_count = self.app.filters.hidden_processes.len();
+                                let is_hidden = self.app.filters.hidden_processes.contains(name);
 
                                 if !is_hidden && hidden_count == total - 1 {
                                     // Solo mode (this is the only visible process) -> Mute mode
-                                    self.app.hidden_processes.clear();
-                                    self.app.hidden_processes.insert(name.clone());
+                                    self.app.filters.hidden_processes.clear();
+                                    self.app.filters.hidden_processes.insert(name.clone());
                                     self.app.set_status_info(format!("Muting: {}", name));
                                 } else if is_hidden && hidden_count == 1 {
                                     // Mute mode (this is the only hidden process) -> Normal mode
-                                    self.app.hidden_processes.clear();
+                                    self.app.filters.hidden_processes.clear();
                                     self.app.set_status_info("Showing all".to_string());
                                 } else {
                                     // Normal or other state -> Solo mode
-                                    self.app.hidden_processes.clear();
+                                    self.app.filters.hidden_processes.clear();
                                     for n in &all_names {
                                         if n != name {
-                                            self.app.hidden_processes.insert(n.clone());
+                                            self.app.filters.hidden_processes.insert(n.clone());
                                         }
                                     }
                                     self.app.set_status_info(format!("Solo: {}", name));
@@ -508,13 +509,13 @@ impl<'a> EventHandler<'a> {
                         return Ok(false);
                     }
                 }
-                if let Some(area) = self.app.log_viewer_area {
+                if let Some(area) = self.app.regions.log_viewer_area {
                     if area.contains(pos) {
                         navigation::select_line_at_row(self.app, self.manager, row, area.y);
                         return Ok(false);
                     }
                 }
-                if let Some(area) = self.app.status_bar_area {
+                if let Some(area) = self.app.regions.status_bar_area {
                     if area.contains(pos) {
                         self.app.set_status_info(format!("Clicked status bar at ({}, {})", col, row));
                         return Ok(false);

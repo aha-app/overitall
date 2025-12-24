@@ -13,7 +13,7 @@ pub fn execute_search(app: &mut App, manager: &ProcessManager, search_text: &str
 
     // Get filtered logs (after persistent filters AND search filter)
     let logs = manager.get_all_logs();
-    let filtered_logs = apply_filters(logs, &app.filters);
+    let filtered_logs = apply_filters(logs, &app.filters.filters);
 
     // Apply search filter
     let search_text_lower = search_text.to_lowercase();
@@ -30,7 +30,7 @@ pub fn execute_search(app: &mut App, manager: &ProcessManager, search_text: &str
 
     // Select the last (bottom) entry by ID
     let last_id = search_filtered.last().map(|log| log.id);
-    app.selected_line_id = last_id;
+    app.navigation.selected_line_id = last_id;
 
     // Create snapshot
     app.create_snapshot(search_filtered);
@@ -39,8 +39,8 @@ pub fn execute_search(app: &mut App, manager: &ProcessManager, search_text: &str
     app.freeze_display();
 
     // Exit search_mode so user can't type (but keep search_pattern)
-    app.search_mode = false;
-    app.input.clear();
+    app.input.search_mode = false;
+    app.input.input.clear();
 
     Ok(match_count)
 }
@@ -53,11 +53,11 @@ pub fn show_context(app: &mut App, manager: &ProcessManager) -> Result<String, S
     app.close_expanded_view();
 
     // Get the currently selected log line by ID (before we change anything)
-    let selected_id = app.selected_line_id
+    let selected_id = app.navigation.selected_line_id
         .ok_or_else(|| "No log selected".to_string())?;
 
     // Verify the selected ID exists in the snapshot
-    if let Some(snapshot) = &app.snapshot {
+    if let Some(snapshot) = &app.navigation.snapshot {
         if !snapshot.iter().any(|log| log.id == selected_id) {
             return Err("Selected log not found".to_string());
         }
@@ -66,11 +66,11 @@ pub fn show_context(app: &mut App, manager: &ProcessManager) -> Result<String, S
     }
 
     // Clear search pattern to show all logs
-    app.search_pattern.clear();
+    app.input.search_pattern.clear();
 
     // Get ALL filtered logs (persistent filters only, no search)
     let logs = manager.get_all_logs();
-    let filtered_logs = apply_filters(logs, &app.filters);
+    let filtered_logs = apply_filters(logs, &app.filters.filters);
 
     // Verify the selected ID exists in the full filtered set
     if !filtered_logs.iter().any(|log| log.id == selected_id) {

@@ -12,7 +12,7 @@ pub fn hide_process(
     process: &str,
 ) -> Result<(), String> {
     if manager.has_process(process) || manager.has_standalone_log_file(process) {
-        app.hidden_processes.insert(process.to_string());
+        app.filters.hidden_processes.insert(process.to_string());
         sync_hidden_processes_to_config(app, config);
         save_config_with_error(config, app);
         Ok(())
@@ -25,7 +25,7 @@ pub fn hide_process(
 /// Returns Ok(true) if the process was hidden and is now shown.
 /// Returns Ok(false) if the process was not hidden.
 pub fn show_process(app: &mut App, config: &mut Config, process: &str) -> Result<bool, ()> {
-    let was_hidden = app.hidden_processes.remove(process);
+    let was_hidden = app.filters.hidden_processes.remove(process);
     if was_hidden {
         sync_hidden_processes_to_config(app, config);
         save_config_with_error(config, app);
@@ -37,10 +37,10 @@ pub fn show_process(app: &mut App, config: &mut Config, process: &str) -> Result
 pub fn hide_all(app: &mut App, manager: &ProcessManager, config: &mut Config) {
     let all_processes: Vec<String> = manager.get_processes().keys().cloned().collect();
     for process in all_processes {
-        app.hidden_processes.insert(process);
+        app.filters.hidden_processes.insert(process);
     }
     for log_file in manager.get_standalone_log_file_names() {
-        app.hidden_processes.insert(log_file);
+        app.filters.hidden_processes.insert(log_file);
     }
     sync_hidden_processes_to_config(app, config);
     save_config_with_error(config, app);
@@ -49,8 +49,8 @@ pub fn hide_all(app: &mut App, manager: &ProcessManager, config: &mut Config) {
 /// Show all processes' output in the log viewer.
 /// Returns the count of processes that were hidden.
 pub fn show_all(app: &mut App, config: &mut Config) -> usize {
-    let count = app.hidden_processes.len();
-    app.hidden_processes.clear();
+    let count = app.filters.hidden_processes.len();
+    app.filters.hidden_processes.clear();
     sync_hidden_processes_to_config(app, config);
     save_config_with_error(config, app);
     count
@@ -70,15 +70,15 @@ pub fn only_process(
 
     let all_processes: Vec<String> = manager.get_processes().keys().cloned().collect();
     let all_log_files = manager.get_standalone_log_file_names();
-    app.hidden_processes.clear();
+    app.filters.hidden_processes.clear();
     for p in all_processes {
         if p != process {
-            app.hidden_processes.insert(p);
+            app.filters.hidden_processes.insert(p);
         }
     }
     for lf in all_log_files {
         if lf != process {
-            app.hidden_processes.insert(lf);
+            app.filters.hidden_processes.insert(lf);
         }
     }
     sync_hidden_processes_to_config(app, config);
@@ -88,5 +88,5 @@ pub fn only_process(
 
 /// Sync the app's hidden_processes set to the config.
 fn sync_hidden_processes_to_config(app: &App, config: &mut Config) {
-    config.hidden_processes = app.hidden_processes.iter().cloned().collect();
+    config.hidden_processes = app.filters.hidden_processes.iter().cloned().collect();
 }

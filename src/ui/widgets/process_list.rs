@@ -12,7 +12,7 @@ use crate::ui::app::App;
 /// Draw the process list at the top of the screen
 pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, app: &mut App) {
     // Clear previous process regions
-    app.process_regions.clear();
+    app.regions.process_regions.clear();
 
     let processes = manager.get_processes();
 
@@ -36,7 +36,7 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
 
         // Check if process is hidden
         // Priority: Hidden > Terminating/Failed > Custom status > Standard status
-        let (status_text, color) = if app.hidden_processes.contains(*name) {
+        let (status_text, color) = if app.filters.hidden_processes.contains(*name) {
             ("Hidden".to_string(), Color::DarkGray)
         } else {
             // Terminating and Failed always override custom status
@@ -68,7 +68,7 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
 
         // Record the clickable region for this process
         // Note: area.x is the start of the process list area
-        app.process_regions.push((
+        app.regions.process_regions.push((
             (*name).clone(),
             Rect::new(area.x + char_pos, area.y, entry_width as u16, 1),
         ));
@@ -98,7 +98,7 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
         }
 
         // Check if log file is hidden
-        let (status_text, color) = if app.hidden_processes.contains(name) {
+        let (status_text, color) = if app.filters.hidden_processes.contains(name) {
             ("Hidden".to_string(), Color::DarkGray)
         } else {
             ("LOG".to_string(), Color::Cyan)
@@ -108,7 +108,7 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
         let entry_width = name.len() + 3 + status_text.len();
 
         // Record the clickable region for this log file
-        app.process_regions.push((
+        app.regions.process_regions.push((
             name.clone(),
             Rect::new(area.x + char_pos, area.y, entry_width as u16, 1),
         ));

@@ -53,13 +53,13 @@ pub fn select_trace(app: &mut App, manager: &ProcessManager) {
 /// Expand trace view backward
 pub fn expand_trace_before(app: &mut App) {
     app.expand_trace_before();
-    let secs = app.trace_expand_before.num_seconds();
+    let secs = app.trace.trace_expand_before.num_seconds();
     app.set_status_info(format!("Expanded trace view: -{}s before", secs));
 }
 
 /// Expand trace view forward
 pub fn expand_trace_after(app: &mut App) {
     app.expand_trace_after();
-    let secs = app.trace_expand_after.num_seconds();
+    let secs = app.trace.trace_expand_after.num_seconds();
     app.set_status_info(format!("Expanded trace view: +{}s after", secs));
 }

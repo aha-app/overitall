@@ -582,7 +582,7 @@ fn test_batch_window_default_value() {
     let mut app = create_test_app();
 
     // Default batch window should be 100ms
-    assert_eq!(app.batch_window_ms, 100);
+    assert_eq!(app.batch.batch_window_ms, 100);
 }
 
 #[test]
@@ -592,7 +592,7 @@ fn test_batch_window_set_value() {
     // Change batch window to 500ms
     app.set_batch_window(500);
 
-    assert_eq!(app.batch_window_ms, 500);
+    assert_eq!(app.batch.batch_window_ms, 500);
 }
 
 #[test]
@@ -653,12 +653,12 @@ fn test_batch_window_resets_batch_view_if_active() {
     // Enable batch view and select batch 2
     app.toggle_batch_view();
     app.next_batch();
-    app.current_batch = Some(1); // Manually set to batch 2
+    app.batch.current_batch = Some(1); // Manually set to batch 2
 
     // Changing batch window should reset to batch 0
     app.set_batch_window(500);
 
-    assert_eq!(app.current_batch, Some(0), "Should reset to first batch");
+    assert_eq!(app.batch.current_batch, Some(0), "Should reset to first batch");
 }
 
 #[test]
@@ -747,10 +747,10 @@ fn test_show_process_restores_logs() {
     let manager = create_manager_with_logs();
 
     // First hide worker
-    app.hidden_processes.insert("worker".to_string());
+    app.filters.hidden_processes.insert("worker".to_string());
 
     // Then show it again
-    app.hidden_processes.remove("worker");
+    app.filters.hidden_processes.remove("worker");
 
     let output = render_app_to_string(&mut app, &manager, 120, 40);
 
@@ -765,7 +765,7 @@ fn test_snapshot_hidden_process_display() {
     let manager = create_manager_with_logs();
 
     // Hide worker process
-    app.hidden_processes.insert("worker".to_string());
+    app.filters.hidden_processes.insert("worker".to_string());
 
     let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
@@ -777,8 +777,8 @@ fn test_snapshot_all_processes_hidden() {
     let manager = create_manager_with_logs();
 
     // Hide all processes
-    app.hidden_processes.insert("web".to_string());
-    app.hidden_processes.insert("worker".to_string());
+    app.filters.hidden_processes.insert("web".to_string());
+    app.filters.hidden_processes.insert("worker".to_string());
 
     let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
@@ -791,7 +791,7 @@ fn test_snapshot_hidden_with_filters_combined() {
     let manager = create_manager_with_logs();
 
     // Hide worker and apply filter
-    app.hidden_processes.insert("worker".to_string());
+    app.filters.hidden_processes.insert("worker".to_string());
     app.add_include_filter("ERROR".to_string());
 
     let output = render_app_to_string(&mut app, &manager, 120, 40);
@@ -1071,7 +1071,7 @@ fn test_hidden_process_overrides_custom_status() {
     let manager = create_manager_with_custom_status();
 
     // Hide the web process
-    app.hidden_processes.insert("web".to_string());
+    app.filters.hidden_processes.insert("web".to_string());
 
     let output = render_app_to_string(&mut app, &manager, 120, 40);
 
@@ -1109,7 +1109,7 @@ fn create_manager_with_long_logs() -> ProcessManager {
 #[test]
 fn test_snapshot_display_mode_compact() {
     let mut app = create_test_app();
-    app.display_mode = DisplayMode::Compact;
+    app.display.display_mode = DisplayMode::Compact;
     let manager = create_manager_with_long_logs();
 
     let output = render_app_to_string(&mut app, &manager, 120, 40);
@@ -1119,7 +1119,7 @@ fn test_snapshot_display_mode_compact() {
 #[test]
 fn test_snapshot_display_mode_full() {
     let mut app = create_test_app();
-    app.display_mode = DisplayMode::Full;
+    app.display.display_mode = DisplayMode::Full;
     let manager = create_manager_with_long_logs();
 
     let output = render_app_to_string(&mut app, &manager, 120, 40);
@@ -1129,7 +1129,7 @@ fn test_snapshot_display_mode_full() {
 #[test]
 fn test_snapshot_display_mode_wrap() {
     let mut app = create_test_app();
-    app.display_mode = DisplayMode::Wrap;
+    app.display.display_mode = DisplayMode::Wrap;
     let manager = create_manager_with_long_logs();
 
     let output = render_app_to_string(&mut app, &manager, 120, 40);

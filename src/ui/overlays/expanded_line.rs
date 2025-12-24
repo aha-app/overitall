@@ -15,7 +15,7 @@ use crate::ui::utils::{centered_rect, parse_ansi_to_spans};
 /// Draw the expanded line view overlay
 pub fn draw_expanded_line_overlay(f: &mut Frame, manager: &ProcessManager, app: &App) {
     // Get the selected line ID if available
-    let selected_line_id = match app.selected_line_id {
+    let selected_line_id = match app.navigation.selected_line_id {
         Some(id) => id,
         None => {
             // No line selected, don't show the overlay
@@ -25,12 +25,12 @@ pub fn draw_expanded_line_overlay(f: &mut Frame, manager: &ProcessManager, app: 
 
     // Use snapshot if available (frozen/batch/trace mode), otherwise use live buffer
     // This must match the logic in log_viewer.rs exactly
-    let logs_vec: Vec<&LogLine> = if let Some(ref snapshot) = app.snapshot {
+    let logs_vec: Vec<&LogLine> = if let Some(ref snapshot) = app.navigation.snapshot {
         snapshot.iter().collect()
     } else {
         let mut logs = manager.get_all_logs();
-        if app.frozen {
-            if let Some(frozen_at) = app.frozen_at {
+        if app.navigation.frozen {
+            if let Some(frozen_at) = app.navigation.frozen_at {
                 logs.retain(|log| log.timestamp <= frozen_at);
             }
         }
@@ -38,7 +38,7 @@ pub fn draw_expanded_line_overlay(f: &mut Frame, manager: &ProcessManager, app: 
     };
 
     // Apply filters
-    let mut filtered_logs: Vec<&LogLine> = if app.filters.is_empty() {
+    let mut filtered_logs: Vec<&LogLine> = if app.filters.filters.is_empty() {
         logs_vec
     } else {
         logs_vec.into_iter()
@@ -46,7 +46,7 @@ pub fn draw_expanded_line_overlay(f: &mut Frame, manager: &ProcessManager, app: 
                 let line_text = &log.line;
 
                 // Check exclude filters first
-                for filter in &app.filters {
+                for filter in &app.filters.filters {
                     if matches!(filter.filter_type, FilterType::Exclude) {
                         if filter.matches(line_text) {
                             return false;
@@ -56,6 +56,7 @@ pub fn draw_expanded_line_overlay(f: &mut Frame, manager: &ProcessManager, app: 
 
                 // Check include filters
                 let include_filters: Vec<_> = app
+                    .filters
                     .filters
                     .iter()
                     .filter(|f| matches!(f.filter_type, FilterType::Include))
@@ -71,10 +72,10 @@ pub fn draw_expanded_line_overlay(f: &mut Frame, manager: &ProcessManager, app: 
     };
 
     // Apply search filter if active
-    let active_search_pattern = if app.search_mode && !app.input.is_empty() {
-        &app.input
-    } else if !app.search_pattern.is_empty() {
-        &app.search_pattern
+    let active_search_pattern = if app.input.search_mode && !app.input.input.is_empty() {
+        &app.input.input
+    } else if !app.input.search_pattern.is_empty() {
+        &app.input.search_pattern
     } else {
         ""
     };
@@ -89,36 +90,36 @@ pub fn draw_expanded_line_overlay(f: &mut Frame, manager: &ProcessManager, app: 
 
     // Apply process visibility filter
     filtered_logs.retain(|log| {
-        !app.hidden_processes.contains(log.source.process_name())
+        !app.filters.hidden_processes.contains(log.source.process_name())
     });
 
     // Apply trace filter mode if active
-    if app.trace_filter_mode {
+    if app.trace.trace_filter_mode {
         if let (Some(trace_id), Some(start), Some(end)) = (
-            &app.active_trace_id,
-            app.trace_time_start,
-            app.trace_time_end,
+            &app.trace.active_trace_id,
+            app.trace.trace_time_start,
+            app.trace.trace_time_end,
         ) {
-            let expanded_start = start - app.trace_expand_before;
-            let expanded_end = end + app.trace_expand_after;
+            let expanded_start = start - app.trace.trace_expand_before;
+            let expanded_end = end + app.trace.trace_expand_after;
 
             filtered_logs = filtered_logs
                 .into_iter()
                 .filter(|log| {
                     let contains_trace = log.line.contains(trace_id.as_str());
                     let in_time_window = log.arrival_time >= expanded_start && log.arrival_time <= expanded_end;
-                    contains_trace || (in_time_window && (app.trace_expand_before.num_seconds() > 0 || app.trace_expand_after.num_seconds() > 0))
+                    contains_trace || (in_time_window && (app.trace.trace_expand_before.num_seconds() > 0 || app.trace.trace_expand_after.num_seconds() > 0))
                 })
                 .collect();
         }
     }
 
     // Detect batches
-    let batches = detect_batches_from_logs(&filtered_logs, app.batch_window_ms);
+    let batches = detect_batches_from_logs(&filtered_logs, app.batch.batch_window_ms);
 
     // Apply batch view mode filtering if enabled
-    let display_logs: Vec<&LogLine> = if app.batch_view_mode {
-        if let Some(batch_idx) = app.current_batch {
+    let display_logs: Vec<&LogLine> = if app.batch.batch_view_mode {
+        if let Some(batch_idx) = app.batch.current_batch {
             if !batches.is_empty() && batch_idx < batches.len() {
                 let (start, end) = batches[batch_idx];
                 filtered_logs[start..=end].to_vec()

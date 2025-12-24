@@ -184,23 +184,23 @@ async fn main() -> anyhow::Result<()> {
     }
 
     // Load hidden processes from config
-    app.hidden_processes = config.hidden_processes.iter().cloned().collect();
+    app.filters.hidden_processes = config.hidden_processes.iter().cloned().collect();
 
     // Initialize process colors from config (only if enabled)
     if config.process_coloring == Some(true) {
         let process_names: Vec<String> = manager.get_processes().keys().cloned().collect();
         let log_file_names = manager.get_standalone_log_file_names();
         app.init_process_colors(&process_names, &log_file_names, &config.colors);
-        app.coloring_enabled = true;
+        app.display.coloring_enabled = true;
     }
 
     // Load display mode from config (default: Compact if not specified)
     // Config stores bool for backwards compat: true = Compact, false = Full
     if let Some(compact_mode) = config.compact_mode {
         if compact_mode {
-            app.display_mode = DisplayMode::Compact;
+            app.display.display_mode = DisplayMode::Compact;
         } else {
-            app.display_mode = DisplayMode::Full;
+            app.display.display_mode = DisplayMode::Full;
         }
     }
 
@@ -444,6 +444,7 @@ fn create_state_snapshot(app: &App, manager: &ProcessManager) -> StateSnapshot {
     // Build filter info list
     let active_filters: Vec<FilterInfo> = app
         .filters
+        .filters
         .iter()
         .map(|f| FilterInfo {
             pattern: f.pattern.clone(),
@@ -480,28 +481,28 @@ fn create_state_snapshot(app: &App, manager: &ProcessManager) -> StateSnapshot {
     StateSnapshot {
         processes,
         log_files: manager.get_standalone_log_file_names(),
-        filter_count: app.filters.len(),
+        filter_count: app.filters.filters.len(),
         active_filters,
-        search_pattern: if app.search_pattern.is_empty() {
+        search_pattern: if app.input.search_pattern.is_empty() {
             None
         } else {
-            Some(app.search_pattern.clone())
+            Some(app.input.search_pattern.clone())
         },
         view_mode: ViewModeInfo {
-            frozen: app.frozen,
-            batch_view: app.batch_view_mode,
-            trace_filter: app.trace_filter_mode,
-            trace_selection: app.trace_selection_mode,
-            display_mode: app.display_mode.name().to_string(),
+            frozen: app.navigation.frozen,
+            batch_view: app.batch.batch_view_mode,
+            trace_filter: app.trace.trace_filter_mode,
+            trace_selection: app.trace.trace_selection_mode,
+            display_mode: app.display.display_mode.name().to_string(),
         },
-        auto_scroll: app.auto_scroll,
+        auto_scroll: app.navigation.auto_scroll,
         log_count: stats.line_count,
         buffer_stats,
-        trace_recording: app.manual_trace_recording,
-        active_trace_id: app.active_trace_id.clone(),
+        trace_recording: app.trace.manual_trace_recording,
+        active_trace_id: app.trace.active_trace_id.clone(),
         recent_logs,
         total_log_lines,
-        hidden_processes: app.hidden_processes.iter().cloned().collect(),
+        hidden_processes: app.filters.hidden_processes.iter().cloned().collect(),
     }
 }
 
@@ -520,15 +521,15 @@ async fn apply_ipc_action(
             app.clear_search();
         }
         IpcAction::SetAutoScroll { enabled } => {
-            app.auto_scroll = enabled;
+            app.navigation.auto_scroll = enabled;
         }
         IpcAction::SelectAndExpandLine { id } => {
-            app.selected_line_id = Some(id);
-            app.expanded_line_view = true;
+            app.navigation.selected_line_id = Some(id);
+            app.display.expanded_line_view = true;
         }
         IpcAction::ScrollToLine { id } => {
             // Set the selected line - log_viewer will auto-scroll to show it
-            app.selected_line_id = Some(id);
+            app.navigation.selected_line_id = Some(id);
         }
         IpcAction::ScrollUp { lines } => {
             app.scroll_up(lines);
@@ -536,7 +537,7 @@ async fn apply_ipc_action(
         IpcAction::ScrollDown { lines } => {
             // Use saturating_add since we don't have max_offset here
             // The log_viewer will clamp during rendering
-            app.scroll_offset = app.scroll_offset.saturating_add(lines);
+            app.navigation.scroll_offset = app.navigation.scroll_offset.saturating_add(lines);
         }
         IpcAction::ScrollToTop => {
             app.scroll_to_top();
@@ -563,11 +564,11 @@ async fn apply_ipc_action(
         }
         IpcAction::HideProcess { name } => {
             // Runtime only - directly modify hidden_processes without saving to config
-            app.hidden_processes.insert(name);
+            app.filters.hidden_processes.insert(name);
         }
         IpcAction::ShowProcess { name } => {
             // Runtime only - directly modify hidden_processes without saving to config
-            app.hidden_processes.remove(&name);
+            app.filters.hidden_processes.remove(&name);
         }
         IpcAction::RestartProcess { name } => {
             // Non-blocking: set restart flag, main loop handles actual restart

@@ -33,30 +33,30 @@ pub fn draw_status_bar(
     ];
 
     // Add batch info (using cached values from log_viewer)
-    if app.batch_view_mode {
-        if let Some((batch_idx, total_batches, line_count)) = app.cached_batch_info {
+    if app.batch.batch_view_mode {
+        if let Some((batch_idx, total_batches, line_count)) = app.cache.cached_batch_info {
             status_parts.push(format!("Batch {}/{}, {} lines", batch_idx + 1, total_batches, line_count));
         }
-    } else if app.cached_batch_count > 0 {
-        status_parts.push(format!("{} batches", app.cached_batch_count));
+    } else if app.cache.cached_batch_count > 0 {
+        status_parts.push(format!("{} batches", app.cache.cached_batch_count));
     }
 
     let status_text = status_parts.join(" | ");
 
     // Mode/scroll indicator - show mode when in a special view, otherwise show tail/scroll state
-    let mode_indicator = if app.trace_filter_mode {
+    let mode_indicator = if app.trace.trace_filter_mode {
         // In trace view - logs are frozen to a specific trace
         Span::styled(
             "[TRACE]",
             Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
         )
-    } else if app.batch_view_mode {
+    } else if app.batch.batch_view_mode {
         // In batch view - viewing a specific batch
         Span::styled(
             "[BATCH]",
             Style::default().fg(Color::Blue).add_modifier(Modifier::BOLD)
         )
-    } else if app.auto_scroll {
+    } else if app.navigation.auto_scroll {
         // Normal mode, following new logs
         Span::styled(
             "[TAIL]",
@@ -71,9 +71,9 @@ pub fn draw_status_bar(
     };
 
     // Build styled line with optional recording indicator and scroll state
-    let line = if app.manual_trace_recording {
+    let line = if app.trace.manual_trace_recording {
         // Show red recording indicator with elapsed time
-        let elapsed_secs = app.manual_trace_start
+        let elapsed_secs = app.trace.manual_trace_start
             .map(|start| (Local::now() - start).num_seconds())
             .unwrap_or(0);
 

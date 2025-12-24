@@ -7,7 +7,7 @@ use std::collections::HashMap;
 /// Toggle process coloring on/off.
 /// Returns true if coloring is now enabled, false if disabled.
 pub fn toggle_coloring(app: &mut App, manager: &ProcessManager, config: &mut Config) -> bool {
-    if app.coloring_enabled {
+    if app.display.coloring_enabled {
         disable_coloring(app, config)
     } else {
         enable_coloring(app, manager, config)
@@ -20,7 +20,7 @@ fn enable_coloring(app: &mut App, manager: &ProcessManager, config: &mut Config)
     let process_names: Vec<String> = manager.get_processes().keys().cloned().collect();
     let log_file_names = manager.get_standalone_log_file_names();
     app.init_process_colors(&process_names, &log_file_names, &config.colors);
-    app.coloring_enabled = true;
+    app.display.coloring_enabled = true;
 
     // Persist to config
     config.process_coloring = Some(true);
@@ -34,7 +34,7 @@ fn enable_coloring(app: &mut App, manager: &ProcessManager, config: &mut Config)
 fn disable_coloring(app: &mut App, config: &mut Config) -> bool {
     // Reset to empty colors (all will return White)
     app.init_process_colors(&[], &[], &HashMap::new());
-    app.coloring_enabled = false;
+    app.display.coloring_enabled = false;
 
     // Persist to config
     config.process_coloring = Some(false);
@@ -74,26 +74,26 @@ mod tests {
         let manager = ProcessManager::new_with_buffer_limit(50);
         let mut config = create_test_config();
 
-        assert!(!app.coloring_enabled);
+        assert!(!app.display.coloring_enabled);
 
         let result = toggle_coloring(&mut app, &manager, &mut config);
 
         assert!(result);
-        assert!(app.coloring_enabled);
+        assert!(app.display.coloring_enabled);
         assert_eq!(config.process_coloring, Some(true));
     }
 
     #[test]
     fn test_toggle_from_enabled_disables() {
         let mut app = create_test_app();
-        app.coloring_enabled = true;
+        app.display.coloring_enabled = true;
         let manager = ProcessManager::new_with_buffer_limit(50);
         let mut config = create_test_config();
 
         let result = toggle_coloring(&mut app, &manager, &mut config);
 
         assert!(!result);
-        assert!(!app.coloring_enabled);
+        assert!(!app.display.coloring_enabled);
         assert_eq!(config.process_coloring, Some(false));
     }
 
@@ -103,12 +103,12 @@ mod tests {
         let manager = ProcessManager::new_with_buffer_limit(50);
         let mut config = create_test_config();
 
-        assert!(!app.coloring_enabled);
+        assert!(!app.display.coloring_enabled);
 
         toggle_coloring(&mut app, &manager, &mut config);
-        assert!(app.coloring_enabled);
+        assert!(app.display.coloring_enabled);
 
         toggle_coloring(&mut app, &manager, &mut config);
-        assert!(!app.coloring_enabled);
+        assert!(!app.display.coloring_enabled);
     }
 }

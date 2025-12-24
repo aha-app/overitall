@@ -11,11 +11,11 @@ use crate::ui::types::StatusType;
 
 /// Draw the command input at the bottom of the screen
 pub fn draw_command_input(f: &mut Frame, area: Rect, app: &App) {
-    let text = if app.search_mode {
+    let text = if app.input.search_mode {
         // Show search input with a cursor and help text
         Line::from(vec![
             Span::styled("/", Style::default().fg(Color::Cyan)),
-            Span::raw(&app.input),
+            Span::raw(&app.input.input),
             Span::styled("_", Style::default().fg(Color::Cyan)),
             Span::styled("  (", Style::default().fg(Color::Gray)),
             Span::styled("Enter", Style::default().fg(Color::Yellow)),
@@ -23,14 +23,14 @@ pub fn draw_command_input(f: &mut Frame, area: Rect, app: &App) {
             Span::styled("Esc", Style::default().fg(Color::Yellow)),
             Span::styled(" to cancel)", Style::default().fg(Color::Gray)),
         ])
-    } else if app.command_mode {
+    } else if app.input.command_mode {
         // Show the input with a cursor
         Line::from(vec![
             Span::styled(":", Style::default().fg(Color::Green)),
-            Span::raw(&app.input),
+            Span::raw(&app.input.input),
             Span::styled("_", Style::default().fg(Color::Green)),
         ])
-    } else if let Some((message, status_type)) = &app.status_message {
+    } else if let Some((message, status_type)) = &app.display.status_message {
         // Show color-coded status message
         let color = match status_type {
             StatusType::Success => Color::Green,

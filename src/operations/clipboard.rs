@@ -53,11 +53,11 @@ pub enum CopyMode {
 
 /// Determine the copy mode based on current app state.
 pub fn determine_copy_mode(app: &App) -> CopyMode {
-    if app.trace_filter_mode {
+    if app.trace.trace_filter_mode {
         CopyMode::Trace
-    } else if app.batch_view_mode {
+    } else if app.batch.batch_view_mode {
         CopyMode::Batch
-    } else if !app.search_pattern.is_empty() {
+    } else if !app.input.search_pattern.is_empty() {
         CopyMode::Search
     } else {
         CopyMode::Batch
@@ -66,12 +66,12 @@ pub fn determine_copy_mode(app: &App) -> CopyMode {
 
 /// Build the text for copying a single line.
 pub fn build_line_text(app: &App, filtered: &FilteredLogs) -> Result<CopyResult, String> {
-    let line_id = app.selected_line_id
+    let line_id = app.navigation.selected_line_id
         .ok_or_else(|| "No line selected".to_string())?;
 
     // Apply batch view mode filtering if enabled
-    let display_logs = if app.batch_view_mode {
-        if let Some(batch_idx) = app.current_batch {
+    let display_logs = if app.batch.batch_view_mode {
+        if let Some(batch_idx) = app.batch.current_batch {
             if !filtered.batches.is_empty() && batch_idx < filtered.batches.len() {
                 let (start, end) = filtered.batches[batch_idx];
                 filtered.logs[start..=end].to_vec()
@@ -103,24 +103,24 @@ pub fn build_line_text(app: &App, filtered: &FilteredLogs) -> Result<CopyResult,
 
 /// Build the text for copying trace lines.
 pub fn build_trace_text(app: &App, logs: &[LogLine]) -> Result<CopyResult, String> {
-    let trace_id = app.active_trace_id.as_ref()
+    let trace_id = app.trace.active_trace_id.as_ref()
         .ok_or_else(|| "No trace ID active".to_string())?;
 
-    let (start, end) = match (app.trace_time_start, app.trace_time_end) {
+    let (start, end) = match (app.trace.trace_time_start, app.trace.trace_time_end) {
         (Some(s), Some(e)) => (s, e),
         _ => return Err("Trace time bounds not set".to_string()),
     };
 
     // Calculate expanded time window
-    let expanded_start = start - app.trace_expand_before;
-    let expanded_end = end + app.trace_expand_after;
+    let expanded_start = start - app.trace.trace_expand_before;
+    let expanded_end = end + app.trace.trace_expand_after;
 
     // Filter logs the same way log_viewer.rs does
     let trace_logs: Vec<_> = logs.iter()
         .filter(|log| {
             let contains_trace = log.line.contains(trace_id.as_str());
             let in_time_window = log.arrival_time >= expanded_start && log.arrival_time <= expanded_end;
-            contains_trace || (in_time_window && (app.trace_expand_before.num_seconds() > 0 || app.trace_expand_after.num_seconds() > 0))
+            contains_trace || (in_time_window && (app.trace.trace_expand_before.num_seconds() > 0 || app.trace.trace_expand_after.num_seconds() > 0))
         })
         .cloned()
         .collect();
@@ -141,7 +141,7 @@ pub fn build_trace_text(app: &App, logs: &[LogLine]) -> Result<CopyResult, Strin
 
 /// Build the text for copying search results.
 pub fn build_search_text(app: &App, logs: &[LogLine]) -> Result<CopyResult, String> {
-    let pattern = &app.search_pattern;
+    let pattern = &app.input.search_pattern;
     let pattern_lower = pattern.to_lowercase();
 
     // Filter logs by search pattern (case-insensitive)
@@ -166,7 +166,7 @@ pub fn build_search_text(app: &App, logs: &[LogLine]) -> Result<CopyResult, Stri
 
 /// Build the text for copying a batch.
 pub fn build_batch_text(app: &App, filtered: &FilteredLogs) -> Result<CopyResult, String> {
-    let line_id = app.selected_line_id
+    let line_id = app.navigation.selected_line_id
         .ok_or_else(|| "No line selected".to_string())?;
 
     // Find the line's index in the filtered logs
@@ -174,8 +174,8 @@ pub fn build_batch_text(app: &App, filtered: &FilteredLogs) -> Result<CopyResult
         .ok_or_else(|| "Selected line not found".to_string())?;
 
     // When in batch view mode, we're viewing a single batch
-    let (batch_idx, start, end) = if app.batch_view_mode {
-        if let Some(current_batch) = app.current_batch {
+    let (batch_idx, start, end) = if app.batch.batch_view_mode {
+        if let Some(current_batch) = app.batch.current_batch {
             if current_batch < filtered.batches.len() {
                 let (s, e) = filtered.batches[current_batch];
                 (current_batch, s, e)
@@ -216,7 +216,7 @@ pub fn build_context_text(app: &App, filtered: &FilteredLogs) -> Result<CopyResu
 /// Copy the selected line to clipboard.
 /// Returns Ok with success message or Err with error message.
 pub fn copy_line(app: &App, manager: &ProcessManager) -> Result<String, String> {
-    let filtered = FilteredLogs::from_manager(manager, &app.filters, app.batch_window_ms);
+    let filtered = FilteredLogs::from_manager(manager, &app.filters.filters, app.batch.batch_window_ms);
     let result = build_line_text(app, &filtered)?;
 
     copy_to_clipboard(&result.text)
@@ -228,7 +228,7 @@ pub fn copy_line(app: &App, manager: &ProcessManager) -> Result<String, String> 
 /// Context-aware: copies trace, search results, or batch depending on current view.
 /// Returns Ok with success message or Err with error message.
 pub fn copy_context(app: &App, manager: &ProcessManager) -> Result<String, String> {
-    let filtered = FilteredLogs::from_manager(manager, &app.filters, app.batch_window_ms);
+    let filtered = FilteredLogs::from_manager(manager, &app.filters.filters, app.batch.batch_window_ms);
     let result = build_context_text(app, &filtered)?;
 
     copy_to_clipboard(&result.text)
@@ -291,7 +291,7 @@ mod tests {
     #[test]
     fn test_determine_copy_mode_trace() {
         let mut app = App::new();
-        app.trace_filter_mode = true;
+        app.trace.trace_filter_mode = true;
 
         assert_eq!(determine_copy_mode(&app), CopyMode::Trace);
     }
@@ -299,7 +299,7 @@ mod tests {
     #[test]
     fn test_determine_copy_mode_batch_view() {
         let mut app = App::new();
-        app.batch_view_mode = true;
+        app.batch.batch_view_mode = true;
 
         assert_eq!(determine_copy_mode(&app), CopyMode::Batch);
     }
@@ -307,7 +307,7 @@ mod tests {
     #[test]
     fn test_determine_copy_mode_search() {
         let mut app = App::new();
-        app.search_pattern = "ERROR".to_string();
+        app.input.search_pattern = "ERROR".to_string();
 
         assert_eq!(determine_copy_mode(&app), CopyMode::Search);
     }
@@ -315,8 +315,8 @@ mod tests {
     #[test]
     fn test_determine_copy_mode_batch_view_overrides_search() {
         let mut app = App::new();
-        app.search_pattern = "ERROR".to_string();
-        app.batch_view_mode = true;
+        app.input.search_pattern = "ERROR".to_string();
+        app.batch.batch_view_mode = true;
 
         // Batch view mode should take priority over search
         assert_eq!(determine_copy_mode(&app), CopyMode::Batch);
@@ -325,9 +325,9 @@ mod tests {
     #[test]
     fn test_determine_copy_mode_trace_overrides_all() {
         let mut app = App::new();
-        app.search_pattern = "ERROR".to_string();
-        app.batch_view_mode = true;
-        app.trace_filter_mode = true;
+        app.input.search_pattern = "ERROR".to_string();
+        app.batch.batch_view_mode = true;
+        app.trace.trace_filter_mode = true;
 
         // Trace mode should take priority over everything
         assert_eq!(determine_copy_mode(&app), CopyMode::Trace);
@@ -343,7 +343,7 @@ mod tests {
     #[test]
     fn test_build_search_text_filters_correctly() {
         let mut app = App::new();
-        app.search_pattern = "ERROR".to_string();
+        app.input.search_pattern = "ERROR".to_string();
 
         let logs = create_test_logs();
         let result = build_search_text(&app, &logs).unwrap();
@@ -360,7 +360,7 @@ mod tests {
     #[test]
     fn test_build_search_text_case_insensitive() {
         let mut app = App::new();
-        app.search_pattern = "error".to_string(); // lowercase
+        app.input.search_pattern = "error".to_string(); // lowercase
 
         let logs = create_test_logs();
         let result = build_search_text(&app, &logs).unwrap();
@@ -372,7 +372,7 @@ mod tests {
     #[test]
     fn test_build_search_text_no_matches() {
         let mut app = App::new();
-        app.search_pattern = "NONEXISTENT".to_string();
+        app.input.search_pattern = "NONEXISTENT".to_string();
 
         let logs = create_test_logs();
         let result = build_search_text(&app, &logs);
@@ -384,12 +384,12 @@ mod tests {
     #[test]
     fn test_build_batch_text_in_batch_view_mode() {
         let mut app = App::new();
-        app.batch_view_mode = true;
-        app.current_batch = Some(0);
+        app.batch.batch_view_mode = true;
+        app.batch.current_batch = Some(0);
 
         let logs = create_test_logs();
         // Use the first log's actual ID
-        app.selected_line_id = Some(logs[0].id);
+        app.navigation.selected_line_id = Some(logs[0].id);
         let filtered = create_filtered_logs(logs);
 
         let result = build_batch_text(&app, &filtered).unwrap();
@@ -406,12 +406,12 @@ mod tests {
     #[test]
     fn test_build_batch_text_second_batch() {
         let mut app = App::new();
-        app.batch_view_mode = true;
-        app.current_batch = Some(1);
+        app.batch.batch_view_mode = true;
+        app.batch.current_batch = Some(1);
 
         let logs = create_test_logs();
         // Use the fourth log's actual ID (index 3)
-        app.selected_line_id = Some(logs[3].id);
+        app.navigation.selected_line_id = Some(logs[3].id);
         let filtered = create_filtered_logs(logs);
 
         let result = build_batch_text(&app, &filtered).unwrap();
@@ -427,8 +427,8 @@ mod tests {
     #[test]
     fn test_build_batch_text_no_selection() {
         let mut app = App::new();
-        app.batch_view_mode = true;
-        app.current_batch = Some(0);
+        app.batch.batch_view_mode = true;
+        app.batch.current_batch = Some(0);
         // No selected_line_id
 
         let logs = create_test_logs();
@@ -443,13 +443,13 @@ mod tests {
     #[test]
     fn test_build_context_text_uses_batch_when_in_batch_view_with_search() {
         let mut app = App::new();
-        app.search_pattern = "ERROR".to_string();
-        app.batch_view_mode = true;
-        app.current_batch = Some(0);
+        app.input.search_pattern = "ERROR".to_string();
+        app.batch.batch_view_mode = true;
+        app.batch.current_batch = Some(0);
 
         let logs = create_test_logs();
         // Use the first log's actual ID
-        app.selected_line_id = Some(logs[0].id);
+        app.navigation.selected_line_id = Some(logs[0].id);
         let filtered = create_filtered_logs(logs);
 
         let result = build_context_text(&app, &filtered).unwrap();
@@ -462,7 +462,7 @@ mod tests {
     #[test]
     fn test_build_context_text_uses_search_when_not_in_batch_view() {
         let mut app = App::new();
-        app.search_pattern = "ERROR".to_string();
+        app.input.search_pattern = "ERROR".to_string();
         // batch_view_mode is false by default
         // Need a selection for batch mode fallback, but search takes priority
 
@@ -482,7 +482,7 @@ mod tests {
 
         let logs = create_test_logs();
         // Use the second log's actual ID (index 1, contains "ERROR: Connection failed")
-        app.selected_line_id = Some(logs[1].id);
+        app.navigation.selected_line_id = Some(logs[1].id);
         let filtered = create_filtered_logs(logs);
 
         let result = build_line_text(&app, &filtered).unwrap();
@@ -496,10 +496,10 @@ mod tests {
         let mut app = App::new();
         let now = Local::now();
 
-        app.trace_filter_mode = true;
-        app.active_trace_id = Some("trace-abc123".to_string());
-        app.trace_time_start = Some(now);
-        app.trace_time_end = Some(now + Duration::seconds(1));
+        app.trace.trace_filter_mode = true;
+        app.trace.active_trace_id = Some("trace-abc123".to_string());
+        app.trace.trace_time_start = Some(now);
+        app.trace.trace_time_end = Some(now + Duration::seconds(1));
 
         let logs = create_test_logs();
 

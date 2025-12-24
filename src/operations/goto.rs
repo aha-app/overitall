@@ -8,14 +8,14 @@ use chrono::NaiveTime;
 /// This matches the filtering logic in log_viewer.rs exactly.
 fn get_display_logs(app: &App, manager: &ProcessManager) -> Vec<LogLine> {
     // Use snapshot if available (frozen/batch mode), otherwise use live buffer
-    let logs_vec: Vec<&LogLine> = if let Some(ref snapshot) = app.snapshot {
+    let logs_vec: Vec<&LogLine> = if let Some(ref snapshot) = app.navigation.snapshot {
         snapshot.iter().collect()
     } else {
         let mut logs = manager.get_all_logs();
 
         // If display is frozen (without snapshot), only show logs up to the frozen timestamp
-        if app.frozen {
-            if let Some(frozen_at) = app.frozen_at {
+        if app.navigation.frozen {
+            if let Some(frozen_at) = app.navigation.frozen_at {
                 logs.retain(|log| log.timestamp <= frozen_at);
             }
         }
@@ -24,7 +24,7 @@ fn get_display_logs(app: &App, manager: &ProcessManager) -> Vec<LogLine> {
     };
 
     // Apply filters to logs
-    let mut filtered_logs: Vec<&LogLine> = if app.filters.is_empty() {
+    let mut filtered_logs: Vec<&LogLine> = if app.filters.filters.is_empty() {
         logs_vec
     } else {
         logs_vec.into_iter()
@@ -32,7 +32,7 @@ fn get_display_logs(app: &App, manager: &ProcessManager) -> Vec<LogLine> {
                 let line_text = &log.line;
 
                 // Check exclude filters first (if any match, reject the line)
-                for filter in &app.filters {
+                for filter in &app.filters.filters {
                     if matches!(filter.filter_type, FilterType::Exclude) {
                         if filter.matches(line_text) {
                             return false;
@@ -42,6 +42,7 @@ fn get_display_logs(app: &App, manager: &ProcessManager) -> Vec<LogLine> {
 
                 // Check include filters (if any exist, at least one must match)
                 let include_filters: Vec<_> = app
+                    .filters
                     .filters
                     .iter()
                     .filter(|f| matches!(f.filter_type, FilterType::Include))
@@ -57,10 +58,10 @@ fn get_display_logs(app: &App, manager: &ProcessManager) -> Vec<LogLine> {
     };
 
     // Apply search filter if active
-    let active_search_pattern = if app.search_mode && !app.input.is_empty() {
-        &app.input
-    } else if !app.search_pattern.is_empty() {
-        &app.search_pattern
+    let active_search_pattern = if app.input.search_mode && !app.input.input.is_empty() {
+        &app.input.input
+    } else if !app.input.search_pattern.is_empty() {
+        &app.input.search_pattern
     } else {
         ""
     };
@@ -75,36 +76,36 @@ fn get_display_logs(app: &App, manager: &ProcessManager) -> Vec<LogLine> {
 
     // Apply process visibility filter
     filtered_logs.retain(|log| {
-        !app.hidden_processes.contains(log.source.process_name())
+        !app.filters.hidden_processes.contains(log.source.process_name())
     });
 
     // Apply trace filter mode if active
-    if app.trace_filter_mode {
+    if app.trace.trace_filter_mode {
         if let (Some(trace_id), Some(start), Some(end)) = (
-            &app.active_trace_id,
-            app.trace_time_start,
-            app.trace_time_end,
+            &app.trace.active_trace_id,
+            app.trace.trace_time_start,
+            app.trace.trace_time_end,
         ) {
-            let expanded_start = start - app.trace_expand_before;
-            let expanded_end = end + app.trace_expand_after;
+            let expanded_start = start - app.trace.trace_expand_before;
+            let expanded_end = end + app.trace.trace_expand_after;
 
             filtered_logs = filtered_logs
                 .into_iter()
                 .filter(|log| {
                     let contains_trace = log.line.contains(trace_id.as_str());
                     let in_time_window = log.arrival_time >= expanded_start && log.arrival_time <= expanded_end;
-                    contains_trace || (in_time_window && (app.trace_expand_before.num_seconds() > 0 || app.trace_expand_after.num_seconds() > 0))
+                    contains_trace || (in_time_window && (app.trace.trace_expand_before.num_seconds() > 0 || app.trace.trace_expand_after.num_seconds() > 0))
                 })
                 .collect();
         }
     }
 
     // Detect batches from filtered logs
-    let batches = detect_batches_from_logs(&filtered_logs, app.batch_window_ms);
+    let batches = detect_batches_from_logs(&filtered_logs, app.batch.batch_window_ms);
 
     // Apply batch view mode filtering if enabled
-    let display_logs: Vec<LogLine> = if app.batch_view_mode {
-        if let Some(batch_idx) = app.current_batch {
+    let display_logs: Vec<LogLine> = if app.batch.batch_view_mode {
+        if let Some(batch_idx) = app.batch.current_batch {
             if !batches.is_empty() && batch_idx < batches.len() {
                 let (start, end) = batches[batch_idx];
                 filtered_logs[start..=end].iter().map(|l| (*l).clone()).collect()
@@ -142,15 +143,15 @@ pub fn goto_timestamp(app: &mut App, manager: &ProcessManager, target: GotoTarge
     match target_idx {
         Some(idx) => {
             // Create snapshot if not already frozen
-            if app.snapshot.is_none() {
+            if app.navigation.snapshot.is_none() {
                 let logs = manager.get_all_logs();
-                let filtered = crate::ui::apply_filters(logs, &app.filters);
+                let filtered = crate::ui::apply_filters(logs, &app.filters.filters);
                 app.create_snapshot(filtered);
             }
 
             let log = &display_logs[idx];
-            app.selected_line_id = Some(log.id);
-            app.auto_scroll = false;
+            app.navigation.selected_line_id = Some(log.id);
+            app.navigation.auto_scroll = false;
             app.freeze_display();
 
             let time_str = log.timestamp.format("%H:%M:%S").to_string();
@@ -188,7 +189,7 @@ fn find_by_relative_time(app: &App, logs: &[LogLine], seconds: i64) -> Option<us
     }
 
     // Determine the reference time
-    let reference_time = if let Some(selected_id) = app.selected_line_id {
+    let reference_time = if let Some(selected_id) = app.navigation.selected_line_id {
         // Use currently selected log's time
         logs.iter()
             .find(|log| log.id == selected_id)
