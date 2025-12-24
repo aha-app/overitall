@@ -12,7 +12,10 @@ pub fn increase_batch_window(
     config: &mut Config
 ) -> (i64, usize) {
     let new_window = app.batch.batch_window_ms + 100;
-    app.set_batch_window(new_window);
+    app.batch.set_batch_window(new_window);
+    if app.batch.batch_view_mode {
+        app.navigation.scroll_offset = 0;
+    }
 
     let filtered = FilteredLogs::from_manager(manager, &app.filters.filters, new_window);
 
@@ -30,7 +33,10 @@ pub fn decrease_batch_window(
     config: &mut Config
 ) -> (i64, usize) {
     let new_window = (app.batch.batch_window_ms - 100).max(1);
-    app.set_batch_window(new_window);
+    app.batch.set_batch_window(new_window);
+    if app.batch.batch_view_mode {
+        app.navigation.scroll_offset = 0;
+    }
 
     let filtered = FilteredLogs::from_manager(manager, &app.filters.filters, new_window);
 
@@ -48,7 +54,10 @@ pub fn set_batch_window(
     config: &mut Config,
     ms: i64
 ) -> usize {
-    app.set_batch_window(ms);
+    app.batch.set_batch_window(ms);
+    if app.batch.batch_view_mode {
+        app.navigation.scroll_offset = 0;
+    }
 
     let filtered = FilteredLogs::from_manager(manager, &app.filters.filters, ms);
 

@@ -186,7 +186,8 @@ fn test_search_with_results() {
     app.input.add_char('R');
 
     // Perform the search
-    app.perform_search("ERROR".to_string());
+    app.input.perform_search("ERROR".to_string());
+    app.display.expanded_line_view = false;
 
     let output = render_app_to_string(&mut app, &manager, 120, 40);
 
@@ -202,7 +203,8 @@ fn test_search_pattern_matching() {
     let manager = create_manager_with_logs();
 
     // Search for a pattern that should match
-    app.perform_search("job".to_string());
+    app.input.perform_search("job".to_string());
+    app.display.expanded_line_view = false;
 
     let output = render_app_to_string(&mut app, &manager, 120, 40);
 
@@ -216,7 +218,8 @@ fn test_search_as_filter() {
     let manager = create_manager_with_logs();
 
     // Search for ERROR - this should filter logs to show only ERROR messages
-    app.perform_search("ERROR".to_string());
+    app.input.perform_search("ERROR".to_string());
+    app.display.expanded_line_view = false;
 
     let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert!(!output.is_empty());
@@ -233,7 +236,8 @@ fn test_search_with_filters() {
     app.filters.add_include_filter("web".to_string());
 
     // Search for ERROR in filtered logs
-    app.perform_search("ERROR".to_string());
+    app.input.perform_search("ERROR".to_string());
+    app.display.expanded_line_view = false;
 
     let output = render_app_to_string(&mut app, &manager, 120, 40);
 
@@ -389,7 +393,7 @@ fn test_snapshot_batch_view_mode() {
     let manager = create_manager_with_batched_logs();
 
     // Enable batch view mode and select first batch
-    app.toggle_batch_view();
+    app.batch.toggle_batch_view();
 
     let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
@@ -411,8 +415,10 @@ fn test_snapshot_batch_navigation_second_batch() {
     let manager = create_manager_with_batched_logs();
 
     // Enable batch view and navigate to second batch
-    app.toggle_batch_view();
-    app.next_batch();
+    app.batch.toggle_batch_view();
+    app.batch.next_batch();
+    app.navigation.scroll_offset = 0;
+    app.navigation.auto_scroll = false;
 
     let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
@@ -450,7 +456,7 @@ fn test_snapshot_filtering_and_batching_combined() {
 
     // Apply filter and enable batch view
     app.filters.add_include_filter("web".to_string());
-    app.toggle_batch_view();
+    app.batch.toggle_batch_view();
 
     let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
@@ -465,7 +471,8 @@ fn test_snapshot_search_and_filtering_combined() {
     app.filters.add_include_filter("ERROR".to_string());
 
     // Perform search
-    app.perform_search("Database".to_string());
+    app.input.perform_search("Database".to_string());
+    app.display.expanded_line_view = false;
 
     let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
@@ -477,10 +484,11 @@ fn test_snapshot_search_and_batching_combined() {
     let manager = create_manager_with_batched_logs();
 
     // Enable batch view
-    app.toggle_batch_view();
+    app.batch.toggle_batch_view();
 
     // Perform search
-    app.perform_search("job".to_string());
+    app.input.perform_search("job".to_string());
+    app.display.expanded_line_view = false;
 
     let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
@@ -495,10 +503,11 @@ fn test_snapshot_all_features_active() {
     app.filters.add_include_filter("web".to_string());
 
     // Enable batch view
-    app.toggle_batch_view();
+    app.batch.toggle_batch_view();
 
     // Perform search
-    app.perform_search("server".to_string());
+    app.input.perform_search("server".to_string());
+    app.display.expanded_line_view = false;
 
     let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
@@ -542,7 +551,7 @@ fn test_wraparound_in_batch_view() {
     let manager = create_manager_with_batched_logs();
 
     // Enable batch view mode
-    app.toggle_batch_view();
+    app.batch.toggle_batch_view();
 
     // Select first line in batch
     overitall::operations::navigation::select_next_line(&mut app, &manager);
@@ -590,7 +599,10 @@ fn test_batch_window_set_value() {
     let mut app = create_test_app();
 
     // Change batch window to 500ms
-    app.set_batch_window(500);
+    app.batch.set_batch_window(500);
+    if app.batch.batch_view_mode {
+        app.navigation.scroll_offset = 0;
+    }
 
     assert_eq!(app.batch.batch_window_ms, 500);
 }
@@ -627,7 +639,10 @@ fn test_batch_window_snapshot_with_small_window() {
 
     // Set very small batch window (50ms)
     // This should create more batches from the test data
-    app.set_batch_window(50);
+    app.batch.set_batch_window(50);
+    if app.batch.batch_view_mode {
+        app.navigation.scroll_offset = 0;
+    }
 
     let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
@@ -640,7 +655,10 @@ fn test_batch_window_snapshot_with_large_window() {
 
     // Set large batch window (5000ms = 5 seconds)
     // This should group all test logs into a single batch
-    app.set_batch_window(5000);
+    app.batch.set_batch_window(5000);
+    if app.batch.batch_view_mode {
+        app.navigation.scroll_offset = 0;
+    }
 
     let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
@@ -651,12 +669,17 @@ fn test_batch_window_resets_batch_view_if_active() {
     let mut app = create_test_app();
 
     // Enable batch view and select batch 2
-    app.toggle_batch_view();
-    app.next_batch();
+    app.batch.toggle_batch_view();
+    app.batch.next_batch();
+    app.navigation.scroll_offset = 0;
+    app.navigation.auto_scroll = false;
     app.batch.current_batch = Some(1); // Manually set to batch 2
 
     // Changing batch window should reset to batch 0
-    app.set_batch_window(500);
+    app.batch.set_batch_window(500);
+    if app.batch.batch_view_mode {
+        app.navigation.scroll_offset = 0;
+    }
 
     assert_eq!(app.batch.current_batch, Some(0), "Should reset to first batch");
 }

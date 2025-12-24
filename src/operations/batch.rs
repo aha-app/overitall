@@ -14,7 +14,9 @@ pub fn next_batch(app: &mut App, manager: &ProcessManager) -> bool {
         app.navigation.create_snapshot(filtered_logs);
     }
 
-    app.next_batch();
+    app.batch.next_batch();
+    app.navigation.scroll_offset = 0;
+    app.navigation.auto_scroll = false;
     was_none
 }
 
@@ -30,7 +32,9 @@ pub fn prev_batch(app: &mut App, manager: &ProcessManager) -> bool {
         app.navigation.create_snapshot(filtered_logs);
     }
 
-    app.prev_batch();
+    app.batch.prev_batch();
+    app.navigation.scroll_offset = 0;
+    app.navigation.auto_scroll = false;
     was_none
 }
 
@@ -48,7 +52,7 @@ pub fn toggle_batch_view(app: &mut App, manager: &ProcessManager) -> bool {
         app.navigation.discard_snapshot();
     }
 
-    app.toggle_batch_view();
+    app.batch.toggle_batch_view();
     app.batch.batch_view_mode
 }
 

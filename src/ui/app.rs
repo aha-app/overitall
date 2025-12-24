@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use chrono::{DateTime, Local};
-
 use super::batch_state::BatchState;
 use super::click_regions::ClickRegions;
 use super::display_state::DisplayState;
@@ -11,7 +9,6 @@ use super::navigation_state::NavigationState;
 use super::process_colors::ProcessColors;
 use super::render_cache::RenderCache;
 use super::trace_state::TraceState;
-use crate::traces::TraceCandidate;
 
 /// Display mode for log lines
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -130,79 +127,5 @@ impl App {
     #[allow(dead_code)]
     pub fn clear_status(&mut self) {
         self.display.clear_status();
-    }
-
-    pub fn perform_search(&mut self, pattern: String) {
-        self.input.perform_search(pattern);
-        // Close expanded view when a new search is performed
-        self.display.expanded_line_view = false;
-    }
-
-    pub fn clear_search(&mut self) {
-        self.input.clear_search();
-    }
-
-    pub fn next_batch(&mut self) {
-        self.batch.next_batch();
-        self.navigation.scroll_offset = 0;
-        self.navigation.auto_scroll = false;
-    }
-
-    pub fn prev_batch(&mut self) {
-        self.batch.prev_batch();
-        self.navigation.scroll_offset = 0;
-        self.navigation.auto_scroll = false;
-    }
-
-    pub fn toggle_batch_view(&mut self) {
-        self.batch.toggle_batch_view();
-    }
-
-    pub fn set_batch_window(&mut self, window_ms: i64) {
-        self.batch.set_batch_window(window_ms);
-        if self.batch.batch_view_mode {
-            self.navigation.scroll_offset = 0;
-        }
-    }
-
-    /// Enter trace selection mode with a list of candidates
-    pub fn enter_trace_selection(&mut self, candidates: Vec<TraceCandidate>) {
-        self.trace.enter_trace_selection(candidates);
-    }
-
-    pub fn select_next_trace(&mut self) {
-        self.trace.select_next_trace();
-    }
-
-    pub fn select_prev_trace(&mut self) {
-        self.trace.select_prev_trace();
-    }
-
-    pub fn exit_trace_selection(&mut self) {
-        self.trace.exit_trace_selection();
-    }
-
-    pub fn get_selected_trace(&self) -> Option<&TraceCandidate> {
-        self.trace.get_selected_trace()
-    }
-
-    /// Enter trace filter mode for a specific trace
-    pub fn enter_trace_filter(&mut self, trace_id: String, start: DateTime<Local>, end: DateTime<Local>) {
-        self.trace.enter_trace_filter(trace_id, start, end);
-        self.navigation.freeze_display();
-    }
-
-    pub fn expand_trace_before(&mut self) {
-        self.trace.expand_trace_before();
-    }
-
-    pub fn expand_trace_after(&mut self) {
-        self.trace.expand_trace_after();
-    }
-
-    pub fn exit_trace_filter(&mut self) {
-        self.trace.exit_trace_filter();
-        self.navigation.unfreeze_display();
-        self.navigation.selected_line_id = None;
     }
 }

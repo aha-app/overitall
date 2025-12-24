@@ -21,26 +21,27 @@ pub fn execute_traces(app: &mut App, manager: &ProcessManager) {
     }
 
     let count = candidates.len();
-    app.enter_trace_selection(candidates);
+    app.trace.enter_trace_selection(candidates);
     app.set_status_info(format!("Found {} trace(s) - select one to filter", count));
 }
 
 /// Apply the selected trace filter and enter trace filter mode
 pub fn select_trace(app: &mut App, manager: &ProcessManager) {
-    if let Some(candidate) = app.get_selected_trace().cloned() {
+    if let Some(candidate) = app.trace.get_selected_trace().cloned() {
         // Exit trace selection mode
-        app.exit_trace_selection();
+        app.trace.exit_trace_selection();
 
         // Create snapshot of logs before entering trace filter mode (clone since we need owned)
         let logs: Vec<_> = manager.get_all_logs().into_iter().cloned().collect();
         app.navigation.create_snapshot(logs);
 
         // Enter trace filter mode
-        app.enter_trace_filter(
+        app.trace.enter_trace_filter(
             candidate.token.clone(),
             candidate.first_occurrence,
             candidate.last_occurrence,
         );
+        app.navigation.freeze_display();
 
         app.set_status_info(format!(
             "Trace: {} ({} lines) - [ ] to expand, Esc to exit",
@@ -52,14 +53,14 @@ pub fn select_trace(app: &mut App, manager: &ProcessManager) {
 
 /// Expand trace view backward
 pub fn expand_trace_before(app: &mut App) {
-    app.expand_trace_before();
+    app.trace.expand_trace_before();
     let secs = app.trace.trace_expand_before.num_seconds();
     app.set_status_info(format!("Expanded trace view: -{}s before", secs));
 }
 
 /// Expand trace view forward
 pub fn expand_trace_after(app: &mut App) {
-    app.expand_trace_after();
+    app.trace.expand_trace_after();
     let secs = app.trace.trace_expand_after.num_seconds();
     app.set_status_info(format!("Expanded trace view: +{}s after", secs));
 }

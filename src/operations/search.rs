@@ -9,7 +9,8 @@ pub fn execute_search(app: &mut App, manager: &ProcessManager, search_text: &str
     }
 
     // Save the search pattern
-    app.perform_search(search_text.to_string());
+    app.input.perform_search(search_text.to_string());
+    app.display.expanded_line_view = false;
 
     // Get filtered logs (after persistent filters AND search filter)
     let logs = manager.get_all_logs();

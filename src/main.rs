@@ -172,7 +172,10 @@ async fn main() -> anyhow::Result<()> {
 
     // Load batch window from config if specified
     if let Some(batch_window_ms) = config.batch_window_ms {
-        app.set_batch_window(batch_window_ms);
+        app.batch.set_batch_window(batch_window_ms);
+        if app.batch.batch_view_mode {
+            app.navigation.scroll_offset = 0;
+        }
     }
 
     // Load filters from config
@@ -515,10 +518,11 @@ async fn apply_ipc_action(
 ) {
     match action {
         IpcAction::SetSearch { pattern } => {
-            app.perform_search(pattern);
+            app.input.perform_search(pattern);
+            app.display.expanded_line_view = false;
         }
         IpcAction::ClearSearch => {
-            app.clear_search();
+            app.input.clear_search();
         }
         IpcAction::SetAutoScroll { enabled } => {
             app.navigation.auto_scroll = enabled;

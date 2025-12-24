@@ -78,7 +78,9 @@ fn test_keyboard_next_batch_creates_snapshot() {
     let logs = manager.get_all_logs();
     let filtered_logs = overitall::ui::apply_filters(logs, &app.filters.filters);
     app.navigation.create_snapshot(filtered_logs);
-    app.next_batch();
+    app.batch.next_batch();
+    app.navigation.scroll_offset = 0;
+    app.navigation.auto_scroll = false;
 
     assert!(app.batch.batch_view_mode);
     assert!(app.navigation.snapshot.is_some());
@@ -94,7 +96,9 @@ fn test_keyboard_prev_batch_creates_snapshot() {
     let logs = manager.get_all_logs();
     let filtered_logs = overitall::ui::apply_filters(logs, &app.filters.filters);
     app.navigation.create_snapshot(filtered_logs);
-    app.prev_batch();
+    app.batch.prev_batch();
+    app.navigation.scroll_offset = 0;
+    app.navigation.auto_scroll = false;
 
     assert!(app.batch.batch_view_mode);
     assert!(app.navigation.snapshot.is_some());
@@ -113,17 +117,21 @@ fn test_batch_navigation_increments() {
     let num_batches = batches.len();
 
     app.navigation.create_snapshot(filtered_logs);
-    app.toggle_batch_view();
+    app.batch.toggle_batch_view();
 
     // After toggle_batch_view, current_batch is Some(0)
     assert_eq!(app.batch.current_batch, Some(0));
 
     // Navigate to second batch
-    app.next_batch();
+    app.batch.next_batch();
+    app.navigation.scroll_offset = 0;
+    app.navigation.auto_scroll = false;
     assert_eq!(app.batch.current_batch, Some(1));
 
     // Navigate to third batch
-    app.next_batch();
+    app.batch.next_batch();
+    app.navigation.scroll_offset = 0;
+    app.navigation.auto_scroll = false;
     assert_eq!(app.batch.current_batch, Some(2));
 
     // The App just increments the counter, wrapping happens at render time
@@ -144,7 +152,10 @@ fn test_increase_batch_window_behavior() {
 
     // Increase by 100ms (what handle_increase_batch_window does)
     let new_window = app.batch.batch_window_ms + 100;
-    app.set_batch_window(new_window);
+    app.batch.set_batch_window(new_window);
+    if app.batch.batch_view_mode {
+        app.navigation.scroll_offset = 0;
+    }
 
     assert_eq!(app.batch.batch_window_ms, 200);
 }
@@ -154,12 +165,18 @@ fn test_decrease_batch_window_behavior() {
     let mut app = create_test_app();
 
     // Set to 500ms first
-    app.set_batch_window(500);
+    app.batch.set_batch_window(500);
+    if app.batch.batch_view_mode {
+        app.navigation.scroll_offset = 0;
+    }
     assert_eq!(app.batch.batch_window_ms, 500);
 
     // Decrease by 100ms (what handle_decrease_batch_window does)
     let new_window = (app.batch.batch_window_ms - 100).max(1);
-    app.set_batch_window(new_window);
+    app.batch.set_batch_window(new_window);
+    if app.batch.batch_view_mode {
+        app.navigation.scroll_offset = 0;
+    }
 
     assert_eq!(app.batch.batch_window_ms, 400);
 }
@@ -169,11 +186,17 @@ fn test_decrease_batch_window_minimum() {
     let mut app = create_test_app();
 
     // Set to 50ms
-    app.set_batch_window(50);
+    app.batch.set_batch_window(50);
+    if app.batch.batch_view_mode {
+        app.navigation.scroll_offset = 0;
+    }
 
     // Decrease - should clamp to 1ms
     let new_window = (app.batch.batch_window_ms - 100).max(1);
-    app.set_batch_window(new_window);
+    app.batch.set_batch_window(new_window);
+    if app.batch.batch_view_mode {
+        app.navigation.scroll_offset = 0;
+    }
 
     assert_eq!(app.batch.batch_window_ms, 1);
 }
@@ -333,7 +356,7 @@ fn test_reset_exits_batch_view_mode() {
     let mut app = create_test_app();
 
     // Enable batch view mode
-    app.toggle_batch_view();
+    app.batch.toggle_batch_view();
     app.batch.current_batch = Some(2);
 
     assert!(app.batch.batch_view_mode);
@@ -404,11 +427,15 @@ fn test_command_next_batch_behavior() {
 
     // Simulate keyboard behavior
     app1.navigation.create_snapshot(filtered_logs.clone());
-    app1.next_batch();
+    app1.batch.next_batch();
+    app1.navigation.scroll_offset = 0;
+    app1.navigation.auto_scroll = false;
 
     // Simulate command behavior
     app2.navigation.create_snapshot(filtered_logs);
-    app2.next_batch();
+    app2.batch.next_batch();
+    app2.navigation.scroll_offset = 0;
+    app2.navigation.auto_scroll = false;
 
     // Both should end up in same state
     assert_eq!(app1.batch.batch_view_mode, app2.batch.batch_view_mode);

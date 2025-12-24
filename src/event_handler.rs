@@ -104,19 +104,19 @@ impl<'a> EventHandler<'a> {
                 Ok(false)
             }
             KeyCode::Up if self.app.trace.trace_selection_mode => {
-                self.app.select_prev_trace();
+                self.app.trace.select_prev_trace();
                 Ok(false)
             }
             KeyCode::Down if self.app.trace.trace_selection_mode => {
-                self.app.select_next_trace();
+                self.app.trace.select_next_trace();
                 Ok(false)
             }
             KeyCode::Char('k') if self.app.trace.trace_selection_mode => {
-                self.app.select_prev_trace();
+                self.app.trace.select_prev_trace();
                 Ok(false)
             }
             KeyCode::Char('j') if self.app.trace.trace_selection_mode => {
-                self.app.select_next_trace();
+                self.app.trace.select_next_trace();
                 Ok(false)
             }
             // Trace filter mode
@@ -401,7 +401,7 @@ impl<'a> EventHandler<'a> {
 
         // 5. Trace selection mode
         if self.app.trace.trace_selection_mode {
-            self.app.exit_trace_selection();
+            self.app.trace.exit_trace_selection();
             self.app.set_status_info("Trace selection cancelled".to_string());
             return;
         }
@@ -418,7 +418,9 @@ impl<'a> EventHandler<'a> {
 
         // 7. Trace filter mode
         if self.app.trace.trace_filter_mode {
-            self.app.exit_trace_filter();
+            self.app.trace.exit_trace_filter();
+            self.app.navigation.unfreeze_display();
+            self.app.navigation.selected_line_id = None;
             self.app.navigation.discard_snapshot();
             self.app.set_status_info("Exited trace view".to_string());
             return;
@@ -434,7 +436,7 @@ impl<'a> EventHandler<'a> {
                 // Second Esc: unfreeze and resume tailing
                 self.app.navigation.unfreeze_display();
                 self.app.navigation.discard_snapshot();
-                self.app.clear_search();
+                self.app.input.clear_search();
                 self.app.navigation.scroll_to_bottom();
                 self.app.set_status_info("Resumed tailing".to_string());
             }
@@ -446,14 +448,14 @@ impl<'a> EventHandler<'a> {
             self.app.batch.batch_view_mode = false;
             self.app.batch.current_batch = None;
             self.app.navigation.discard_snapshot();
-            self.app.clear_search();
+            self.app.input.clear_search();
             self.app.navigation.scroll_to_bottom();
             self.app.set_status_info("Exited batch view, resumed tailing".to_string());
             return;
         }
 
         // 11. Default - jump to latest
-        self.app.clear_search();
+        self.app.input.clear_search();
         self.app.navigation.scroll_to_bottom();
         self.app.navigation.selected_line_id = None;
         self.app.set_status_info("Jumped to latest logs".to_string());
