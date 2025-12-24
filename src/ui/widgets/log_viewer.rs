@@ -474,8 +474,8 @@ pub fn draw_log_viewer(
     // Build title with filters and search info (buffer/batch stats now in status bar)
     let mut title_parts = vec![];
 
-    if app.filter_count() > 0 {
-        title_parts.push(format!("({} filters)", app.filter_count()));
+    if app.filters.filter_count() > 0 {
+        title_parts.push(format!("({} filters)", app.filters.filter_count()));
     }
 
     if !active_search_pattern.is_empty() {

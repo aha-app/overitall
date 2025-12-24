@@ -4,22 +4,22 @@ use crate::ui::{App, FilterType};
 
 /// Add an include filter and save to config.
 pub fn add_include_filter(app: &mut App, config: &mut Config, pattern: String) {
-    app.add_include_filter(pattern);
+    app.filters.add_include_filter(pattern);
     config.update_filters(&app.filters.filters);
     save_config_with_error(config, app);
 }
 
 /// Add an exclude filter and save to config.
 pub fn add_exclude_filter(app: &mut App, config: &mut Config, pattern: String) {
-    app.add_exclude_filter(pattern);
+    app.filters.add_exclude_filter(pattern);
     config.update_filters(&app.filters.filters);
     save_config_with_error(config, app);
 }
 
 /// Clear all filters and save to config. Returns the number of filters that were cleared.
 pub fn clear_filters(app: &mut App, config: &mut Config) -> usize {
-    let count = app.filter_count();
-    app.clear_filters();
+    let count = app.filters.filter_count();
+    app.filters.clear_filters();
     config.update_filters(&app.filters.filters);
     save_config_with_error(config, app);
     count
@@ -27,7 +27,7 @@ pub fn clear_filters(app: &mut App, config: &mut Config) -> usize {
 
 /// Remove a filter by pattern and save to config. Returns true if a filter was removed.
 pub fn remove_filter(app: &mut App, config: &mut Config, pattern: &str) -> bool {
-    let removed = app.remove_filter(pattern);
+    let removed = app.filters.remove_filter(pattern);
     if removed {
         config.update_filters(&app.filters.filters);
         save_config_with_error(config, app);

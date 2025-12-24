@@ -133,26 +133,6 @@ impl App {
         self.display.clear_status();
     }
 
-    pub fn add_include_filter(&mut self, pattern: String) {
-        self.filters.add_include_filter(pattern);
-    }
-
-    pub fn add_exclude_filter(&mut self, pattern: String) {
-        self.filters.add_exclude_filter(pattern);
-    }
-
-    pub fn clear_filters(&mut self) {
-        self.filters.clear_filters();
-    }
-
-    pub fn remove_filter(&mut self, pattern: &str) -> bool {
-        self.filters.remove_filter(pattern)
-    }
-
-    pub fn filter_count(&self) -> usize {
-        self.filters.filter_count()
-    }
-
     pub fn perform_search(&mut self, pattern: String) {
         self.input.perform_search(pattern);
         // Close expanded view when a new search is performed

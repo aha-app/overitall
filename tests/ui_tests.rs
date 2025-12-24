@@ -115,8 +115,8 @@ fn test_command_mode_display() {
 #[test]
 fn test_filter_display() {
     let mut app = create_test_app();
-    app.add_include_filter("ERROR".to_string());
-    app.add_exclude_filter("DEBUG".to_string());
+    app.filters.add_include_filter("ERROR".to_string());
+    app.filters.add_exclude_filter("DEBUG".to_string());
 
     let manager = create_test_process_manager();
 
@@ -230,7 +230,7 @@ fn test_search_with_filters() {
     let manager = create_manager_with_logs();
 
     // Add a filter to include only web logs
-    app.add_include_filter("web".to_string());
+    app.filters.add_include_filter("web".to_string());
 
     // Search for ERROR in filtered logs
     app.perform_search("ERROR".to_string());
@@ -282,7 +282,7 @@ fn test_snapshot_include_filter_active() {
     let manager = create_manager_with_logs();
 
     // Apply include filter for "ERROR"
-    app.add_include_filter("ERROR".to_string());
+    app.filters.add_include_filter("ERROR".to_string());
 
     let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
@@ -294,7 +294,7 @@ fn test_snapshot_exclude_filter_active() {
     let manager = create_manager_with_logs();
 
     // Apply exclude filter for "ERROR"
-    app.add_exclude_filter("ERROR".to_string());
+    app.filters.add_exclude_filter("ERROR".to_string());
 
     let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
@@ -306,8 +306,8 @@ fn test_snapshot_multiple_filters_active() {
     let manager = create_manager_with_logs();
 
     // Apply both include and exclude filters
-    app.add_include_filter("job".to_string());
-    app.add_exclude_filter("ERROR".to_string());
+    app.filters.add_include_filter("job".to_string());
+    app.filters.add_exclude_filter("ERROR".to_string());
 
     let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
@@ -319,9 +319,9 @@ fn test_snapshot_filter_list_display() {
     let manager = create_manager_with_logs();
 
     // Add multiple filters
-    app.add_include_filter("ERROR".to_string());
-    app.add_include_filter("web".to_string());
-    app.add_exclude_filter("DEBUG".to_string());
+    app.filters.add_include_filter("ERROR".to_string());
+    app.filters.add_include_filter("web".to_string());
+    app.filters.add_exclude_filter("DEBUG".to_string());
 
     // Enter command mode to show filter list command
     app.input.enter_command_mode();
@@ -338,7 +338,7 @@ fn test_snapshot_empty_results_after_filtering() {
     let manager = create_manager_with_logs();
 
     // Apply filter that matches nothing
-    app.add_include_filter("NONEXISTENT_PATTERN_XYZ".to_string());
+    app.filters.add_include_filter("NONEXISTENT_PATTERN_XYZ".to_string());
 
     let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);
@@ -449,7 +449,7 @@ fn test_snapshot_filtering_and_batching_combined() {
     let manager = create_manager_with_batched_logs();
 
     // Apply filter and enable batch view
-    app.add_include_filter("web".to_string());
+    app.filters.add_include_filter("web".to_string());
     app.toggle_batch_view();
 
     let output = render_app_to_string(&mut app, &manager, 120, 40);
@@ -462,7 +462,7 @@ fn test_snapshot_search_and_filtering_combined() {
     let manager = create_manager_with_logs();
 
     // Add filter
-    app.add_include_filter("ERROR".to_string());
+    app.filters.add_include_filter("ERROR".to_string());
 
     // Perform search
     app.perform_search("Database".to_string());
@@ -492,7 +492,7 @@ fn test_snapshot_all_features_active() {
     let manager = create_manager_with_batched_logs();
 
     // Apply filter
-    app.add_include_filter("web".to_string());
+    app.filters.add_include_filter("web".to_string());
 
     // Enable batch view
     app.toggle_batch_view();
@@ -560,7 +560,7 @@ fn test_wraparound_with_filters() {
     let manager = create_manager_with_logs();
 
     // Apply a filter to reduce visible logs
-    app.add_include_filter("ERROR".to_string());
+    app.filters.add_include_filter("ERROR".to_string());
     // This should leave 2 logs visible
 
     // Select first filtered line
@@ -792,7 +792,7 @@ fn test_snapshot_hidden_with_filters_combined() {
 
     // Hide worker and apply filter
     app.filters.hidden_processes.insert("worker".to_string());
-    app.add_include_filter("ERROR".to_string());
+    app.filters.add_include_filter("ERROR".to_string());
 
     let output = render_app_to_string(&mut app, &manager, 120, 40);
     assert_snapshot!(output);

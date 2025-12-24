@@ -177,10 +177,10 @@ async fn main() -> anyhow::Result<()> {
 
     // Load filters from config
     for pattern in &config.filters.include {
-        app.add_include_filter(pattern.clone());
+        app.filters.add_include_filter(pattern.clone());
     }
     for pattern in &config.filters.exclude {
-        app.add_exclude_filter(pattern.clone());
+        app.filters.add_exclude_filter(pattern.clone());
     }
 
     // Load hidden processes from config

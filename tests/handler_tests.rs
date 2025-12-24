@@ -354,7 +354,7 @@ fn test_reset_exits_batch_view_mode() {
 fn test_filter_include_adds_filter() {
     let mut app = create_test_app();
 
-    app.add_include_filter("ERROR".to_string());
+    app.filters.add_include_filter("ERROR".to_string());
 
     assert_eq!(app.filters.filters.len(), 1);
     assert_eq!(app.filters.filters[0].pattern, "ERROR");
@@ -365,7 +365,7 @@ fn test_filter_include_adds_filter() {
 fn test_filter_exclude_adds_filter() {
     let mut app = create_test_app();
 
-    app.add_exclude_filter("DEBUG".to_string());
+    app.filters.add_exclude_filter("DEBUG".to_string());
 
     assert_eq!(app.filters.filters.len(), 1);
     assert_eq!(app.filters.filters[0].pattern, "DEBUG");
@@ -376,12 +376,12 @@ fn test_filter_exclude_adds_filter() {
 fn test_filter_clear_removes_all() {
     let mut app = create_test_app();
 
-    app.add_include_filter("ERROR".to_string());
-    app.add_exclude_filter("DEBUG".to_string());
+    app.filters.add_include_filter("ERROR".to_string());
+    app.filters.add_exclude_filter("DEBUG".to_string());
     assert_eq!(app.filters.filters.len(), 2);
 
-    let count = app.filter_count();
-    app.clear_filters();
+    let count = app.filters.filter_count();
+    app.filters.clear_filters();
 
     assert_eq!(count, 2);
     assert_eq!(app.filters.filters.len(), 0);
