@@ -512,12 +512,6 @@ impl<'a> EventHandler<'a> {
                         return Ok(false);
                     }
                 }
-                if let Some(area) = self.app.regions.log_viewer_area {
-                    if area.contains(pos) {
-                        navigation::select_line_at_row(self.app, self.manager, row, area.y);
-                        return Ok(false);
-                    }
-                }
                 if let Some(area) = self.app.regions.status_bar_area {
                     if area.contains(pos) {
                         self.app.set_status_info(format!("Clicked status bar at ({}, {})", col, row));
