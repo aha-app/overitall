@@ -16,6 +16,7 @@ Overitall (`oit`) is a Rust-based TUI that helps you manage multiple processes a
 - **Process Visibility Toggle**: Hide/show logs from specific processes on demand
 - **Search**: Full-text search with highlighting across all logs
 - **Batch Navigation**: Navigate through groups of related log lines that arrived together
+- **Time Navigation**: Jump to specific timestamps with `:goto HH:MM` or relative times like `:goto -5m`
 - **Trace Detection**: Find correlation IDs (UUIDs, trace IDs) and filter to specific traces
 - **Persistent Configuration**: Filters and settings are automatically saved
 - **Compact Mode**: Collapse verbose metadata tags (`[key:value]`) into `[+N]` for cleaner log viewing
@@ -201,6 +202,15 @@ Log lines that arrive within a short time window are grouped into "batches". Thi
 You can also use `[` and `]` keys for quick batch navigation.
 
 The batch window determines how close in time log lines must be to be grouped together. Adjust it based on your application's logging patterns (e.g., `:bw 1000` for 1 second window).
+
+#### Time Navigation
+
+- `:goto HH:MM` or `:goto HH:MM:SS` - Jump to absolute time
+- `:goto -5m` - Jump back 5 minutes from current selection
+- `:goto +30s` - Jump forward 30 seconds from current selection
+- `:g` - Short form of `:goto`
+
+Relative time supports `s` (seconds), `m` (minutes), and `h` (hours). Navigation is relative to the currently selected line, or the last log if tailing.
 
 #### Search
 
