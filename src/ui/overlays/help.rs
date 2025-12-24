@@ -151,7 +151,7 @@ pub fn draw_help_overlay(f: &mut Frame, scroll_offset: u16) {
         ]),
         Line::from(vec![
             Span::styled("  :g/:goto <time>", Style::default().fg(Color::Yellow)),
-            Span::raw("  Jump to timestamp (HH:MM or -5m)"),
+            Span::raw("  Jump to time (HH:MM, -5m, +30s)"),
         ]),
         Line::from(""),
         Line::from(vec![

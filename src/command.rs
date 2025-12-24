@@ -139,7 +139,7 @@ pub fn parse_command(input: &str) -> Command {
         "color" | "colors" => Command::ColorToggle,
         "g" | "goto" => {
             if parts.len() < 2 {
-                Command::Unknown("Usage: :goto HH:MM[:SS] or :goto -Ns/-Nm/-Nh".to_string())
+                Command::Unknown("Usage: :goto HH:MM[:SS] or :goto +/-Ns/m/h".to_string())
             } else {
                 parse_goto_target(parts[1])
             }
@@ -150,8 +150,10 @@ pub fn parse_command(input: &str) -> Command {
 
 /// Parse a goto target (absolute or relative time)
 fn parse_goto_target(input: &str) -> Command {
-    // Check for relative time format: -Ns, -Nm, -Nh
-    if input.starts_with('-') && input.len() >= 2 {
+    // Check for relative time format: +/-Ns, +/-Nm, +/-Nh
+    let first_char = input.chars().next().unwrap_or(' ');
+    if (first_char == '-' || first_char == '+') && input.len() >= 2 {
+        let sign: i64 = if first_char == '-' { -1 } else { 1 };
         let last_char = input.chars().last().unwrap();
         if let Some(num_str) = input.get(1..input.len() - 1) {
             if let Ok(value) = num_str.parse::<i64>() {
@@ -164,10 +166,10 @@ fn parse_goto_target(input: &str) -> Command {
                         last_char
                     )),
                 };
-                return Command::Goto(GotoTarget::RelativeTime { seconds: -seconds });
+                return Command::Goto(GotoTarget::RelativeTime { seconds: sign * seconds });
             }
         }
-        return Command::Unknown("Invalid relative time format. Use -Ns, -Nm, or -Nh".to_string());
+        return Command::Unknown("Invalid relative time format. Use +/-Ns, +/-Nm, or +/-Nh".to_string());
     }
 
     // Check for absolute time format: HH:MM or HH:MM:SS
@@ -191,7 +193,7 @@ fn parse_goto_target(input: &str) -> Command {
                 _ => Command::Unknown("Invalid time format. Use HH:MM:SS (00:00:00 to 23:59:59)".to_string()),
             }
         }
-        _ => Command::Unknown("Invalid format. Use HH:MM[:SS] or -Ns/-Nm/-Nh".to_string()),
+        _ => Command::Unknown("Invalid format. Use HH:MM[:SS] or +/-Ns/m/h".to_string()),
     }
 }
 
@@ -738,6 +740,26 @@ mod tests {
                 assert!(msg.contains("time unit"), "Expected time unit error, got: {}", msg);
             }
             other => panic!("Expected Unknown for invalid unit, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_parse_goto_positive_relative_seconds() {
+        match parse_command("goto +30s") {
+            Command::Goto(GotoTarget::RelativeTime { seconds }) => {
+                assert_eq!(seconds, 30);
+            }
+            other => panic!("Expected Goto RelativeTime positive, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_parse_goto_positive_relative_minutes() {
+        match parse_command("g +5m") {
+            Command::Goto(GotoTarget::RelativeTime { seconds }) => {
+                assert_eq!(seconds, 300); // 5 * 60
+            }
+            other => panic!("Expected Goto RelativeTime positive, got {:?}", other),
         }
     }
 }

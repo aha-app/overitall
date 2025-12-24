@@ -3,15 +3,7 @@ batch_window_ms = 5000
 max_log_buffer_mb = 50
 hidden_processes = []
 compact_mode = true
-process_coloring = false
-
-[processes.monitor.status]
-default = "Starting"
-
-[[processes.monitor.status.transitions]]
-pattern = "CPU:"
-label = "Active"
-color = "blue"
+process_coloring = true
 
 [processes.web]
 log_file = "web.log"
@@ -34,6 +26,14 @@ default = "Starting"
 pattern = "Processing"
 label = "Processing"
 color = "cyan"
+
+[processes.monitor.status]
+default = "Starting"
+
+[[processes.monitor.status.transitions]]
+pattern = "CPU:"
+label = "Active"
+color = "blue"
 
 [[log_files]]
 name = "shared"
