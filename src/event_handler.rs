@@ -56,6 +56,10 @@ impl<'a> EventHandler<'a> {
                 self.handle_show_context();
                 Ok(false)
             }
+            KeyCode::Char('c') if self.app.display.expanded_line_view => {
+                self.handle_copy_line();
+                Ok(false)
+            }
             // Command mode
             KeyCode::Char(':') if !self.app.input.command_mode && !self.app.input.search_mode && !self.app.display.show_help => {
                 self.app.input.enter_command_mode();

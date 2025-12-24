@@ -159,7 +159,7 @@ pub fn draw_help_overlay(f: &mut Frame, scroll_offset: u16) {
         ]),
         Line::from(vec![
             Span::styled("  c", Style::default().fg(Color::Yellow)),
-            Span::raw("       Copy selected line to clipboard"),
+            Span::raw("       Copy selected line (also in expanded view)"),
         ]),
         Line::from(vec![
             Span::styled("  C", Style::default().fg(Color::Yellow)),
