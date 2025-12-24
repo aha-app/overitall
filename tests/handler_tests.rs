@@ -246,7 +246,7 @@ fn test_page_up_without_selection_scrolls_view() {
     app.navigation.auto_scroll = false;
 
     // Without selection, page up should scroll the view
-    app.scroll_up(20);
+    app.navigation.scroll_up(20);
 
     assert_eq!(app.navigation.scroll_offset, 10);
 }

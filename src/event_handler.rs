@@ -204,11 +204,11 @@ impl<'a> EventHandler<'a> {
                 Ok(false)
             }
             KeyCode::Home if !self.app.input.command_mode && !self.app.input.search_mode => {
-                self.app.scroll_to_top();
+                self.app.navigation.scroll_to_top();
                 Ok(false)
             }
             KeyCode::End if !self.app.input.command_mode && !self.app.input.search_mode => {
-                self.app.scroll_to_bottom();
+                self.app.navigation.scroll_to_bottom();
                 Ok(false)
             }
             // Quit - initiate graceful shutdown
@@ -434,7 +434,7 @@ impl<'a> EventHandler<'a> {
                 self.app.unfreeze_display();
                 self.app.discard_snapshot();
                 self.app.clear_search();
-                self.app.scroll_to_bottom();
+                self.app.navigation.scroll_to_bottom();
                 self.app.set_status_info("Resumed tailing".to_string());
             }
             return;
@@ -446,14 +446,14 @@ impl<'a> EventHandler<'a> {
             self.app.batch.current_batch = None;
             self.app.discard_snapshot();
             self.app.clear_search();
-            self.app.scroll_to_bottom();
+            self.app.navigation.scroll_to_bottom();
             self.app.set_status_info("Exited batch view, resumed tailing".to_string());
             return;
         }
 
         // 11. Default - jump to latest
         self.app.clear_search();
-        self.app.scroll_to_bottom();
+        self.app.navigation.scroll_to_bottom();
         self.app.navigation.selected_line_id = None;
         self.app.set_status_info("Jumped to latest logs".to_string());
     }

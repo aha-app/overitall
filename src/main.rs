@@ -532,7 +532,7 @@ async fn apply_ipc_action(
             app.navigation.selected_line_id = Some(id);
         }
         IpcAction::ScrollUp { lines } => {
-            app.scroll_up(lines);
+            app.navigation.scroll_up(lines);
         }
         IpcAction::ScrollDown { lines } => {
             // Use saturating_add since we don't have max_offset here
@@ -540,7 +540,7 @@ async fn apply_ipc_action(
             app.navigation.scroll_offset = app.navigation.scroll_offset.saturating_add(lines);
         }
         IpcAction::ScrollToTop => {
-            app.scroll_to_top();
+            app.navigation.scroll_to_top();
         }
         IpcAction::SetFrozen { frozen } => {
             if frozen {

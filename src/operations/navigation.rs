@@ -255,7 +255,7 @@ pub fn page_up(app: &mut App, manager: &ProcessManager) {
         app.navigation.scroll_offset = effective_offset;
         app.navigation.auto_scroll = false;
     } else {
-        app.scroll_up(PAGE_SIZE);
+        app.navigation.scroll_up(PAGE_SIZE);
     }
 }
 
@@ -311,6 +311,6 @@ pub fn page_down(app: &mut App, manager: &ProcessManager) {
     } else {
         let total_logs = manager.get_all_logs().len();
         let max_offset = total_logs.saturating_sub(1);
-        app.scroll_down(PAGE_SIZE, max_offset);
+        app.navigation.scroll_down(PAGE_SIZE, max_offset);
     }
 }

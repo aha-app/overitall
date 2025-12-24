@@ -116,22 +116,6 @@ impl App {
     // Delegation methods for backward compatibility during migration
     // These will be removed in Phase 3 as call sites update to use sub-structs directly
 
-    pub fn scroll_up(&mut self, lines: usize) {
-        self.navigation.scroll_up(lines);
-    }
-
-    pub fn scroll_down(&mut self, lines: usize, max_offset: usize) {
-        self.navigation.scroll_down(lines, max_offset);
-    }
-
-    pub fn scroll_to_top(&mut self) {
-        self.navigation.scroll_to_top();
-    }
-
-    pub fn scroll_to_bottom(&mut self) {
-        self.navigation.scroll_to_bottom();
-    }
-
     pub fn enter_command_mode(&mut self) {
         self.input.enter_command_mode();
         self.display.status_message = None;
@@ -176,10 +160,6 @@ impl App {
 
     pub fn history_next(&mut self) {
         self.input.history_next();
-    }
-
-    pub fn reset_history_nav(&mut self) {
-        self.input.reset_history_nav();
     }
 
     pub fn add_include_filter(&mut self, pattern: String) {
@@ -328,17 +308,5 @@ impl App {
         self.trace.exit_trace_filter();
         self.navigation.unfreeze_display();
         self.navigation.selected_line_id = None;
-    }
-
-    pub fn cycle_display_mode(&mut self) {
-        self.display.cycle_display_mode();
-    }
-
-    pub fn is_compact(&self) -> bool {
-        self.display.is_compact()
-    }
-
-    pub fn is_wrap(&self) -> bool {
-        self.display.is_wrap()
     }
 }
