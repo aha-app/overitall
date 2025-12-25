@@ -1,0 +1,44 @@
+---
+source: tests/batch_tests.rs
+expression: output
+---
+web [Stopped] | worker [Stopped]                                                                                        
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ [0%]                                                                                                                   
+[12:00:00] worker: Processing job #1234                                                                                 
+[12:00:00] worker: Job #1234 completed                                                                                  
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+Buffer: 0.0/50 MB (0%) | 6 lines   | Batch 2/3, 2 lines [BATCH]                                                         
+Press : for commands, / to search, q to quit
