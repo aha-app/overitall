@@ -1424,7 +1424,7 @@ dependencies = [
 
 [[package]]
 name = "overitall"
-version = "0.1.47"
+version = "0.1.48"
 dependencies = [
  "ansi-to-tui",
  "anyhow",
