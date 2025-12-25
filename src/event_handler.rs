@@ -159,6 +159,12 @@ impl<'a> EventHandler<'a> {
                 self.handle_copy_line();
                 Ok(false)
             }
+            // Contextual copy - same process within time window (Ctrl+Shift+C)
+            // IMPORTANT: Must come BEFORE plain 'C' handler to match correctly
+            KeyCode::Char('C') if key.modifiers.contains(KeyModifiers::CONTROL) && !self.app.input.command_mode && !self.app.input.search_mode => {
+                self.handle_copy_time_context();
+                Ok(false)
+            }
             KeyCode::Char('C') if !self.app.input.command_mode && !self.app.input.search_mode && !self.app.display.expanded_line_view => {
                 self.handle_copy_batch();
                 Ok(false)
@@ -311,6 +317,14 @@ impl<'a> EventHandler<'a> {
 
     fn handle_copy_batch(&mut self) {
         match clipboard::copy_batch(self.app, self.manager) {
+            Ok(msg) => self.app.display.set_status_success(msg),
+            Err(msg) => self.app.display.set_status_error(msg),
+        }
+    }
+
+    fn handle_copy_time_context(&mut self) {
+        let time_window = self.config.context_copy_seconds.unwrap_or(1.0);
+        match clipboard::copy_time_context(self.app, self.manager, time_window) {
             Ok(msg) => self.app.display.set_status_success(msg),
             Err(msg) => self.app.display.set_status_error(msg),
         }
