@@ -137,8 +137,8 @@ oit --file Procfile.other
 
 #### Clipboard & Batch Operations
 - `c` - Copy selected line to clipboard (with timestamp and process)
-- `C` - Copy entire batch to clipboard (all lines in batch)
-- `X` - Contextual copy (same process within ±1s of selected line)
+- `Shift+C` - Copy entire batch to clipboard (all lines in batch)
+- `Shift+X` - Contextual copy (same process within ±1s of selected line)
 - `b` - Focus on batch containing the selected line
 
 ### Commands
