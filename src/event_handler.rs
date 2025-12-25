@@ -98,7 +98,8 @@ impl<'a> EventHandler<'a> {
                 self.app.input.delete_char();
                 Ok(false)
             }
-            KeyCode::Char(c) if self.app.input.search_mode => {
+            KeyCode::Char(c) if self.app.input.search_mode
+                && !(self.app.navigation.selected_line_id.is_some() && matches!(c, 'c' | 'C' | 'X')) => {
                 self.app.input.add_char(c);
                 Ok(false)
             }
@@ -155,16 +156,20 @@ impl<'a> EventHandler<'a> {
                 Ok(false)
             }
             // Clipboard operations
-            KeyCode::Char('c') if !self.app.input.command_mode && !self.app.input.search_mode && !self.app.display.expanded_line_view => {
+            // Allow in search mode when a line is selected (viewing results, not typing)
+            KeyCode::Char('c') if !self.app.input.command_mode && !self.app.display.expanded_line_view
+                && (!self.app.input.search_mode || self.app.navigation.selected_line_id.is_some()) => {
                 self.handle_copy_line();
                 Ok(false)
             }
             // Contextual copy - same process within time window (Shift+X)
-            KeyCode::Char('X') if !self.app.input.command_mode && !self.app.input.search_mode => {
+            KeyCode::Char('X') if !self.app.input.command_mode
+                && (!self.app.input.search_mode || self.app.navigation.selected_line_id.is_some()) => {
                 self.handle_copy_time_context();
                 Ok(false)
             }
-            KeyCode::Char('C') if !self.app.input.command_mode && !self.app.input.search_mode && !self.app.display.expanded_line_view => {
+            KeyCode::Char('C') if !self.app.input.command_mode && !self.app.display.expanded_line_view
+                && (!self.app.input.search_mode || self.app.navigation.selected_line_id.is_some()) => {
                 self.handle_copy_batch();
                 Ok(false)
             }
