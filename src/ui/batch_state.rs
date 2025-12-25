@@ -57,8 +57,4 @@ impl BatchState {
             self.current_batch = Some(0);
         }
     }
-
-    pub fn reset_scroll_state(&self) -> (usize, bool) {
-        (0, false)
-    }
 }

@@ -17,11 +17,4 @@ impl ClickRegions {
     pub fn new() -> Self {
         Self::default()
     }
-
-    pub fn clear(&mut self) {
-        self.process_list_area = None;
-        self.log_viewer_area = None;
-        self.status_bar_area = None;
-        self.process_regions.clear();
-    }
 }
