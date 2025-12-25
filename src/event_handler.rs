@@ -98,8 +98,7 @@ impl<'a> EventHandler<'a> {
                 self.app.input.delete_char();
                 Ok(false)
             }
-            KeyCode::Char(c) if self.app.input.search_mode
-                && !(self.app.navigation.selected_line_id.is_some() && matches!(c, 'c' | 'C' | 'X')) => {
+            KeyCode::Char(c) if self.app.input.search_mode => {
                 self.app.input.add_char(c);
                 Ok(false)
             }
@@ -156,20 +155,16 @@ impl<'a> EventHandler<'a> {
                 Ok(false)
             }
             // Clipboard operations
-            // Allow in search mode when a line is selected (viewing results, not typing)
-            KeyCode::Char('c') if !self.app.input.command_mode && !self.app.display.expanded_line_view
-                && (!self.app.input.search_mode || self.app.navigation.selected_line_id.is_some()) => {
+            KeyCode::Char('c') if !self.app.input.command_mode && !self.app.input.search_mode && !self.app.display.expanded_line_view => {
                 self.handle_copy_line();
                 Ok(false)
             }
             // Contextual copy - same process within time window (Shift+X)
-            KeyCode::Char('X') if !self.app.input.command_mode
-                && (!self.app.input.search_mode || self.app.navigation.selected_line_id.is_some()) => {
+            KeyCode::Char('X') if !self.app.input.command_mode && !self.app.input.search_mode => {
                 self.handle_copy_time_context();
                 Ok(false)
             }
-            KeyCode::Char('C') if !self.app.input.command_mode && !self.app.display.expanded_line_view
-                && (!self.app.input.search_mode || self.app.navigation.selected_line_id.is_some()) => {
+            KeyCode::Char('C') if !self.app.input.command_mode && !self.app.input.search_mode && !self.app.display.expanded_line_view => {
                 self.handle_copy_batch();
                 Ok(false)
             }
@@ -287,9 +282,16 @@ impl<'a> EventHandler<'a> {
 
     fn handle_search_execute(&mut self) {
         let search_text = self.app.input.input.clone();
-        if let Err(msg) = search::execute_search(self.app, self.manager, &search_text) {
-            if msg != "Empty search" {
-                self.app.display.set_status_error(msg);
+        match search::execute_search(self.app, self.manager, &search_text) {
+            Ok(_) => {
+                // execute_search already sets search_mode = false on success
+            }
+            Err(msg) => {
+                // On failure, also exit search mode
+                self.app.input.exit_search_mode();
+                if msg != "Empty search" {
+                    self.app.display.set_status_error(msg);
+                }
             }
         }
     }
