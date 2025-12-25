@@ -159,9 +159,9 @@ impl<'a> EventHandler<'a> {
                 self.handle_copy_line();
                 Ok(false)
             }
-            // Contextual copy - same process within time window (Ctrl+Shift+C)
+            // Contextual copy - same process within time window (Cmd+Shift+C on macOS)
             // IMPORTANT: Must come BEFORE plain 'C' handler to match correctly
-            KeyCode::Char('C') if key.modifiers.contains(KeyModifiers::CONTROL) && !self.app.input.command_mode && !self.app.input.search_mode => {
+            KeyCode::Char('C') if key.modifiers.contains(KeyModifiers::SUPER) && !self.app.input.command_mode && !self.app.input.search_mode => {
                 self.handle_copy_time_context();
                 Ok(false)
             }
