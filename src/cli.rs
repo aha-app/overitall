@@ -204,6 +204,24 @@ pub enum VscodeAction {
 const REPO: &str = "jemmyw/overitall";
 const VSIX_PATTERN: &str = "vscode-overitall-*.vsix";
 
+/// Find an available editor CLI (VS Code or Cursor)
+fn find_editor_cli() -> Option<&'static str> {
+    use std::process::{Command, Stdio};
+
+    for cli in &["code", "cursor"] {
+        let status = Command::new(cli)
+            .args(["--version"])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+
+        if status.map(|s| s.success()).unwrap_or(false) {
+            return Some(cli);
+        }
+    }
+    None
+}
+
 /// Install the VS Code extension from GitHub releases
 pub fn install_vscode_extension() -> anyhow::Result<()> {
     use std::process::{Command, Stdio};
@@ -222,20 +240,15 @@ pub fn install_vscode_extension() -> anyhow::Result<()> {
         ));
     }
 
-    // Check if VS Code CLI is available
-    let code_status = Command::new("code")
-        .args(["--version"])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status();
-
-    if !code_status.map(|s| s.success()).unwrap_or(false) {
-        return Err(anyhow!(
-            "VS Code CLI 'code' not found.\n\
-             Install VS Code and ensure 'code' is in your PATH.\n\
-             In VS Code: Cmd+Shift+P > 'Shell Command: Install code command in PATH'"
-        ));
-    }
+    // Check if VS Code or Cursor CLI is available
+    let editor_cli = find_editor_cli().ok_or_else(|| {
+        anyhow!(
+            "Neither VS Code ('code') nor Cursor ('cursor') CLI found.\n\
+             Install VS Code or Cursor and ensure the CLI is in your PATH.\n\
+             In VS Code: Cmd+Shift+P > 'Shell Command: Install code command in PATH'\n\
+             In Cursor: Cmd+Shift+P > 'Shell Command: Install cursor command in PATH'"
+        )
+    })?;
 
     // Get the latest release tag
     println!("Checking for latest release...");
@@ -301,8 +314,9 @@ pub fn install_vscode_extension() -> anyhow::Result<()> {
     println!("Downloaded: {}", vsix_file.file_name().to_string_lossy());
 
     // Install the extension
-    println!("Installing extension...");
-    let install_status = Command::new("code")
+    let editor_name = if editor_cli == "cursor" { "Cursor" } else { "VS Code" };
+    println!("Installing extension to {}...", editor_name);
+    let install_status = Command::new(editor_cli)
         .args([
             "--install-extension",
             vsix_path.to_str().unwrap(),
@@ -314,8 +328,8 @@ pub fn install_vscode_extension() -> anyhow::Result<()> {
         return Err(anyhow!("Failed to install extension"));
     }
 
-    println!("\n✓ VS Code extension installed successfully!");
-    println!("\nThe Overitall extension is now available in VS Code.");
+    println!("\n✓ {} extension installed successfully!", editor_name);
+    println!("\nThe Overitall extension is now available in {}.", editor_name);
     println!("Look for the Overitall icon in the activity bar when you have a Procfile.");
 
     Ok(())
