@@ -1,0 +1,44 @@
+---
+source: tests/display_mode_tests.rs
+expression: output
+---
+web [Stopped] | worker [Stopped]                                                                                        
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                        
+[12:00:00] web: Short log message                                                                                       
+[12:00:00] web: This is a much longer log message that will definitely exceed the terminal width and need to be ei… ↵   
+[12:00:00] worker: Processing job #1234                                                                                 
+[12:00:00] worker: ERROR: Failed to connect to database at host=db.example.com port=5432 user=app_user database=pr… ↵   
+[12:00:00] web: GET /api/users HTTP/1.1 200 OK response_time=45ms user_agent=Mozilla/5.0 referer=https://example.c… ↵   
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+Buffer: 0.0/50 MB (0%) | 5 lines   | 1 batches [TAIL]                                                                   
+Press : for commands, / to search, q to quit

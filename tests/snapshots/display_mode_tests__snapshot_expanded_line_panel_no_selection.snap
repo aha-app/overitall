@@ -1,0 +1,44 @@
+---
+source: tests/display_mode_tests.rs
+expression: output
+---
+web [Stopped] | worker [Stopped]                                                                                                                                                    
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                            ┌ Line Details ────────────────────────────────────────────────────────┐
+[12:00:00] web: Starting web server on port 3000                                                            │                                                                      │
+[12:00:00] web: GET /api/users 200 OK                                                                       │Select a line to view details                                         │
+[12:00:00] worker: Processing job #1234                                                                     │                                                                      │
+[12:00:00] web: ERROR: Database connection failed                                                           │                                                                      │
+[12:00:00] worker: Job #1234 completed successfully                                                         │                                                                      │
+[12:00:00] web: POST /api/auth 201 Created                                                                  │                                                                      │
+[12:00:00] worker: ERROR: Failed to process job #5678                                                       │                                                                      │
+[12:00:00] web: Server ready to accept connections                                                          │                                                                      │
+                                                                                                            │                                                                      │
+                                                                                                            │                                                                      │
+                                                                                                            │                                                                      │
+                                                                                                            │                                                                      │
+                                                                                                            │                                                                      │
+                                                                                                            │                                                                      │
+                                                                                                            │                                                                      │
+                                                                                                            │                                                                      │
+                                                                                                            │                                                                      │
+                                                                                                            │                                                                      │
+                                                                                                            │                                                                      │
+                                                                                                            │                                                                      │
+                                                                                                            │                                                                      │
+                                                                                                            │                                                                      │
+                                                                                                            │                                                                      │
+                                                                                                            │                                                                      │
+                                                                                                            │                                                                      │
+                                                                                                            │                                                                      │
+                                                                                                            │                                                                      │
+                                                                                                            │                                                                      │
+                                                                                                            │                                                                      │
+                                                                                                            │                                                                      │
+                                                                                                            │                                                                      │
+                                                                                                            │                                                                      │
+                                                                                                            │                                                                      │
+                                                                                                            │                                                                      │
+                                                                                                            └──────────────────────────────────────────────────────────────────────┘
+Buffer: 0.0/50 MB (0%) | 8 lines   | 1 batches [TAIL]                                                                                                                               
+Press : for commands, / to search, q to quit
