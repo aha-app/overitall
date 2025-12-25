@@ -64,6 +64,7 @@ mod tests {
             compact_mode: None,
             colors: std::collections::HashMap::new(),
             process_coloring: None,
+            context_copy_seconds: None,
             config_path: None,
         }
     }

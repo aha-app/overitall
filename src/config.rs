@@ -25,6 +25,8 @@ pub struct Config {
     pub colors: HashMap<String, String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub process_coloring: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_copy_seconds: Option<f64>,
 
     // This field is not serialized, just used at runtime
     #[serde(skip)]
@@ -149,6 +151,7 @@ mod tests {
             compact_mode: None,
             colors: HashMap::new(),
             process_coloring: None,
+            context_copy_seconds: None,
             config_path: None,
         }
     }
@@ -843,5 +846,79 @@ procfile = "Procfile"
 
         let loaded = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
         assert_eq!(loaded.process_coloring, Some(true));
+    }
+
+    #[test]
+    fn test_context_copy_seconds_loads_from_config() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(
+            temp_file,
+            r#"
+procfile = "Procfile"
+context_copy_seconds = 2.5
+
+[processes]
+"#
+        )
+        .unwrap();
+
+        let config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert_eq!(config.context_copy_seconds, Some(2.5));
+    }
+
+    #[test]
+    fn test_context_copy_seconds_defaults_when_missing() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(
+            temp_file,
+            r#"
+procfile = "Procfile"
+
+[processes]
+"#
+        )
+        .unwrap();
+
+        let config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert_eq!(config.context_copy_seconds, None);
+    }
+
+    #[test]
+    fn test_context_copy_seconds_none_not_serialized() {
+        let config = test_config();
+
+        let toml_string = toml::to_string_pretty(&config).unwrap();
+        assert!(
+            !toml_string.contains("context_copy_seconds"),
+            "context_copy_seconds should not be serialized when None"
+        );
+    }
+
+    #[test]
+    fn test_context_copy_seconds_some_is_serialized() {
+        let config = Config {
+            context_copy_seconds: Some(1.5),
+            ..test_config()
+        };
+
+        let toml_string = toml::to_string_pretty(&config).unwrap();
+        assert!(
+            toml_string.contains("context_copy_seconds = 1.5"),
+            "context_copy_seconds should be serialized when Some(1.5)"
+        );
+    }
+
+    #[test]
+    fn test_context_copy_seconds_roundtrip() {
+        let config = Config {
+            context_copy_seconds: Some(3.0),
+            ..test_config()
+        };
+
+        let temp_file = NamedTempFile::new().unwrap();
+        config.save(temp_file.path().to_str().unwrap()).unwrap();
+
+        let loaded = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert_eq!(loaded.context_copy_seconds, Some(3.0));
     }
 }

@@ -382,6 +382,7 @@ pub fn init_config(config_path: &str, procfile_override: Option<&str>) -> anyhow
             compact_mode: None,
             colors: std::collections::HashMap::new(),
             process_coloring: None,
+            context_copy_seconds: None,
             config_path: None,
         };
 
