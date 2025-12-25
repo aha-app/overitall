@@ -509,13 +509,6 @@ impl<'a> EventHandler<'a> {
                         return Ok(false);
                     }
                 }
-                if let Some(area) = self.app.regions.status_bar_area {
-                    if area.contains(pos) {
-                        self.app.display.set_status_info(format!("Clicked status bar at ({}, {})", col, row));
-                        return Ok(false);
-                    }
-                }
-                self.app.display.set_status_info(format!("Click at ({}, {})", col, row));
             }
             MouseEventKind::ScrollUp => {
                 // Use selection navigation (same as keyboard) to properly enter selection mode
