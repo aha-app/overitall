@@ -159,8 +159,8 @@ impl<'a> EventHandler<'a> {
                 self.handle_copy_line();
                 Ok(false)
             }
-            // Contextual copy - same process within time window (Shift+X)
-            KeyCode::Char('X') if !self.app.input.command_mode && !self.app.input.search_mode => {
+            // Contextual copy - same process within time window
+            KeyCode::Char('x') if !self.app.input.command_mode && !self.app.input.search_mode => {
                 self.handle_copy_time_context();
                 Ok(false)
             }
