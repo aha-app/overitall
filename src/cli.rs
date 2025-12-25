@@ -190,14 +190,19 @@ pub enum Commands {
     /// VS Code extension management
     Vscode {
         #[command(subcommand)]
-        action: VscodeAction,
+        action: EditorAction,
+    },
+    /// Cursor extension management (alias for vscode)
+    Cursor {
+        #[command(subcommand)]
+        action: EditorAction,
     },
 }
 
-/// VS Code extension subcommands
+/// Editor extension subcommands
 #[derive(Subcommand, Debug, Clone)]
-pub enum VscodeAction {
-    /// Install the VS Code extension from GitHub releases
+pub enum EditorAction {
+    /// Install the extension from GitHub releases
     Install,
 }
 
@@ -627,9 +632,9 @@ pub async fn run_ipc_command(command: &Commands) -> anyhow::Result<()> {
         Commands::Batch { id, scroll } => {
             IpcRequest::with_args("batch", serde_json::json!({"id": id, "scroll": scroll}))
         }
-        Commands::Vscode { .. } => {
+        Commands::Vscode { .. } | Commands::Cursor { .. } => {
             // This should be handled separately in main.rs, not via IPC
-            return Err(anyhow!("vscode commands don't use IPC"));
+            return Err(anyhow!("editor commands don't use IPC"));
         }
     };
 

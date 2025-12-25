@@ -669,7 +669,16 @@ fn test_cli_parses_batch_with_scroll() {
 fn test_cli_parses_vscode_install_subcommand() {
     let cli = Cli::parse_from(["oit", "vscode", "install"]);
     match cli.command {
-        Some(Commands::Vscode { action: VscodeAction::Install }) => {}
+        Some(Commands::Vscode { action: EditorAction::Install }) => {}
         _ => panic!("Expected Vscode Install command"),
+    }
+}
+
+#[test]
+fn test_cli_parses_cursor_install_subcommand() {
+    let cli = Cli::parse_from(["oit", "cursor", "install"]);
+    match cli.command {
+        Some(Commands::Cursor { action: EditorAction::Install }) => {}
+        _ => panic!("Expected Cursor Install command"),
     }
 }
