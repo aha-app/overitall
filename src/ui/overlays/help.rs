@@ -170,8 +170,8 @@ pub fn draw_help_overlay(f: &mut Frame, scroll_offset: u16) {
             Span::raw("       Copy entire batch to clipboard"),
         ]),
         Line::from(vec![
-            Span::styled("  Cmd+Shift+C", Style::default().fg(Color::Yellow)),
-            Span::raw("   Copy same process ±1s around line"),
+            Span::styled("  X", Style::default().fg(Color::Yellow)),
+            Span::raw("       Copy same process ±1s around line"),
         ]),
         Line::from(vec![
             Span::styled("  b", Style::default().fg(Color::Yellow)),

@@ -138,7 +138,7 @@ oit --file Procfile.other
 #### Clipboard & Batch Operations
 - `c` - Copy selected line to clipboard (with timestamp and process)
 - `C` - Copy entire batch to clipboard (all lines in batch)
-- `Cmd+Shift+C` - Copy logs from same process within ±1s of selected line
+- `X` - Copy logs from same process within ±1s of selected line
 - `b` - Focus on batch containing the selected line
 
 ### Commands
@@ -265,7 +265,7 @@ hidden_processes = ["worker"]
 - `hidden_processes` - Array of process names to hide from log viewer (automatically saved)
 - `max_log_buffer_mb` - Maximum memory for log buffer in megabytes (default: 50)
 - `batch_window_ms` - Batch grouping window in milliseconds (default: 100)
-- `context_copy_seconds` - Time window for Cmd+Shift+C contextual copy (default: 1.0)
+- `context_copy_seconds` - Time window for X (contextual copy) in seconds (default: 1.0)
 - `disable_auto_update` - Set to `true` to disable auto-update checks (default: false)
 - `compact_mode` - Set to `false` to show full log lines by default (default: true)
 - `process_coloring` - Set to `true` to colorize process names in the log view (default: false)
