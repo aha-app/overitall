@@ -3,6 +3,7 @@ mod common;
 use common::*;
 use insta::assert_snapshot;
 use overitall::ui::DisplayMode;
+use overitall::ui::display_state::TimestampMode;
 
 // ============================================================================
 // Display Mode Tests
@@ -89,5 +90,39 @@ fn test_snapshot_expanded_line_panel_no_selection() {
 
     // Render at wide width (180 >= 160 threshold)
     let output = render_app_to_string(&mut app, &manager, 180, 40);
+    assert_snapshot!(output);
+}
+
+// ============================================================================
+// Timestamp Mode Tests
+// ============================================================================
+
+#[test]
+fn test_snapshot_timestamp_mode_seconds() {
+    let mut app = create_test_app();
+    app.display.timestamp_mode = TimestampMode::Seconds;
+    let manager = create_manager_with_logs();
+
+    let output = render_app_to_string(&mut app, &manager, 120, 20);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_snapshot_timestamp_mode_milliseconds() {
+    let mut app = create_test_app();
+    app.display.timestamp_mode = TimestampMode::Milliseconds;
+    let manager = create_manager_with_logs();
+
+    let output = render_app_to_string(&mut app, &manager, 120, 20);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_snapshot_timestamp_mode_off() {
+    let mut app = create_test_app();
+    app.display.timestamp_mode = TimestampMode::Off;
+    let manager = create_manager_with_logs();
+
+    let output = render_app_to_string(&mut app, &manager, 120, 20);
     assert_snapshot!(output);
 }

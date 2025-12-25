@@ -1,0 +1,24 @@
+---
+source: tests/display_mode_tests.rs
+expression: output
+---
+web [Stopped] | worker [Stopped]                                                                                        
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                        
+web: Starting web server on port 3000                                                                                   
+web: GET /api/users 200 OK                                                                                              
+worker: Processing job #1234                                                                                            
+web: ERROR: Database connection failed                                                                                  
+worker: Job #1234 completed successfully                                                                                
+web: POST /api/auth 201 Created                                                                                         
+worker: ERROR: Failed to process job #5678                                                                              
+web: Server ready to accept connections                                                                                 
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+Buffer: 0.0/50 MB (0%) | 8 lines   | 1 batches [TAIL]                                                                   
+Press : for commands, / to search, q to quit

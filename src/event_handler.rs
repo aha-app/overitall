@@ -191,6 +191,12 @@ impl<'a> EventHandler<'a> {
                 self.handle_cycle_display_mode();
                 Ok(false)
             }
+            // Cycle timestamp mode (seconds/milliseconds/off)
+            KeyCode::Char('t') if !self.app.input.command_mode && !self.app.input.search_mode
+                && !self.app.display.show_help && !self.app.display.expanded_line_view => {
+                self.handle_cycle_timestamp_mode();
+                Ok(false)
+            }
             // Line selection and scrolling
             KeyCode::Up if !self.app.input.command_mode && !self.app.input.search_mode => {
                 self.handle_select_prev_line();
@@ -355,6 +361,11 @@ impl<'a> EventHandler<'a> {
     fn handle_cycle_display_mode(&mut self) {
         let mode = display::cycle_display_mode(self.app, self.config);
         self.app.display.set_status_info(format!("Display mode: {}", mode));
+    }
+
+    fn handle_cycle_timestamp_mode(&mut self) {
+        let mode = display::cycle_timestamp_mode(self.app);
+        self.app.display.set_status_info(format!("Timestamp: {}", mode));
     }
 
     /// Handle Esc key - all escape logic in one place for clarity.

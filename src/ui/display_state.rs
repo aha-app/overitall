@@ -1,11 +1,45 @@
 use super::app::DisplayMode;
 use super::types::StatusType;
 
+/// Timestamp display mode for log lines
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TimestampMode {
+    /// Show time as HH:MM:SS (default)
+    #[default]
+    Seconds,
+    /// Show time as HH:MM:SS.mmm (with milliseconds)
+    Milliseconds,
+    /// Hide timestamps entirely
+    Off,
+}
+
+impl TimestampMode {
+    /// Cycle to the next timestamp mode
+    pub fn next(self) -> Self {
+        match self {
+            TimestampMode::Seconds => TimestampMode::Milliseconds,
+            TimestampMode::Milliseconds => TimestampMode::Off,
+            TimestampMode::Off => TimestampMode::Seconds,
+        }
+    }
+
+    /// Get a human-readable name for the mode
+    pub fn name(self) -> &'static str {
+        match self {
+            TimestampMode::Seconds => "seconds",
+            TimestampMode::Milliseconds => "milliseconds",
+            TimestampMode::Off => "off",
+        }
+    }
+}
+
 /// Display state for UI modes and status
 #[derive(Debug)]
 pub struct DisplayState {
     /// Current display mode (compact, full, or wrap)
     pub display_mode: DisplayMode,
+    /// Current timestamp display mode
+    pub timestamp_mode: TimestampMode,
     /// Whether to show the help overlay
     pub show_help: bool,
     /// Scroll offset for help overlay
@@ -22,6 +56,7 @@ impl Default for DisplayState {
     fn default() -> Self {
         Self {
             display_mode: DisplayMode::Compact,
+            timestamp_mode: TimestampMode::Seconds,
             show_help: false,
             help_scroll_offset: 0,
             expanded_line_view: false,
@@ -46,6 +81,10 @@ impl DisplayState {
 
     pub fn is_wrap(&self) -> bool {
         self.display_mode == DisplayMode::Wrap
+    }
+
+    pub fn cycle_timestamp_mode(&mut self) {
+        self.timestamp_mode = self.timestamp_mode.next();
     }
 
     pub fn toggle_help(&mut self) {

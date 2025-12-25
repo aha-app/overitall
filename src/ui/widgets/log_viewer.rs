@@ -12,6 +12,7 @@ use crate::process::ProcessManager;
 use crate::ui::ansi_cache::{AnsiCache, AnsiCacheKey};
 use crate::ui::app::App;
 use crate::ui::batch_cache::BatchCacheKey;
+use crate::ui::display_state::TimestampMode;
 use crate::ui::filter::FilterType;
 
 /// Draw the log viewer in the middle of the screen
@@ -337,9 +338,12 @@ pub fn draw_log_viewer(
         // Highlighting would make all visible lines gray, which looks bad
         let is_match = false;
 
-        // Format timestamp and process name parts
-        // Use cached formatted timestamp
-        let timestamp_part = format!("[{}] ", log.formatted_timestamp());
+        // Format timestamp based on mode
+        let timestamp_part = match app.display.timestamp_mode {
+            TimestampMode::Seconds => format!("[{}] ", log.formatted_timestamp()),
+            TimestampMode::Milliseconds => format!("[{}] ", log.arrival_time.format("%H:%M:%S%.3f")),
+            TimestampMode::Off => String::new(),
+        };
 
         // Get color ANSI codes for this process/log file name
         let (color_start, color_reset) = app.process_colors.get_ansi(process_name);

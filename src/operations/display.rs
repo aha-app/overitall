@@ -11,3 +11,10 @@ pub fn cycle_display_mode(app: &mut App, config: &mut Config) -> String {
     save_config_with_error(config, app);
     app.display.display_mode.name().to_string()
 }
+
+/// Cycle timestamp mode: seconds → milliseconds → off → seconds.
+/// Returns the new mode name.
+pub fn cycle_timestamp_mode(app: &mut App) -> String {
+    app.display.cycle_timestamp_mode();
+    app.display.timestamp_mode.name().to_string()
+}

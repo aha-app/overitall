@@ -45,6 +45,10 @@ pub fn draw_help_overlay(f: &mut Frame, scroll_offset: u16) {
             Span::styled("  w", Style::default().fg(Color::Yellow)),
             Span::raw("       Cycle display: compact → full → wrap"),
         ]),
+        Line::from(vec![
+            Span::styled("  t", Style::default().fg(Color::Yellow)),
+            Span::raw("       Cycle timestamps: seconds → ms → off"),
+        ]),
         Line::from(""),
         Line::from(vec![
             Span::styled("Commands:", Style::default().add_modifier(Modifier::BOLD)),

@@ -4,7 +4,7 @@ mod batch;
 pub mod batch_cache;
 mod batch_state;
 mod click_regions;
-mod display_state;
+pub mod display_state;
 mod draw;
 mod filter;
 mod filter_state;
