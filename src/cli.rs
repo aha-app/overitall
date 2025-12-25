@@ -204,22 +204,49 @@ pub enum VscodeAction {
 const REPO: &str = "jemmyw/overitall";
 const VSIX_PATTERN: &str = "vscode-overitall-*.vsix";
 
-/// Find an available editor CLI (VS Code or Cursor)
-fn find_editor_cli() -> Option<&'static str> {
+/// Check if an editor CLI is available
+fn is_editor_available(cli: &str) -> bool {
     use std::process::{Command, Stdio};
 
-    for cli in &["code", "cursor"] {
-        let status = Command::new(cli)
-            .args(["--version"])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
+    Command::new(cli)
+        .args(["--version"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
 
-        if status.map(|s| s.success()).unwrap_or(false) {
-            return Some(cli);
+/// Editor selection result
+enum EditorChoice {
+    Single(&'static str),
+    Both,
+}
+
+/// Prompt user to select an editor when both are available
+fn prompt_editor_choice() -> anyhow::Result<EditorChoice> {
+    use std::io::{self, Write};
+
+    println!("Both VS Code and Cursor are available.");
+    println!("  1) VS Code");
+    println!("  2) Cursor");
+    println!("  3) Both");
+    print!("Select editor [1/2/3]: ");
+    io::stdout().flush()?;
+
+    let mut input = String::new();
+    io::stdin().read_line(&mut input)?;
+
+    match input.trim() {
+        "1" | "code" | "vscode" => Ok(EditorChoice::Single("code")),
+        "2" | "cursor" => Ok(EditorChoice::Single("cursor")),
+        "3" | "both" | "all" => Ok(EditorChoice::Both),
+        "" => {
+            println!("Defaulting to VS Code");
+            Ok(EditorChoice::Single("code"))
         }
+        _ => Err(anyhow!("Invalid selection. Please enter 1, 2, or 3.")),
     }
-    None
 }
 
 /// Install the VS Code extension from GitHub releases
@@ -240,15 +267,26 @@ pub fn install_vscode_extension() -> anyhow::Result<()> {
         ));
     }
 
-    // Check if VS Code or Cursor CLI is available
-    let editor_cli = find_editor_cli().ok_or_else(|| {
-        anyhow!(
-            "Neither VS Code ('code') nor Cursor ('cursor') CLI found.\n\
-             Install VS Code or Cursor and ensure the CLI is in your PATH.\n\
-             In VS Code: Cmd+Shift+P > 'Shell Command: Install code command in PATH'\n\
-             In Cursor: Cmd+Shift+P > 'Shell Command: Install cursor command in PATH'"
-        )
-    })?;
+    // Check which editors are available
+    let has_code = is_editor_available("code");
+    let has_cursor = is_editor_available("cursor");
+
+    let editors: Vec<&'static str> = match (has_code, has_cursor) {
+        (false, false) => {
+            return Err(anyhow!(
+                "Neither VS Code ('code') nor Cursor ('cursor') CLI found.\n\
+                 Install VS Code or Cursor and ensure the CLI is in your PATH.\n\
+                 In VS Code: Cmd+Shift+P > 'Shell Command: Install code command in PATH'\n\
+                 In Cursor: Cmd+Shift+P > 'Shell Command: Install cursor command in PATH'"
+            ));
+        }
+        (true, false) => vec!["code"],
+        (false, true) => vec!["cursor"],
+        (true, true) => match prompt_editor_choice()? {
+            EditorChoice::Single(cli) => vec![cli],
+            EditorChoice::Both => vec!["code", "cursor"],
+        },
+    };
 
     // Get the latest release tag
     println!("Checking for latest release...");
@@ -313,23 +351,28 @@ pub fn install_vscode_extension() -> anyhow::Result<()> {
     let vsix_path = vsix_file.path();
     println!("Downloaded: {}", vsix_file.file_name().to_string_lossy());
 
-    // Install the extension
-    let editor_name = if editor_cli == "cursor" { "Cursor" } else { "VS Code" };
-    println!("Installing extension to {}...", editor_name);
-    let install_status = Command::new(editor_cli)
-        .args([
-            "--install-extension",
-            vsix_path.to_str().unwrap(),
-            "--force",
-        ])
-        .status()?;
+    // Install the extension to each selected editor
+    let mut installed_editors = Vec::new();
+    for editor_cli in &editors {
+        let editor_name = if *editor_cli == "cursor" { "Cursor" } else { "VS Code" };
+        println!("Installing extension to {}...", editor_name);
+        let install_status = Command::new(editor_cli)
+            .args([
+                "--install-extension",
+                vsix_path.to_str().unwrap(),
+                "--force",
+            ])
+            .status()?;
 
-    if !install_status.success() {
-        return Err(anyhow!("Failed to install extension"));
+        if !install_status.success() {
+            return Err(anyhow!("Failed to install extension to {}", editor_name));
+        }
+        installed_editors.push(editor_name);
     }
 
-    println!("\n✓ {} extension installed successfully!", editor_name);
-    println!("\nThe Overitall extension is now available in {}.", editor_name);
+    let editors_str = installed_editors.join(" and ");
+    println!("\n✓ Extension installed successfully to {}!", editors_str);
+    println!("\nThe Overitall extension is now available.");
     println!("Look for the Overitall icon in the activity bar when you have a Procfile.");
 
     Ok(())
