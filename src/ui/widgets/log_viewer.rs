@@ -390,7 +390,7 @@ pub fn draw_log_viewer(
             };
 
             // Use cache: batch/wrap view mode always uses non-compact content
-            let cache_key = AnsiCacheKey::new(log.id, false);
+            let cache_key = AnsiCacheKey::new(log.id, false, app.display.timestamp_mode);
             let cached = app.cache.ansi_cache.get_or_parse(cache_key, &full_line_with_ansi);
             AnsiCache::to_line_with_overrides(cached, bg_color, fg_override)
         } else if full_line_clean.width() > max_line_width {
@@ -466,8 +466,8 @@ pub fn draw_log_viewer(
                 None
             };
 
-            // Use cache: key includes compact mode since content may differ
-            let cache_key = AnsiCacheKey::new(log.id, app.display.is_compact());
+            // Use cache: key includes compact mode and timestamp mode since content may differ
+            let cache_key = AnsiCacheKey::new(log.id, app.display.is_compact(), app.display.timestamp_mode);
             let cached = app.cache.ansi_cache.get_or_parse(cache_key, &full_line_with_ansi);
             AnsiCache::to_line_with_overrides(cached, bg_color, fg_override)
         };

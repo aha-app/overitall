@@ -1,4 +1,5 @@
 use overitall::ui::ansi_cache::{AnsiCache, AnsiCacheKey};
+use overitall::ui::display_state::TimestampMode;
 use overitall::ui::utils::parse_ansi_to_spans;
 use std::time::Instant;
 
@@ -64,7 +65,7 @@ fn bench_with_cache(lines: &[(u64, String)], frames: usize) -> std::time::Durati
 
     for _ in 0..frames {
         for (id, line) in lines {
-            let key = AnsiCacheKey::new(*id, false);
+            let key = AnsiCacheKey::new(*id, false, TimestampMode::Seconds);
             let _cached = cache.get_or_parse(key, line);
         }
     }
@@ -122,14 +123,14 @@ fn main() {
 
     // First frame - all misses
     for (id, line) in &lines {
-        let key = AnsiCacheKey::new(*id, false);
+        let key = AnsiCacheKey::new(*id, false, TimestampMode::Seconds);
         let _ = cache.get_or_parse(key, line);
     }
 
     // Next 59 frames - should be all hits
     for _ in 0..59 {
         for (id, line) in &lines {
-            let key = AnsiCacheKey::new(*id, false);
+            let key = AnsiCacheKey::new(*id, false, TimestampMode::Seconds);
             let _ = cache.get_or_parse(key, line);
         }
     }

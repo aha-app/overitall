@@ -2,17 +2,19 @@ use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
 use std::collections::HashMap;
 
+use crate::ui::display_state::TimestampMode;
 use crate::ui::utils::parse_ansi_to_spans;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AnsiCacheKey {
     log_id: u64,
     compact_mode: bool,
+    timestamp_mode: TimestampMode,
 }
 
 impl AnsiCacheKey {
-    pub fn new(log_id: u64, compact_mode: bool) -> Self {
-        Self { log_id, compact_mode }
+    pub fn new(log_id: u64, compact_mode: bool, timestamp_mode: TimestampMode) -> Self {
+        Self { log_id, compact_mode, timestamp_mode }
     }
 }
 
@@ -105,7 +107,7 @@ mod tests {
     #[test]
     fn test_cache_hit() {
         let mut cache = AnsiCache::new(100);
-        let key = AnsiCacheKey::new(1, false);
+        let key = AnsiCacheKey::new(1, false, TimestampMode::Seconds);
 
         // First access - miss
         let _ = cache.get_or_parse(key.clone(), "test line");
@@ -121,8 +123,8 @@ mod tests {
     #[test]
     fn test_different_compact_mode_is_different_key() {
         let mut cache = AnsiCache::new(100);
-        let key1 = AnsiCacheKey::new(1, false);
-        let key2 = AnsiCacheKey::new(1, true);
+        let key1 = AnsiCacheKey::new(1, false, TimestampMode::Seconds);
+        let key2 = AnsiCacheKey::new(1, true, TimestampMode::Seconds);
 
         let _ = cache.get_or_parse(key1, "full content");
         let _ = cache.get_or_parse(key2, "condensed");
@@ -131,18 +133,32 @@ mod tests {
     }
 
     #[test]
+    fn test_different_timestamp_mode_is_different_key() {
+        let mut cache = AnsiCache::new(100);
+        let key1 = AnsiCacheKey::new(1, false, TimestampMode::Seconds);
+        let key2 = AnsiCacheKey::new(1, false, TimestampMode::Milliseconds);
+        let key3 = AnsiCacheKey::new(1, false, TimestampMode::Off);
+
+        let _ = cache.get_or_parse(key1, "[12:00:00] content");
+        let _ = cache.get_or_parse(key2, "[12:00:00.000] content");
+        let _ = cache.get_or_parse(key3, "content");
+
+        assert_eq!(cache.misses, 3);
+    }
+
+    #[test]
     fn test_cache_eviction() {
         let mut cache = AnsiCache::new(10);
 
         // Fill cache
         for i in 0..10 {
-            let key = AnsiCacheKey::new(i, false);
+            let key = AnsiCacheKey::new(i, false, TimestampMode::Seconds);
             cache.get_or_parse(key, "test");
         }
         assert_eq!(cache.cache.len(), 10);
 
         // Add one more, should trigger eviction
-        let key = AnsiCacheKey::new(100, false);
+        let key = AnsiCacheKey::new(100, false, TimestampMode::Seconds);
         cache.get_or_parse(key, "test");
 
         // Should have evicted half

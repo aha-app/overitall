@@ -2,7 +2,7 @@ use super::app::DisplayMode;
 use super::types::StatusType;
 
 /// Timestamp display mode for log lines
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum TimestampMode {
     /// Show time as HH:MM:SS (default)
     #[default]
