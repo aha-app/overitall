@@ -1,0 +1,44 @@
+---
+source: tests/basic_ui_tests.rs
+expression: output
+---
+No processes                                                                                                            
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+[Search: ERROR] no matches                                                                                              
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+Buffer: 0.0/50 MB (0%) | 0 lines   [TAIL]                                                                               
+/ERROR_  (Enter to select | Esc to cancel)
