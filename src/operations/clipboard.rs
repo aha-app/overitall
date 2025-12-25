@@ -281,7 +281,7 @@ pub fn build_time_context_text(
 
     Ok(CopyResult {
         text,
-        message: format!("Copied {} lines ({} ±{}s)", count, process_name, time_window_seconds),
+        message: format!("Contextual copy: {} lines ({} ±{}s)", count, process_name, time_window_seconds),
     })
 }
 
@@ -628,7 +628,7 @@ mod tests {
         assert!(result.text.contains("Web log 3"));
         assert!(!result.text.contains("Worker log 1")); // different process
         assert!(!result.text.contains("Web log 4")); // outside time window
-        assert_eq!(result.message, "Copied 3 lines (web ±1s)");
+        assert_eq!(result.message, "Contextual copy: 3 lines (web ±1s)");
     }
 
     #[test]
@@ -693,6 +693,6 @@ mod tests {
         assert!(result.text.contains("Selected log"));
         assert!(!result.text.contains("Early log")); // 1000ms before, outside ±500ms
         assert!(!result.text.contains("Late log")); // 1000ms after, outside ±500ms
-        assert_eq!(result.message, "Copied 1 lines (web ±0.5s)");
+        assert_eq!(result.message, "Contextual copy: 1 lines (web ±0.5s)");
     }
 }

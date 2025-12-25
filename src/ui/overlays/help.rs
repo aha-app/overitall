@@ -171,7 +171,7 @@ pub fn draw_help_overlay(f: &mut Frame, scroll_offset: u16) {
         ]),
         Line::from(vec![
             Span::styled("  X", Style::default().fg(Color::Yellow)),
-            Span::raw("       Copy same process ±1s around line"),
+            Span::raw("       Contextual copy (same process ±1s)"),
         ]),
         Line::from(vec![
             Span::styled("  b", Style::default().fg(Color::Yellow)),
