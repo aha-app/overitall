@@ -1,0 +1,44 @@
+---
+source: tests/navigation_tests.rs
+expression: output
+---
+web [Stopped] | worker [Stopped]                                                                                        
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                        
+[12:00:00] web: Starting web server on port 3000                                                                        
+[12:00:00] web: Loading configuration                                                                                   
+[12:00:00] web: Database connected                                                                                      
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+Buffer: 0.0/50 MB (0%) | 6 lines   | Batch 1/3, 3 lines [BATCH]                                                         
+Press : for commands, / to search, q to quit
