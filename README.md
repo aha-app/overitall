@@ -21,7 +21,6 @@ Overitall (`oit`) is a Rust-based TUI that helps you manage multiple processes a
 - **Persistent Configuration**: Filters and settings are automatically saved
 - **Compact Mode**: Collapse verbose metadata tags (`[key:value]`) into `[+N]` for cleaner log viewing
 - **Process Coloring**: Optional distinct colors per process for easier visual identification
-- **Vim-style Commands**: Familiar `:command` interface for power users
 - **Auto-Update**: Automatically checks for and installs updates on startup
 - **AI Integration**: Install Claude Code/Cursor skill to let AI control the TUI via CLI
 
@@ -120,8 +119,9 @@ oit --file Procfile.other
 #### Navigation
 - `↑` / `↓` - Select previous/next log line
 - `Enter` - Expand selected line (show full content in overlay)
-- `j` / `k` - Scroll down/up
-- `g` / `G` - Jump to top/bottom
+- `Ctrl+B` / `Ctrl+F` - Page up/down (Vim-style)
+- `PageUp` / `PageDown` - Page up/down
+- `Home` / `End` - Jump to top/bottom
 - `?` - Show help overlay
 - `q` - Quit application
 
@@ -129,11 +129,13 @@ oit --file Procfile.other
 - `:` - Enter command mode
 - `/` - Enter search mode
 - `Esc` - Exit current mode, close overlays, or jump to latest logs
-- `w` - Toggle compact mode (condense `[key:value]` metadata to `[+N]`)
+- `w` - Cycle display mode: compact → full → wrap
+- `t` - Cycle timestamp display: seconds → milliseconds → off
 
 
 #### Batch Navigation
 - `[` / `]` - Previous/next batch
+- `+` / `-` - Increase/decrease batch window by 100ms
 
 #### Clipboard & Batch Operations
 - `c` - Copy selected line to clipboard (with timestamp and process)
@@ -148,12 +150,14 @@ All commands are entered by pressing `:` followed by the command.
 #### Process Management
 
 - `:s <name>` - Start a process
-- `:r <name>` - Restart a process
+- `:r <name>` - Restart a process (or all processes if no name given)
 - `:k <name>` - Kill (stop) a process
+- `:q` / `:quit` / `:exit` - Quit the application
 
 Example:
 ```
 :r worker    # Restart the worker process
+:r           # Restart all processes
 :k web       # Stop the web process
 :s web       # Start the web process
 ```
@@ -180,6 +184,7 @@ Hide or show logs from specific processes temporarily. This is useful when you w
 - `:show <name>` - Show logs from a specific process
 - `:hide all` - Hide all process logs
 - `:show all` - Show all process logs
+- `:only <name>` - Show only one process, hide all others
 
 Examples:
 ```
@@ -187,6 +192,7 @@ Examples:
 :show worker        # Show logs from the worker process again
 :hide all           # Hide all process logs
 :show all           # Show all process logs
+:only web           # Show only web logs, hide all others
 ```
 
 When a process is hidden, it will be marked as `[Hidden]` in the process list, and its logs will not appear in the log viewer. Hidden processes are saved to the configuration file and persist across restarts.
@@ -198,9 +204,11 @@ Log lines that arrive within a short time window are grouped into "batches". Thi
 - `:nb` - Next batch
 - `:pb` - Previous batch
 - `:sb` - Toggle batch view mode (show only current batch)
+- `:bw` - Show current batch window
 - `:bw <milliseconds>` - Set batch window (default: 100ms)
+- `:bw fast` / `:bw medium` / `:bw slow` - Presets: 100ms / 1000ms / 5000ms
 
-You can also use `[` and `]` keys for quick batch navigation.
+You can also use `[` and `]` keys for quick batch navigation, or `+` and `-` to adjust the batch window.
 
 The batch window determines how close in time log lines must be to be grouped together. Adjust it based on your application's logging patterns (e.g., `:bw 1000` for 1 second window).
 
@@ -474,7 +482,8 @@ Overitall is under active development. Current features:
 - Dynamic batch window configuration (adjust batch grouping on-the-fly)
 - Trace detection and filtering (find correlation IDs like UUIDs)
 - Manual trace capture (record logs during a time window with `s` key)
-- Compact mode (collapse `[key:value]` metadata tags into `[+N]` for cleaner viewing)
+- Display modes: compact (collapse `[key:value]` metadata), full, and wrap
+- Configurable timestamp display (seconds, milliseconds, or hidden)
 - Persistent configuration
 - Help system
 - Auto-update on startup (via gh CLI)
