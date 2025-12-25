@@ -241,6 +241,65 @@ pub fn copy_batch(app: &App, manager: &ProcessManager) -> Result<String, String>
     copy_context(app, manager)
 }
 
+/// Build text for copying logs from the same process within a time window around the selected line.
+pub fn build_time_context_text(
+    app: &App,
+    filtered: &FilteredLogs,
+    time_window_seconds: f64,
+) -> Result<CopyResult, String> {
+    let line_id = app
+        .navigation
+        .selected_line_id
+        .ok_or_else(|| "No line selected".to_string())?;
+
+    // Find the selected log
+    let selected_log = find_log_by_id(&filtered.logs, line_id)
+        .ok_or_else(|| "Selected line not found".to_string())?;
+
+    let process_name = selected_log.source.process_name().to_string();
+    let center_time = selected_log.arrival_time;
+    let window = chrono::Duration::milliseconds((time_window_seconds * 1000.0) as i64);
+
+    // Filter logs: same process AND within time window
+    let context_logs: Vec<_> = filtered
+        .logs
+        .iter()
+        .filter(|log| {
+            log.source.process_name() == process_name
+                && log.arrival_time >= center_time - window
+                && log.arrival_time <= center_time + window
+        })
+        .cloned()
+        .collect();
+
+    if context_logs.is_empty() {
+        return Err("No context lines found".to_string());
+    }
+
+    let count = context_logs.len();
+    let text = format_logs(&context_logs);
+
+    Ok(CopyResult {
+        text,
+        message: format!("Copied {} lines ({} ±{}s)", count, process_name, time_window_seconds),
+    })
+}
+
+/// Copy logs from the same process within a time window around the selected line (Ctrl+Shift+C).
+/// Returns Ok with success message or Err with error message.
+pub fn copy_time_context(
+    app: &App,
+    manager: &ProcessManager,
+    time_window_seconds: f64,
+) -> Result<String, String> {
+    let filtered = FilteredLogs::from_manager(manager, &app.filters.filters, app.batch.batch_window_ms);
+    let result = build_time_context_text(app, &filtered, time_window_seconds)?;
+
+    copy_to_clipboard(&result.text)
+        .map(|_| result.message)
+        .map_err(|e| format!("Failed to copy: {}", e))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -510,5 +569,130 @@ mod tests {
         assert!(result.text.contains("ERROR: Job failed trace-abc123"));
         assert!(!result.text.contains("Starting server"));
         assert_eq!(result.message, "Copied trace to clipboard (2 lines)");
+    }
+
+    #[test]
+    fn test_build_time_context_text_filters_by_process_and_time() {
+        let mut app = App::new();
+        let now = Local::now();
+
+        // Create logs with specific timing for testing
+        let logs = vec![
+            LogLine::new_with_time(
+                LogSource::ProcessStdout("web".to_string()),
+                "Web log 1".to_string(),
+                now,
+            ),
+            LogLine::new_with_time(
+                LogSource::ProcessStdout("web".to_string()),
+                "Web log 2".to_string(),
+                now + Duration::milliseconds(500),
+            ),
+            LogLine::new_with_time(
+                LogSource::ProcessStdout("worker".to_string()),
+                "Worker log 1".to_string(),
+                now + Duration::milliseconds(600),
+            ),
+            LogLine::new_with_time(
+                LogSource::ProcessStdout("web".to_string()),
+                "Web log 3".to_string(),
+                now + Duration::milliseconds(800),
+            ),
+            LogLine::new_with_time(
+                LogSource::ProcessStdout("web".to_string()),
+                "Web log 4 outside window".to_string(),
+                now + Duration::milliseconds(2500),
+            ),
+        ];
+
+        // Select the second web log
+        app.navigation.selected_line_id = Some(logs[1].id);
+
+        let filtered = FilteredLogs {
+            logs: logs.clone(),
+            batches: vec![(0, 4)],
+        };
+
+        // Use 1 second window
+        let result = build_time_context_text(&app, &filtered, 1.0).unwrap();
+
+        // Should include web logs within ±1s of log[1] (which is at +500ms)
+        // Window: -500ms to +1500ms from start
+        // Log 0: 0ms - YES (within window)
+        // Log 1: 500ms - YES (the selected one)
+        // Log 2: 600ms - NO (wrong process)
+        // Log 3: 800ms - YES (within window)
+        // Log 4: 2500ms - NO (outside window, +2000ms from selected)
+        assert!(result.text.contains("Web log 1"));
+        assert!(result.text.contains("Web log 2"));
+        assert!(result.text.contains("Web log 3"));
+        assert!(!result.text.contains("Worker log 1")); // different process
+        assert!(!result.text.contains("Web log 4")); // outside time window
+        assert_eq!(result.message, "Copied 3 lines (web ±1s)");
+    }
+
+    #[test]
+    fn test_build_time_context_text_no_selection() {
+        let app = App::new();
+        let logs = create_test_logs();
+        let filtered = create_filtered_logs(logs);
+
+        let result = build_time_context_text(&app, &filtered, 1.0);
+
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "No line selected");
+    }
+
+    #[test]
+    fn test_build_time_context_text_selected_line_not_found() {
+        let mut app = App::new();
+        app.navigation.selected_line_id = Some(99999); // Non-existent ID
+
+        let logs = create_test_logs();
+        let filtered = create_filtered_logs(logs);
+
+        let result = build_time_context_text(&app, &filtered, 1.0);
+
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "Selected line not found");
+    }
+
+    #[test]
+    fn test_build_time_context_text_small_window() {
+        let mut app = App::new();
+        let now = Local::now();
+
+        let logs = vec![
+            LogLine::new_with_time(
+                LogSource::ProcessStdout("web".to_string()),
+                "Early log".to_string(),
+                now,
+            ),
+            LogLine::new_with_time(
+                LogSource::ProcessStdout("web".to_string()),
+                "Selected log".to_string(),
+                now + Duration::milliseconds(1000),
+            ),
+            LogLine::new_with_time(
+                LogSource::ProcessStdout("web".to_string()),
+                "Late log".to_string(),
+                now + Duration::milliseconds(2000),
+            ),
+        ];
+
+        app.navigation.selected_line_id = Some(logs[1].id);
+
+        let filtered = FilteredLogs {
+            logs: logs.clone(),
+            batches: vec![(0, 2)],
+        };
+
+        // Use 0.5 second window - only the selected log should be included
+        let result = build_time_context_text(&app, &filtered, 0.5).unwrap();
+
+        assert!(result.text.contains("Selected log"));
+        assert!(!result.text.contains("Early log")); // 1000ms before, outside ±500ms
+        assert!(!result.text.contains("Late log")); // 1000ms after, outside ±500ms
+        assert_eq!(result.message, "Copied 1 lines (web ±0.5s)");
     }
 }
