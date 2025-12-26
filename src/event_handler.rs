@@ -202,6 +202,19 @@ impl<'a> EventHandler<'a> {
                 self.handle_cycle_timestamp_mode();
                 Ok(false)
             }
+            // Multi-select with Shift+Up/Down (must come before plain Up/Down)
+            KeyCode::Up if key.modifiers.contains(KeyModifiers::SHIFT)
+                && !self.app.input.command_mode
+                && !self.app.input.search_mode => {
+                self.handle_extend_selection_prev();
+                Ok(false)
+            }
+            KeyCode::Down if key.modifiers.contains(KeyModifiers::SHIFT)
+                && !self.app.input.command_mode
+                && !self.app.input.search_mode => {
+                self.handle_extend_selection_next();
+                Ok(false)
+            }
             // Line selection and scrolling
             KeyCode::Up if !self.app.input.command_mode && !self.app.input.search_mode => {
                 self.handle_select_prev_line();
@@ -357,6 +370,14 @@ impl<'a> EventHandler<'a> {
 
     fn handle_select_next_line(&mut self) {
         navigation::select_next_line(self.app, self.manager);
+    }
+
+    fn handle_extend_selection_prev(&mut self) {
+        navigation::extend_selection_prev(self.app, self.manager);
+    }
+
+    fn handle_extend_selection_next(&mut self) {
+        navigation::extend_selection_next(self.app, self.manager);
     }
 
     fn handle_page_up(&mut self) {
