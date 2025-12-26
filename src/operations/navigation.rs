@@ -407,3 +407,193 @@ pub fn page_down(app: &mut App, manager: &ProcessManager) {
         app.navigation.scroll_down(PAGE_SIZE, max_offset);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::log::LogSource;
+
+    fn create_manager_with_logs(count: usize) -> (ProcessManager, Vec<u64>) {
+        let mut manager = ProcessManager::new();
+        let mut ids = Vec::new();
+        for i in 0..count {
+            let log = LogLine::new(
+                LogSource::ProcessStdout("test".to_string()),
+                format!("Log line {}", i),
+            );
+            ids.push(log.id);
+            manager.add_test_log(log);
+        }
+        (manager, ids)
+    }
+
+    #[test]
+    fn test_extend_selection_prev_starts_multi_select() {
+        let (manager, ids) = create_manager_with_logs(5);
+        let mut app = App::new();
+
+        // Select the middle line first
+        app.navigation.selected_line_id = Some(ids[2]);
+
+        let result = extend_selection_prev(&mut app, &manager);
+
+        // Should move to the line before (index 1)
+        assert_eq!(result, Some(ids[1]));
+        // Multi-select should be active
+        assert!(app.navigation.has_multi_select());
+        // Anchor should be set to original position
+        assert_eq!(app.navigation.selection_anchor, Some(ids[2]));
+        // End should be at new position
+        assert_eq!(app.navigation.selection_end, Some(ids[1]));
+    }
+
+    #[test]
+    fn test_extend_selection_prev_continues_multi_select() {
+        let (manager, ids) = create_manager_with_logs(5);
+        let mut app = App::new();
+
+        // Set up existing multi-select
+        app.navigation.selected_line_id = Some(ids[3]);
+        app.navigation.selection_anchor = Some(ids[3]);
+        app.navigation.selection_end = Some(ids[2]);
+
+        let result = extend_selection_prev(&mut app, &manager);
+
+        // Should move from selection_end (index 2) to index 1
+        assert_eq!(result, Some(ids[1]));
+        // Anchor should remain unchanged
+        assert_eq!(app.navigation.selection_anchor, Some(ids[3]));
+        // End should be updated
+        assert_eq!(app.navigation.selection_end, Some(ids[1]));
+    }
+
+    #[test]
+    fn test_extend_selection_prev_at_top_stays() {
+        let (manager, ids) = create_manager_with_logs(5);
+        let mut app = App::new();
+
+        // Start at the first line
+        app.navigation.selected_line_id = Some(ids[0]);
+
+        let result = extend_selection_prev(&mut app, &manager);
+
+        // Should stay at first line (no wrap for extend)
+        assert_eq!(result, Some(ids[0]));
+        assert_eq!(app.navigation.selection_end, Some(ids[0]));
+    }
+
+    #[test]
+    fn test_extend_selection_next_starts_multi_select() {
+        let (manager, ids) = create_manager_with_logs(5);
+        let mut app = App::new();
+
+        // Select the middle line first
+        app.navigation.selected_line_id = Some(ids[2]);
+
+        let result = extend_selection_next(&mut app, &manager);
+
+        // Should move to the line after (index 3)
+        assert_eq!(result, Some(ids[3]));
+        // Multi-select should be active
+        assert!(app.navigation.has_multi_select());
+        // Anchor should be set to original position
+        assert_eq!(app.navigation.selection_anchor, Some(ids[2]));
+        // End should be at new position
+        assert_eq!(app.navigation.selection_end, Some(ids[3]));
+    }
+
+    #[test]
+    fn test_extend_selection_next_continues_multi_select() {
+        let (manager, ids) = create_manager_with_logs(5);
+        let mut app = App::new();
+
+        // Set up existing multi-select
+        app.navigation.selected_line_id = Some(ids[1]);
+        app.navigation.selection_anchor = Some(ids[1]);
+        app.navigation.selection_end = Some(ids[2]);
+
+        let result = extend_selection_next(&mut app, &manager);
+
+        // Should move from selection_end (index 2) to index 3
+        assert_eq!(result, Some(ids[3]));
+        // Anchor should remain unchanged
+        assert_eq!(app.navigation.selection_anchor, Some(ids[1]));
+        // End should be updated
+        assert_eq!(app.navigation.selection_end, Some(ids[3]));
+    }
+
+    #[test]
+    fn test_extend_selection_next_at_bottom_stays() {
+        let (manager, ids) = create_manager_with_logs(5);
+        let mut app = App::new();
+
+        // Start at the last line
+        app.navigation.selected_line_id = Some(ids[4]);
+
+        let result = extend_selection_next(&mut app, &manager);
+
+        // Should stay at last line (no wrap for extend)
+        assert_eq!(result, Some(ids[4]));
+        assert_eq!(app.navigation.selection_end, Some(ids[4]));
+    }
+
+    #[test]
+    fn test_extend_selection_with_no_prior_selection() {
+        let (manager, ids) = create_manager_with_logs(5);
+        let mut app = App::new();
+
+        // No selection at all
+        assert!(app.navigation.selected_line_id.is_none());
+
+        let result = extend_selection_prev(&mut app, &manager);
+
+        // Should select the last line
+        assert_eq!(result, Some(ids[4]));
+        // Display should be frozen
+        assert!(app.navigation.frozen);
+    }
+
+    #[test]
+    fn test_extend_selection_next_with_no_prior_selection() {
+        let (manager, ids) = create_manager_with_logs(5);
+        let mut app = App::new();
+
+        assert!(app.navigation.selected_line_id.is_none());
+
+        let result = extend_selection_next(&mut app, &manager);
+
+        // Should select the first line
+        assert_eq!(result, Some(ids[0]));
+        assert!(app.navigation.frozen);
+    }
+
+    #[test]
+    fn test_get_selected_log_ids_single_select() {
+        let (manager, ids) = create_manager_with_logs(5);
+        let mut app = App::new();
+        app.navigation.selected_line_id = Some(ids[2]);
+
+        let logs = manager.get_all_logs();
+        let display_logs: Vec<LogLine> = logs.iter().map(|l| (*l).clone()).collect();
+
+        let selected = get_selected_log_ids(&app, &display_logs);
+
+        assert_eq!(selected, vec![ids[2]]);
+    }
+
+    #[test]
+    fn test_get_selected_log_ids_multi_select() {
+        let (manager, ids) = create_manager_with_logs(5);
+        let mut app = App::new();
+        // Multi-select from index 1 to 3
+        app.navigation.selection_anchor = Some(ids[1]);
+        app.navigation.selection_end = Some(ids[3]);
+
+        let logs = manager.get_all_logs();
+        let display_logs: Vec<LogLine> = logs.iter().map(|l| (*l).clone()).collect();
+
+        let selected = get_selected_log_ids(&app, &display_logs);
+
+        assert_eq!(selected, vec![ids[1], ids[2], ids[3]]);
+    }
+}

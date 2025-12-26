@@ -742,4 +742,104 @@ mod tests {
         assert!(!result.text.contains("Late log")); // 1000ms after, outside ±500ms
         assert_eq!(result.message, "Contextual copy: 1 lines (web ±0.5s)");
     }
+
+    #[test]
+    fn test_build_multi_select_text_multiple_lines() {
+        let mut app = App::new();
+        let logs = create_test_logs();
+
+        // Set up multi-select for lines 1-3 (indices 1, 2, 3)
+        app.navigation.selection_anchor = Some(logs[1].id);
+        app.navigation.selection_end = Some(logs[3].id);
+
+        let filtered = create_filtered_logs(logs);
+        let result = build_multi_select_text(&app, &filtered).unwrap();
+
+        // Should include 3 lines in display order
+        assert!(result.text.contains("ERROR: Connection failed"));
+        assert!(result.text.contains("Processing job trace-abc123"));
+        assert!(result.text.contains("ERROR: Job failed trace-abc123"));
+        // Should not include unselected lines
+        assert!(!result.text.contains("Starting server"));
+        assert!(!result.text.contains("Request completed"));
+        assert_eq!(result.message, "Copied 3 lines");
+    }
+
+    #[test]
+    fn test_build_multi_select_text_backward_selection() {
+        let mut app = App::new();
+        let logs = create_test_logs();
+
+        // Set up multi-select backward (anchor > end)
+        app.navigation.selection_anchor = Some(logs[3].id);
+        app.navigation.selection_end = Some(logs[1].id);
+
+        let filtered = create_filtered_logs(logs);
+        let result = build_multi_select_text(&app, &filtered).unwrap();
+
+        // Should still include lines in display order (not selection order)
+        assert!(result.text.contains("ERROR: Connection failed"));
+        assert!(result.text.contains("Processing job trace-abc123"));
+        assert!(result.text.contains("ERROR: Job failed trace-abc123"));
+        assert_eq!(result.message, "Copied 3 lines");
+    }
+
+    #[test]
+    fn test_build_multi_select_text_no_anchor() {
+        let app = App::new();
+        // No selection set
+        let logs = create_test_logs();
+        let filtered = create_filtered_logs(logs);
+
+        let result = build_multi_select_text(&app, &filtered);
+
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "No lines selected");
+    }
+
+    #[test]
+    fn test_build_multi_select_text_single_line() {
+        let mut app = App::new();
+        let logs = create_test_logs();
+
+        // Multi-select with same anchor and end (single line)
+        app.navigation.selection_anchor = Some(logs[2].id);
+        app.navigation.selection_end = Some(logs[2].id);
+
+        let filtered = create_filtered_logs(logs);
+        let result = build_multi_select_text(&app, &filtered).unwrap();
+
+        // Should include just the one line
+        assert!(result.text.contains("Processing job trace-abc123"));
+        assert!(!result.text.contains("ERROR: Connection failed"));
+        assert!(!result.text.contains("ERROR: Job failed"));
+        assert_eq!(result.message, "Copied 1 lines");
+    }
+
+    #[test]
+    fn test_build_multi_select_text_in_batch_view_mode() {
+        let mut app = App::new();
+        let logs = create_test_logs();
+
+        // Enable batch view mode for batch 0
+        app.batch.batch_view_mode = true;
+        app.batch.current_batch = Some(0);
+
+        // Multi-select within batch 0 (indices 0-2)
+        app.navigation.selection_anchor = Some(logs[0].id);
+        app.navigation.selection_end = Some(logs[2].id);
+
+        let filtered = create_filtered_logs(logs);
+        let result = build_multi_select_text(&app, &filtered).unwrap();
+
+        // In batch view mode, only batch 0 logs are visible (indices 0-2)
+        // Selection should include all 3 lines from batch 0
+        assert!(result.text.contains("Starting server")); // index 0
+        assert!(result.text.contains("ERROR: Connection failed")); // index 1
+        assert!(result.text.contains("Processing job trace-abc123")); // index 2
+        // Indices 3-4 are in batch 1, not visible in batch view mode
+        assert!(!result.text.contains("ERROR: Job failed"));
+        assert!(!result.text.contains("Request completed"));
+        assert_eq!(result.message, "Copied 3 lines");
+    }
 }
