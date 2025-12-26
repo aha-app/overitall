@@ -3,6 +3,7 @@ use arboard::Clipboard;
 
 use crate::log::LogLine;
 use crate::operations::logs::FilteredLogs;
+use crate::operations::navigation::get_selected_log_ids;
 use crate::process::ProcessManager;
 use crate::ui::App;
 
@@ -98,6 +99,46 @@ pub fn build_line_text(app: &App, filtered: &FilteredLogs) -> Result<CopyResult,
     Ok(CopyResult {
         text,
         message: "Copied line to clipboard".to_string(),
+    })
+}
+
+/// Build the text for copying multiple selected lines.
+pub fn build_multi_select_text(app: &App, filtered: &FilteredLogs) -> Result<CopyResult, String> {
+    // Apply batch view mode filtering if enabled
+    let display_logs = if app.batch.batch_view_mode {
+        if let Some(batch_idx) = app.batch.current_batch {
+            if !filtered.batches.is_empty() && batch_idx < filtered.batches.len() {
+                let (start, end) = filtered.batches[batch_idx];
+                filtered.logs[start..=end].to_vec()
+            } else {
+                filtered.logs.clone()
+            }
+        } else {
+            filtered.logs.clone()
+        }
+    } else {
+        filtered.logs.clone()
+    };
+
+    let selected_ids = get_selected_log_ids(app, &display_logs);
+
+    if selected_ids.is_empty() {
+        return Err("No lines selected".to_string());
+    }
+
+    // Collect matching logs in display order
+    let selected_logs: Vec<LogLine> = display_logs
+        .iter()
+        .filter(|log| selected_ids.contains(&log.id))
+        .cloned()
+        .collect();
+
+    let count = selected_logs.len();
+    let text = format_logs(&selected_logs);
+
+    Ok(CopyResult {
+        text,
+        message: format!("Copied {} lines", count),
     })
 }
 
@@ -213,11 +254,17 @@ pub fn build_context_text(app: &App, filtered: &FilteredLogs) -> Result<CopyResu
     }
 }
 
-/// Copy the selected line to clipboard.
+/// Copy the selected line(s) to clipboard.
+/// If multi-select is active, copies all selected lines.
 /// Returns Ok with success message or Err with error message.
 pub fn copy_line(app: &App, manager: &ProcessManager) -> Result<String, String> {
     let filtered = FilteredLogs::from_manager(manager, &app.filters.filters, app.batch.batch_window_ms);
-    let result = build_line_text(app, &filtered)?;
+
+    let result = if app.navigation.has_multi_select() {
+        build_multi_select_text(app, &filtered)?
+    } else {
+        build_line_text(app, &filtered)?
+    };
 
     copy_to_clipboard(&result.text)
         .map(|_| result.message)
