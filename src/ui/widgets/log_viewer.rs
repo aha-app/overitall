@@ -382,7 +382,7 @@ pub fn draw_log_viewer(
             let bg_color = if is_cursor {
                 Some(Color::Blue)
             } else if is_multi_selected {
-                Some(Color::DarkGray)
+                Some(Color::Rgb(30, 50, 70))
             } else {
                 None
             };
@@ -420,14 +420,14 @@ pub fn draw_log_viewer(
             let base_style = if is_cursor {
                 Style::default().bg(Color::Blue).fg(Color::White)
             } else if is_multi_selected {
-                Style::default().bg(Color::DarkGray)
+                Style::default().bg(Color::Rgb(30, 50, 70))
             } else {
                 Style::default()
             };
             let hint_style = if is_cursor {
                 Style::default().bg(Color::Blue).fg(Color::Cyan)
             } else if is_multi_selected {
-                Style::default().bg(Color::DarkGray).fg(Color::Gray)
+                Style::default().bg(Color::Rgb(30, 50, 70)).fg(Color::Cyan)
             } else {
                 Style::default().fg(Color::DarkGray)
             };
@@ -440,7 +440,7 @@ pub fn draw_log_viewer(
                 let process_style = if is_cursor {
                     Style::default().bg(Color::Blue).fg(Color::White)
                 } else if is_multi_selected {
-                    Style::default().bg(Color::DarkGray).fg(process_color)
+                    Style::default().bg(Color::Rgb(30, 50, 70)).fg(process_color)
                 } else {
                     Style::default().fg(process_color)
                 };
@@ -463,7 +463,7 @@ pub fn draw_log_viewer(
             let bg_color = if is_cursor {
                 Some(Color::Blue)
             } else if is_multi_selected {
-                Some(Color::DarkGray)
+                Some(Color::Rgb(30, 50, 70))
             } else {
                 None
             };
