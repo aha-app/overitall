@@ -22,6 +22,10 @@ pub fn draw_help_overlay(f: &mut Frame, scroll_offset: u16) {
             Span::raw("     Select previous/next log line"),
         ]),
         Line::from(vec![
+            Span::styled("  Shift+↑/↓", Style::default().fg(Color::Yellow)),
+            Span::raw(" Extend selection (multi-select)"),
+        ]),
+        Line::from(vec![
             Span::styled("  Ctrl+B/F", Style::default().fg(Color::Yellow)),
             Span::raw(" Page up/down (Vim-style)"),
         ]),
@@ -163,7 +167,7 @@ pub fn draw_help_overlay(f: &mut Frame, scroll_offset: u16) {
         ]),
         Line::from(vec![
             Span::styled("  c", Style::default().fg(Color::Yellow)),
-            Span::raw("       Copy selected line (also in expanded view)"),
+            Span::raw("       Copy selected line(s) (also in expanded view)"),
         ]),
         Line::from(vec![
             Span::styled("  Shift+C", Style::default().fg(Color::Yellow)),
