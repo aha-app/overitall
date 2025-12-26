@@ -461,6 +461,12 @@ impl<'a> EventHandler<'a> {
             return;
         }
 
+        // 5.5. Multi-select active - clear selection
+        if self.app.navigation.has_multi_select() {
+            self.app.navigation.clear_multi_select();
+            return;
+        }
+
         // 6. Search results with selection - return to search input
         if !self.app.input.search_pattern.is_empty() && self.app.navigation.selected_line_id.is_some() {
             self.app.navigation.selected_line_id = None;
