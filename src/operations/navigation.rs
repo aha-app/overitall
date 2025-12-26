@@ -259,6 +259,132 @@ pub fn page_up(app: &mut App, manager: &ProcessManager) {
     }
 }
 
+/// Extend selection to previous line (Shift+Up).
+/// Creates a snapshot on first selection.
+/// Returns the new selection end ID.
+pub fn extend_selection_prev(app: &mut App, manager: &ProcessManager) -> Option<u64> {
+    let display_logs = get_display_logs(app, manager);
+
+    if display_logs.is_empty() {
+        return None;
+    }
+
+    // Create snapshot on first selection (if not already frozen/in trace mode)
+    let was_none = app.navigation.selected_line_id.is_none();
+    if was_none && app.navigation.snapshot.is_none() {
+        let logs = manager.get_all_logs();
+        let filtered = crate::ui::apply_filters(logs, &app.filters.filters);
+        app.navigation.create_snapshot(filtered);
+    }
+
+    // Start multi-select if not already started
+    app.navigation.start_multi_select();
+
+    // Find current position: use selection_end if set, otherwise selected_line_id
+    let current_id = app.navigation.selection_end.or(app.navigation.selected_line_id);
+
+    let new_id = match current_id {
+        None => {
+            // No current selection, start at last line
+            display_logs.last().map(|log| log.id)
+        }
+        Some(id) => {
+            match find_index_by_id(&display_logs, id) {
+                Some(0) => {
+                    // At top, stay at top (no wrap for extend selection)
+                    Some(display_logs[0].id)
+                }
+                Some(idx) => {
+                    Some(display_logs[idx - 1].id)
+                }
+                None => {
+                    display_logs.last().map(|log| log.id)
+                }
+            }
+        }
+    };
+
+    if let Some(id) = new_id {
+        app.navigation.set_selection_end(id);
+    }
+    app.navigation.auto_scroll = false;
+    if was_none {
+        app.navigation.freeze_display();
+    }
+    new_id
+}
+
+/// Extend selection to next line (Shift+Down).
+/// Creates a snapshot on first selection.
+/// Returns the new selection end ID.
+pub fn extend_selection_next(app: &mut App, manager: &ProcessManager) -> Option<u64> {
+    let display_logs = get_display_logs(app, manager);
+
+    if display_logs.is_empty() {
+        return None;
+    }
+
+    // Create snapshot on first selection (if not already frozen/in trace mode)
+    let was_none = app.navigation.selected_line_id.is_none();
+    if was_none && app.navigation.snapshot.is_none() {
+        let logs = manager.get_all_logs();
+        let filtered = crate::ui::apply_filters(logs, &app.filters.filters);
+        app.navigation.create_snapshot(filtered);
+    }
+
+    // Start multi-select if not already started
+    app.navigation.start_multi_select();
+
+    // Find current position: use selection_end if set, otherwise selected_line_id
+    let current_id = app.navigation.selection_end.or(app.navigation.selected_line_id);
+
+    let new_id = match current_id {
+        None => {
+            // No current selection, start at first line
+            display_logs.first().map(|log| log.id)
+        }
+        Some(id) => {
+            let len = display_logs.len();
+            match find_index_by_id(&display_logs, id) {
+                Some(idx) if idx >= len - 1 => {
+                    // At bottom, stay at bottom (no wrap for extend selection)
+                    Some(display_logs[len - 1].id)
+                }
+                Some(idx) => {
+                    Some(display_logs[idx + 1].id)
+                }
+                None => {
+                    display_logs.first().map(|log| log.id)
+                }
+            }
+        }
+    };
+
+    if let Some(id) = new_id {
+        app.navigation.set_selection_end(id);
+    }
+    app.navigation.auto_scroll = false;
+    if was_none {
+        app.navigation.freeze_display();
+    }
+    new_id
+}
+
+/// Get all log line IDs that are currently selected (single or multi-select).
+pub fn get_selected_log_ids(app: &App, display_logs: &[LogLine]) -> Vec<u64> {
+    if app.navigation.has_multi_select() {
+        display_logs
+            .iter()
+            .filter(|log| app.navigation.is_in_selection(log.id, display_logs))
+            .map(|log| log.id)
+            .collect()
+    } else if let Some(id) = app.navigation.selected_line_id {
+        vec![id]
+    } else {
+        vec![]
+    }
+}
+
 /// Move the selection down by a page (20 lines).
 /// If no line is selected, scrolls the view instead.
 pub fn page_down(app: &mut App, manager: &ProcessManager) {
