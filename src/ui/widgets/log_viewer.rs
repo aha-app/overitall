@@ -331,12 +331,16 @@ pub fn draw_log_viewer(
 
         let process_name = log.source.process_name();
 
-        // Check if this line is selected by ID
-        let is_selected = app.navigation.selected_line_id == Some(log.id);
+        // Check if this line is the cursor (selected by ID)
+        let is_cursor = app.navigation.selected_line_id == Some(log.id);
 
-        // Don't highlight search matches - we're already filtering to show only matches
-        // Highlighting would make all visible lines gray, which looks bad
-        let is_match = false;
+        // Check if this line is in a multi-select range (but not the cursor itself)
+        let is_multi_selected = !is_cursor
+            && app.navigation.has_multi_select()
+            && app.navigation.is_in_selection_ref(log.id, display_logs);
+
+        // Combined selection state (will be used by Step 6 for clearing on Escape)
+        let _is_selected = is_cursor || is_multi_selected;
 
         // Format timestamp based on mode
         let timestamp_part = match app.display.timestamp_mode {
@@ -375,15 +379,15 @@ pub fn draw_log_viewer(
         let line = if current_batch_validated.is_some() || app.display.is_wrap() {
             // In batch view mode or wrap mode: show full content with cached ANSI parsing
             // Paragraph wrapping is applied at the widget level
-            let bg_color = if is_selected {
+            let bg_color = if is_cursor {
                 Some(Color::Blue)
-            } else if is_match {
+            } else if is_multi_selected {
                 Some(Color::DarkGray)
             } else {
                 None
             };
 
-            let fg_override = if is_selected {
+            let fg_override = if is_cursor {
                 Some(Color::White)
             } else {
                 None
@@ -413,15 +417,17 @@ pub fn draw_log_viewer(
 
             // For truncated lines, show hint that Enter expands
             let truncated_text = &full_line_clean[..truncate_at];
-            let base_style = if is_selected {
+            let base_style = if is_cursor {
                 Style::default().bg(Color::Blue).fg(Color::White)
-            } else if is_match {
+            } else if is_multi_selected {
                 Style::default().bg(Color::DarkGray)
             } else {
                 Style::default()
             };
-            let hint_style = if is_selected {
+            let hint_style = if is_cursor {
                 Style::default().bg(Color::Blue).fg(Color::Cyan)
+            } else if is_multi_selected {
+                Style::default().bg(Color::DarkGray).fg(Color::Gray)
             } else {
                 Style::default().fg(Color::DarkGray)
             };
@@ -431,8 +437,10 @@ pub fn draw_log_viewer(
             let prefix_len = timestamp_part.len() + process_part_plain.len();
             if truncate_at >= prefix_len {
                 // Process name fully visible in truncated text
-                let process_style = if is_selected {
+                let process_style = if is_cursor {
                     Style::default().bg(Color::Blue).fg(Color::White)
+                } else if is_multi_selected {
+                    Style::default().bg(Color::DarkGray).fg(process_color)
                 } else {
                     Style::default().fg(process_color)
                 };
@@ -452,15 +460,15 @@ pub fn draw_log_viewer(
             }
         } else {
             // Full line fits, parse ANSI codes with caching
-            let bg_color = if is_selected {
+            let bg_color = if is_cursor {
                 Some(Color::Blue)
-            } else if is_match {
+            } else if is_multi_selected {
                 Some(Color::DarkGray)
             } else {
                 None
             };
 
-            let fg_override = if is_selected {
+            let fg_override = if is_cursor {
                 Some(Color::White)
             } else {
                 None

@@ -116,6 +116,38 @@ impl NavigationState {
         }
     }
 
+    /// Check if a line ID is within the multi-select range (for reference slices)
+    pub fn is_in_selection_ref(&self, id: u64, display_logs: &[&LogLine]) -> bool {
+        let (anchor, end) = match (self.selection_anchor, self.selection_end) {
+            (Some(a), Some(e)) => (a, e),
+            _ => return false,
+        };
+
+        let mut anchor_pos = None;
+        let mut end_pos = None;
+        let mut target_pos = None;
+
+        for (i, log) in display_logs.iter().enumerate() {
+            if log.id == anchor {
+                anchor_pos = Some(i);
+            }
+            if log.id == end {
+                end_pos = Some(i);
+            }
+            if log.id == id {
+                target_pos = Some(i);
+            }
+        }
+
+        match (anchor_pos, end_pos, target_pos) {
+            (Some(a), Some(e), Some(t)) => {
+                let (start, finish) = if a <= e { (a, e) } else { (e, a) };
+                t >= start && t <= finish
+            }
+            _ => false,
+        }
+    }
+
     /// Check if multi-select is active
     pub fn has_multi_select(&self) -> bool {
         self.selection_anchor.is_some() && self.selection_end.is_some()
