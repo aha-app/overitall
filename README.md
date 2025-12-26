@@ -118,6 +118,7 @@ oit --file Procfile.other
 
 #### Navigation
 - `↑` / `↓` - Select previous/next log line
+- `Shift+↑` / `Shift+↓` - Extend selection (multi-select mode)
 - `Enter` - Expand selected line (show full content in overlay)
 - `Ctrl+B` / `Ctrl+F` - Page up/down (Vim-style)
 - `PageUp` / `PageDown` - Page up/down
@@ -138,10 +139,11 @@ oit --file Procfile.other
 - `+` / `-` - Increase/decrease batch window by 100ms
 
 #### Clipboard & Batch Operations
-- `c` - Copy selected line to clipboard (with timestamp and process)
+- `c` - Copy selected line(s) to clipboard (with timestamp and process)
 - `Shift+C` - Copy entire batch to clipboard (all lines in batch)
 - `x` - Contextual copy (same process within ±1s of selected line)
 - `b` - Focus on batch containing the selected line
+- `Esc` - Clear multi-select (when in multi-select mode)
 
 ### Commands
 
@@ -477,6 +479,7 @@ Overitall is under active development. Current features:
 - Search with highlighting
 - Batch detection and navigation
 - Line selection and expanded view (view full content of long log lines)
+- Multi-select mode (select multiple lines with Shift+arrow keys)
 - Clipboard operations (copy lines and batches to system clipboard)
 - Batch focus from selected line
 - Dynamic batch window configuration (adjust batch grouping on-the-fly)
