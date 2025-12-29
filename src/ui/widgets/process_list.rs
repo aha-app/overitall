@@ -113,7 +113,8 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
             render_normal_mode(&entries, column_width, num_columns, area, app)
         }
         ProcessPanelViewMode::Summary => {
-            render_summary_mode(&entries, total_count, area, app)
+            let noteworthy: Vec<ProcessEntry> = entries.into_iter().filter(|e| e.is_noteworthy).collect();
+            render_summary_mode(&noteworthy, total_count, column_width, num_columns, area, app)
         }
         ProcessPanelViewMode::Minimal => {
             render_minimal_mode(total_count)
@@ -193,58 +194,92 @@ fn render_normal_mode<'a>(
     lines
 }
 
-/// Render summary mode: process count + only noteworthy processes
+/// Render summary mode: process count prefix + grid layout for noteworthy processes only
 fn render_summary_mode<'a>(
-    entries: &[ProcessEntry],
+    noteworthy_entries: &[ProcessEntry],
     total_count: usize,
+    column_width: usize,
+    num_columns: usize,
     area: Rect,
     app: &mut App,
 ) -> Vec<Line<'a>> {
-    let mut spans: Vec<Span> = Vec::new();
+    let mut lines: Vec<Line> = Vec::new();
 
-    spans.push(Span::styled(
-        format!("Processes: {}", total_count),
-        Style::default().fg(Color::White),
-    ));
+    // First line starts with "Processes: X  " then continues with grid entries
+    let prefix = format!("Processes: {}  ", total_count);
+    let prefix_len = prefix.len();
 
-    let noteworthy: Vec<&ProcessEntry> = entries.iter().filter(|e| e.is_noteworthy).collect();
-
-    let mut x_offset = format!("Processes: {}", total_count).len() as u16;
-
-    for entry in noteworthy {
-        spans.push(Span::raw("  "));
-        x_offset += 2;
-
-        let entry_start = x_offset;
-        spans.push(Span::styled(
-            entry.name.clone(),
-            Style::default()
-                .fg(entry.name_color)
-                .add_modifier(Modifier::BOLD),
-        ));
-        x_offset += entry.name.len() as u16;
-
-        spans.push(Span::raw(" "));
-        spans.push(Span::styled("●", Style::default().fg(entry.status_color)));
-        x_offset += 2;
-
-        if let Some(label) = &entry.custom_label {
-            spans.push(Span::raw(" "));
-            spans.push(Span::styled(
-                label.clone(),
-                Style::default().fg(entry.status_color),
-            ));
-            x_offset += 1 + label.len() as u16;
-        }
-
-        let entry_len = x_offset - entry_start;
-        app.regions.process_regions.push((
-            entry.name.clone(),
-            Rect::new(area.x + entry_start, area.y, entry_len, 1),
-        ));
+    if noteworthy_entries.is_empty() {
+        // No noteworthy processes, just show the count
+        lines.push(Line::from(vec![Span::styled(
+            format!("Processes: {}", total_count),
+            Style::default().fg(Color::White),
+        )]));
+        return lines;
     }
 
-    vec![Line::from(spans)]
+    let needs_padding = noteworthy_entries.len() > num_columns;
+
+    for (row_idx, chunk) in noteworthy_entries.chunks(num_columns).enumerate() {
+        let mut spans: Vec<Span> = Vec::new();
+
+        // Add prefix on first row
+        if row_idx == 0 {
+            spans.push(Span::styled(prefix.clone(), Style::default().fg(Color::White)));
+        }
+
+        for (col_idx, entry) in chunk.iter().enumerate() {
+            let max_name_len = column_width.saturating_sub(5);
+            let name_padding = if needs_padding {
+                max_name_len.saturating_sub(entry.name.len())
+            } else {
+                0
+            };
+
+            let entry_len = entry.name.len()
+                + name_padding
+                + 2
+                + entry.custom_label.as_ref().map(|l| l.len() + 1).unwrap_or(0);
+
+            let x_offset = if row_idx == 0 { prefix_len } else { 0 };
+            let x_pos = area.x + x_offset as u16 + (col_idx * column_width) as u16;
+            let y_pos = area.y + row_idx as u16;
+            app.regions.process_regions.push((
+                entry.name.clone(),
+                Rect::new(x_pos, y_pos, entry_len as u16, 1),
+            ));
+
+            spans.push(Span::styled(
+                entry.name.clone(),
+                Style::default()
+                    .fg(entry.name_color)
+                    .add_modifier(Modifier::BOLD),
+            ));
+
+            if name_padding > 0 {
+                spans.push(Span::raw(" ".repeat(name_padding)));
+            }
+
+            spans.push(Span::raw(" "));
+            spans.push(Span::styled("●", Style::default().fg(entry.status_color)));
+
+            if let Some(label) = &entry.custom_label {
+                spans.push(Span::raw(" "));
+                spans.push(Span::styled(
+                    label.clone(),
+                    Style::default().fg(entry.status_color),
+                ));
+            }
+
+            if col_idx < chunk.len() - 1 {
+                spans.push(Span::styled(" │ ", Style::default().fg(Color::DarkGray)));
+            }
+        }
+
+        lines.push(Line::from(spans));
+    }
+
+    lines
 }
 
 /// Render minimal mode: just the process count

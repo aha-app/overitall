@@ -14,10 +14,11 @@ const SPLIT_VIEW_THRESHOLD: u16 = 160;
 
 /// Calculate the height needed for the process list based on process count and terminal width
 fn calculate_process_list_height(manager: &ProcessManager, app: &App, terminal_width: u16) -> u16 {
-    // Summary and Minimal modes always use 1 row + 1 border = 2 lines
-    match app.display.process_panel_mode {
-        ProcessPanelViewMode::Summary | ProcessPanelViewMode::Minimal => return 2,
-        ProcessPanelViewMode::Normal => {}
+    use crate::process::ProcessStatus;
+
+    // Minimal mode always uses 1 row + 1 border = 2 lines
+    if app.display.process_panel_mode == ProcessPanelViewMode::Minimal {
+        return 2;
     }
 
     let processes = manager.get_processes();
@@ -32,6 +33,33 @@ fn calculate_process_list_height(manager: &ProcessManager, app: &App, terminal_w
         return 2; // "No processes" message + border
     }
 
+    // For Summary mode, count only noteworthy entries
+    let display_entries = if app.display.process_panel_mode == ProcessPanelViewMode::Summary {
+        let mut noteworthy_count = 0;
+        for name in &names {
+            let handle = &processes[*name];
+            let is_hidden = app.filters.hidden_processes.contains(*name);
+            let has_custom = handle.get_custom_status().is_some();
+            let is_noteworthy = is_hidden
+                || has_custom
+                || !matches!(handle.status, ProcessStatus::Running);
+            if is_noteworthy {
+                noteworthy_count += 1;
+            }
+        }
+        for name in &log_file_names {
+            if app.filters.hidden_processes.contains(name) {
+                noteworthy_count += 1;
+            }
+        }
+        if noteworthy_count == 0 {
+            return 2; // Just "Processes: X" + border
+        }
+        noteworthy_count
+    } else {
+        total_entries
+    };
+
     let (column_width, _) = calculate_grid_params(&names, &log_file_names);
     let usable_width = terminal_width.saturating_sub(2) as usize;
     if usable_width == 0 {
@@ -39,7 +67,7 @@ fn calculate_process_list_height(manager: &ProcessManager, app: &App, terminal_w
     }
 
     let num_columns = (usable_width / column_width).max(1);
-    let num_rows = (total_entries + num_columns - 1) / num_columns; // Ceiling division
+    let num_rows = (display_entries + num_columns - 1) / num_columns; // Ceiling division
 
     // Add 1 for the bottom border
     (num_rows as u16) + 1
