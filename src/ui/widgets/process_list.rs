@@ -194,7 +194,7 @@ fn render_normal_mode<'a>(
     lines
 }
 
-/// Render summary mode: process count prefix + grid layout for noteworthy processes only
+/// Render summary mode: grid layout for noteworthy processes with count suffix
 fn render_summary_mode<'a>(
     noteworthy_entries: &[ProcessEntry],
     total_count: usize,
@@ -204,29 +204,23 @@ fn render_summary_mode<'a>(
     app: &mut App,
 ) -> Vec<Line<'a>> {
     let mut lines: Vec<Line> = Vec::new();
-
-    // First line starts with "Processes: X  " then continues with grid entries
-    let prefix = format!("Processes: {}  ", total_count);
-    let prefix_len = prefix.len();
+    let noteworthy_count = noteworthy_entries.len();
 
     if noteworthy_entries.is_empty() {
-        // No noteworthy processes, just show the count
+        // No noteworthy processes - show message
         lines.push(Line::from(vec![Span::styled(
-            format!("Processes: {}", total_count),
-            Style::default().fg(Color::White),
+            format!("All {} processes running [p to expand]", total_count),
+            Style::default().fg(Color::DarkGray),
         )]));
         return lines;
     }
 
     let needs_padding = noteworthy_entries.len() > num_columns;
+    let total_rows = (noteworthy_entries.len() + num_columns - 1) / num_columns;
 
     for (row_idx, chunk) in noteworthy_entries.chunks(num_columns).enumerate() {
         let mut spans: Vec<Span> = Vec::new();
-
-        // Add prefix on first row
-        if row_idx == 0 {
-            spans.push(Span::styled(prefix.clone(), Style::default().fg(Color::White)));
-        }
+        let is_last_row = row_idx == total_rows - 1;
 
         for (col_idx, entry) in chunk.iter().enumerate() {
             let max_name_len = column_width.saturating_sub(5);
@@ -241,8 +235,7 @@ fn render_summary_mode<'a>(
                 + 2
                 + entry.custom_label.as_ref().map(|l| l.len() + 1).unwrap_or(0);
 
-            let x_offset = if row_idx == 0 { prefix_len } else { 0 };
-            let x_pos = area.x + x_offset as u16 + (col_idx * column_width) as u16;
+            let x_pos = area.x + (col_idx * column_width) as u16;
             let y_pos = area.y + row_idx as u16;
             app.regions.process_regions.push((
                 entry.name.clone(),
@@ -276,17 +269,25 @@ fn render_summary_mode<'a>(
             }
         }
 
+        // Add suffix on last row
+        if is_last_row {
+            spans.push(Span::styled(
+                format!("  [{} of {}, p to expand]", noteworthy_count, total_count),
+                Style::default().fg(Color::DarkGray),
+            ));
+        }
+
         lines.push(Line::from(spans));
     }
 
     lines
 }
 
-/// Render minimal mode: just the process count
+/// Render minimal mode: just process count info
 fn render_minimal_mode(total_count: usize) -> Vec<Line<'static>> {
     vec![Line::from(vec![Span::styled(
-        format!("Processes: {}", total_count),
-        Style::default().fg(Color::White),
+        format!("{} processes [p to expand]", total_count),
+        Style::default().fg(Color::DarkGray),
     )])]
 }
 
