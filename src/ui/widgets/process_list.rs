@@ -57,8 +57,97 @@ fn calculate_row_layout(cell_widths: &[usize], max_width: usize) -> Vec<Vec<usiz
 }
 
 /// Calculate the number of rows needed for the given cell widths and max width
-pub fn calculate_row_count(cell_widths: &[usize], max_width: usize) -> usize {
+fn calculate_row_count(cell_widths: &[usize], max_width: usize) -> usize {
     calculate_row_layout(cell_widths, max_width).len()
+}
+
+/// Build cell widths for layout calculation based on view mode
+fn build_cell_widths(manager: &ProcessManager, app: &App, mode: ProcessPanelViewMode) -> (Vec<usize>, usize) {
+    let processes = manager.get_processes();
+    let mut names: Vec<&String> = processes.keys().collect();
+    names.sort();
+
+    let mut log_file_names = manager.get_standalone_log_file_names();
+    log_file_names.sort();
+
+    let total_count = names.len() + log_file_names.len();
+    let mut cell_widths: Vec<usize> = Vec::new();
+
+    for name in &names {
+        let handle = &processes[*name];
+        let is_hidden = app.filters.hidden_processes.contains(*name);
+        let has_custom = handle.get_custom_status().is_some();
+        let is_noteworthy = is_hidden
+            || has_custom
+            || !matches!(handle.status, ProcessStatus::Running);
+
+        let label_len = if let Some((label, _)) = handle.get_custom_status() {
+            label.len() + 1
+        } else {
+            0
+        };
+        let cell_width = name.len() + 2 + label_len;
+
+        match mode {
+            ProcessPanelViewMode::Normal => cell_widths.push(cell_width),
+            ProcessPanelViewMode::Summary if is_noteworthy => cell_widths.push(cell_width),
+            _ => {}
+        }
+    }
+
+    for name in &log_file_names {
+        let is_hidden = app.filters.hidden_processes.contains(name);
+        let cell_width = name.len() + 2;
+
+        match mode {
+            ProcessPanelViewMode::Normal => cell_widths.push(cell_width),
+            ProcessPanelViewMode::Summary if is_hidden => cell_widths.push(cell_width),
+            _ => {}
+        }
+    }
+
+    // For summary mode, add suffix as a cell
+    if mode == ProcessPanelViewMode::Summary && !cell_widths.is_empty() {
+        let suffix = format!("[{} of {}, p to expand]", cell_widths.len(), total_count);
+        cell_widths.push(suffix.len());
+    }
+
+    (cell_widths, total_count)
+}
+
+/// Add separator widths to cell widths for layout calculation
+fn add_separator_widths(cell_widths: &[usize]) -> Vec<usize> {
+    cell_widths
+        .iter()
+        .enumerate()
+        .map(|(i, &w)| if i < cell_widths.len() - 1 { w + 3 } else { w })
+        .collect()
+}
+
+/// Calculate the height needed for the process list
+pub fn calculate_process_list_height(manager: &ProcessManager, app: &App, terminal_width: u16) -> u16 {
+    let mode = app.display.process_panel_mode;
+
+    // Minimal mode always uses 1 row + 1 border = 2 lines
+    if mode == ProcessPanelViewMode::Minimal {
+        return 2;
+    }
+
+    let (cell_widths, _total_count) = build_cell_widths(manager, app, mode);
+
+    if cell_widths.is_empty() {
+        return 2; // Empty or "all running" message + border
+    }
+
+    let usable_width = terminal_width.saturating_sub(2) as usize;
+    if usable_width == 0 {
+        return 2;
+    }
+
+    let cell_widths_with_sep = add_separator_widths(&cell_widths);
+    let num_rows = calculate_row_count(&cell_widths_with_sep, usable_width);
+
+    (num_rows as u16) + 1 // +1 for border
 }
 
 /// Draw the process list at the top of the screen
