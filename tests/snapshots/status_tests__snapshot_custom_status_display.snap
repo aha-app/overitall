@@ -2,7 +2,7 @@
 source: tests/status_tests.rs
 expression: output
 ---
-web ● Starting │ worker ●                                                                                               
+web    ● Starting │ worker ●                                                                                            
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
                                                                                                                         
                                                                                                                         

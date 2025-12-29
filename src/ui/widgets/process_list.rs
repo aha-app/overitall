@@ -100,8 +100,12 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
         let mut spans: Vec<Span> = Vec::new();
 
         for (col_idx, entry) in chunk.iter().enumerate() {
-            // Calculate entry length: "name ●" or "name ● label" for custom status
-            let entry_len = entry.name.len()
+            // max_name_len = column_width - 5 (subtract " ●" and " │ ")
+            let max_name_len = column_width.saturating_sub(5);
+            let name_padding = max_name_len.saturating_sub(entry.name.len());
+
+            // Calculate entry length for click region
+            let entry_len = max_name_len
                 + 2
                 + entry.custom_label.as_ref().map(|l| l.len() + 1).unwrap_or(0);
 
@@ -120,6 +124,12 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
                     .fg(entry.name_color)
                     .add_modifier(Modifier::BOLD),
             ));
+
+            // Add padding to right-align the status dot
+            if name_padding > 0 {
+                spans.push(Span::raw(" ".repeat(name_padding)));
+            }
+
             spans.push(Span::raw(" "));
             spans.push(Span::styled("●", Style::default().fg(entry.status_color)));
 
@@ -132,12 +142,8 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
                 ));
             }
 
-            // Add separator and padding between columns (except for last column in row)
+            // Add separator between columns (except for last column in row)
             if col_idx < chunk.len() - 1 {
-                let padding_needed = column_width.saturating_sub(entry_len + 3); // +3 for " │ "
-                if padding_needed > 0 {
-                    spans.push(Span::raw(" ".repeat(padding_needed)));
-                }
                 spans.push(Span::styled(" │ ", Style::default().fg(Color::DarkGray)));
             }
         }
