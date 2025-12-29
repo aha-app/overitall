@@ -8,6 +8,7 @@ use ratatui::{
 
 use crate::process::{ProcessManager, ProcessStatus};
 use crate::ui::app::App;
+use crate::ui::display_state::ProcessPanelViewMode;
 
 /// Represents an entry in the process list (either a process or a log file)
 struct ProcessEntry {
@@ -15,6 +16,7 @@ struct ProcessEntry {
     status_color: Color,
     name_color: Color,
     custom_label: Option<String>,
+    is_noteworthy: bool,
 }
 
 /// Calculate grid layout parameters for process list
@@ -75,11 +77,15 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
         } else {
             app.process_colors.get(name)
         };
+        let is_noteworthy = is_hidden
+            || custom_label.is_some()
+            || !matches!(handle.status, ProcessStatus::Running);
         entries.push(ProcessEntry {
             name: (*name).clone(),
             status_color,
             name_color,
             custom_label,
+            is_noteworthy,
         });
     }
 
@@ -95,20 +101,46 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
             status_color: Color::Cyan,
             name_color,
             custom_label: None,
+            is_noteworthy: is_hidden,
         });
     }
 
-    // Build lines for grid layout
-    let mut lines: Vec<Line> = Vec::new();
+    let total_count = entries.len();
+    let view_mode = app.display.process_panel_mode;
 
-    // Only add padding for column alignment if there are multiple rows
+    let lines = match view_mode {
+        ProcessPanelViewMode::Normal => {
+            render_normal_mode(&entries, column_width, num_columns, area, app)
+        }
+        ProcessPanelViewMode::Summary => {
+            render_summary_mode(&entries, total_count, area, app)
+        }
+        ProcessPanelViewMode::Minimal => {
+            render_minimal_mode(total_count)
+        }
+    };
+
+    let paragraph =
+        Paragraph::new(lines).block(Block::default().borders(Borders::BOTTOM));
+
+    f.render_widget(paragraph, area);
+}
+
+/// Render normal mode: full grid layout with all processes
+fn render_normal_mode<'a>(
+    entries: &[ProcessEntry],
+    column_width: usize,
+    num_columns: usize,
+    area: Rect,
+    app: &mut App,
+) -> Vec<Line<'a>> {
+    let mut lines: Vec<Line> = Vec::new();
     let needs_padding = entries.len() > num_columns;
 
     for (row_idx, chunk) in entries.chunks(num_columns).enumerate() {
         let mut spans: Vec<Span> = Vec::new();
 
         for (col_idx, entry) in chunk.iter().enumerate() {
-            // max_name_len = column_width - 5 (subtract " ●" and " │ ")
             let max_name_len = column_width.saturating_sub(5);
             let name_padding = if needs_padding {
                 max_name_len.saturating_sub(entry.name.len())
@@ -116,13 +148,11 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
                 0
             };
 
-            // Calculate entry length for click region
             let entry_len = entry.name.len()
                 + name_padding
                 + 2
                 + entry.custom_label.as_ref().map(|l| l.len() + 1).unwrap_or(0);
 
-            // Record clickable region
             let x_pos = area.x + (col_idx * column_width) as u16;
             let y_pos = area.y + row_idx as u16;
             app.regions.process_regions.push((
@@ -130,7 +160,6 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
                 Rect::new(x_pos, y_pos, entry_len as u16, 1),
             ));
 
-            // Add name span
             spans.push(Span::styled(
                 entry.name.clone(),
                 Style::default()
@@ -138,7 +167,6 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
                     .add_modifier(Modifier::BOLD),
             ));
 
-            // Add padding to right-align the status dot (only when multiple rows)
             if name_padding > 0 {
                 spans.push(Span::raw(" ".repeat(name_padding)));
             }
@@ -146,7 +174,6 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
             spans.push(Span::raw(" "));
             spans.push(Span::styled("●", Style::default().fg(entry.status_color)));
 
-            // Add custom label if present
             if let Some(label) = &entry.custom_label {
                 spans.push(Span::raw(" "));
                 spans.push(Span::styled(
@@ -155,7 +182,6 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
                 ));
             }
 
-            // Add separator between columns (except for last column in row)
             if col_idx < chunk.len() - 1 {
                 spans.push(Span::styled(" │ ", Style::default().fg(Color::DarkGray)));
             }
@@ -164,10 +190,69 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
         lines.push(Line::from(spans));
     }
 
-    let paragraph =
-        Paragraph::new(lines).block(Block::default().borders(Borders::BOTTOM));
+    lines
+}
 
-    f.render_widget(paragraph, area);
+/// Render summary mode: process count + only noteworthy processes
+fn render_summary_mode<'a>(
+    entries: &[ProcessEntry],
+    total_count: usize,
+    area: Rect,
+    app: &mut App,
+) -> Vec<Line<'a>> {
+    let mut spans: Vec<Span> = Vec::new();
+
+    spans.push(Span::styled(
+        format!("Processes: {}", total_count),
+        Style::default().fg(Color::White),
+    ));
+
+    let noteworthy: Vec<&ProcessEntry> = entries.iter().filter(|e| e.is_noteworthy).collect();
+
+    let mut x_offset = format!("Processes: {}", total_count).len() as u16;
+
+    for entry in noteworthy {
+        spans.push(Span::raw("  "));
+        x_offset += 2;
+
+        let entry_start = x_offset;
+        spans.push(Span::styled(
+            entry.name.clone(),
+            Style::default()
+                .fg(entry.name_color)
+                .add_modifier(Modifier::BOLD),
+        ));
+        x_offset += entry.name.len() as u16;
+
+        spans.push(Span::raw(" "));
+        spans.push(Span::styled("●", Style::default().fg(entry.status_color)));
+        x_offset += 2;
+
+        if let Some(label) = &entry.custom_label {
+            spans.push(Span::raw(" "));
+            spans.push(Span::styled(
+                label.clone(),
+                Style::default().fg(entry.status_color),
+            ));
+            x_offset += 1 + label.len() as u16;
+        }
+
+        let entry_len = x_offset - entry_start;
+        app.regions.process_regions.push((
+            entry.name.clone(),
+            Rect::new(area.x + entry_start, area.y, entry_len, 1),
+        ));
+    }
+
+    vec![Line::from(spans)]
+}
+
+/// Render minimal mode: just the process count
+fn render_minimal_mode(total_count: usize) -> Vec<Line<'static>> {
+    vec![Line::from(vec![Span::styled(
+        format!("Processes: {}", total_count),
+        Style::default().fg(Color::White),
+    )])]
 }
 
 /// Get status color and optional custom label for a process

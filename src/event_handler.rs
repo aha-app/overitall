@@ -202,6 +202,12 @@ impl<'a> EventHandler<'a> {
                 self.handle_cycle_timestamp_mode();
                 Ok(false)
             }
+            // Cycle process panel view mode (normal/summary/minimal)
+            KeyCode::Char('p') if !self.app.input.command_mode && !self.app.input.search_mode
+                && !self.app.display.show_help && !self.app.display.expanded_line_view => {
+                self.handle_cycle_process_panel_mode();
+                Ok(false)
+            }
             // Multi-select with Shift+Up/Down (must come before plain Up/Down)
             KeyCode::Up if key.modifiers.contains(KeyModifiers::SHIFT)
                 && !self.app.input.command_mode
@@ -407,6 +413,12 @@ impl<'a> EventHandler<'a> {
     fn handle_cycle_timestamp_mode(&mut self) {
         let mode = display::cycle_timestamp_mode(self.app);
         self.app.display.set_status_info(format!("Timestamp: {}", mode));
+    }
+
+    fn handle_cycle_process_panel_mode(&mut self) {
+        self.app.display.cycle_process_panel_mode();
+        let mode = self.app.display.process_panel_mode.name();
+        self.app.display.set_status_info(format!("Process panel: {}", mode));
     }
 
     /// Handle Esc key - all escape logic in one place for clarity.

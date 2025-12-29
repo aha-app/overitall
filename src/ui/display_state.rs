@@ -1,6 +1,38 @@
 use super::app::DisplayMode;
 use super::types::StatusType;
 
+/// Process panel view mode
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum ProcessPanelViewMode {
+    /// All processes with grid layout and status dots
+    #[default]
+    Normal,
+    /// Process count + only non-running processes
+    Summary,
+    /// Just the process count
+    Minimal,
+}
+
+impl ProcessPanelViewMode {
+    /// Cycle to the next view mode
+    pub fn next(self) -> Self {
+        match self {
+            ProcessPanelViewMode::Normal => ProcessPanelViewMode::Summary,
+            ProcessPanelViewMode::Summary => ProcessPanelViewMode::Minimal,
+            ProcessPanelViewMode::Minimal => ProcessPanelViewMode::Normal,
+        }
+    }
+
+    /// Get a human-readable name for the mode
+    pub fn name(self) -> &'static str {
+        match self {
+            ProcessPanelViewMode::Normal => "normal",
+            ProcessPanelViewMode::Summary => "summary",
+            ProcessPanelViewMode::Minimal => "minimal",
+        }
+    }
+}
+
 /// Timestamp display mode for log lines
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum TimestampMode {
@@ -40,6 +72,8 @@ pub struct DisplayState {
     pub display_mode: DisplayMode,
     /// Current timestamp display mode
     pub timestamp_mode: TimestampMode,
+    /// Current process panel view mode
+    pub process_panel_mode: ProcessPanelViewMode,
     /// Whether to show the help overlay
     pub show_help: bool,
     /// Scroll offset for help overlay
@@ -57,6 +91,7 @@ impl Default for DisplayState {
         Self {
             display_mode: DisplayMode::Compact,
             timestamp_mode: TimestampMode::Seconds,
+            process_panel_mode: ProcessPanelViewMode::Normal,
             show_help: false,
             help_scroll_offset: 0,
             expanded_line_view: false,
@@ -85,6 +120,10 @@ impl DisplayState {
 
     pub fn cycle_timestamp_mode(&mut self) {
         self.timestamp_mode = self.timestamp_mode.next();
+    }
+
+    pub fn cycle_process_panel_mode(&mut self) {
+        self.process_panel_mode = self.process_panel_mode.next();
     }
 
     pub fn toggle_help(&mut self) {
