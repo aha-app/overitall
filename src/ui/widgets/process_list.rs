@@ -37,6 +37,22 @@ pub fn calculate_grid_params(
     (column_width, total_entries)
 }
 
+/// Calculate grid params from ProcessEntry slice
+fn calculate_grid_params_for_entries(entries: &[ProcessEntry], usable_width: usize) -> (usize, usize) {
+    if entries.is_empty() {
+        return (1, 1);
+    }
+    let max_name_len = entries.iter().map(|e| e.name.len()).max().unwrap_or(0);
+    // " ●" = 2 chars, " │ " = 3 chars
+    let column_width = max_name_len + 2 + 3;
+    let num_columns = if usable_width > 0 && column_width > 0 {
+        (usable_width / column_width).max(1)
+    } else {
+        1
+    };
+    (column_width, num_columns)
+}
+
 /// Draw the process list at the top of the screen
 pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, app: &mut App) {
     app.regions.process_regions.clear();
@@ -114,7 +130,9 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
         }
         ProcessPanelViewMode::Summary => {
             let noteworthy: Vec<ProcessEntry> = entries.into_iter().filter(|e| e.is_noteworthy).collect();
-            render_summary_mode(&noteworthy, total_count, column_width, num_columns, area, app)
+            // Recalculate grid params for noteworthy entries only
+            let (nw_column_width, nw_num_columns) = calculate_grid_params_for_entries(&noteworthy, usable_width);
+            render_summary_mode(&noteworthy, total_count, nw_column_width, nw_num_columns, area, app)
         }
         ProcessPanelViewMode::Minimal => {
             render_minimal_mode(total_count)

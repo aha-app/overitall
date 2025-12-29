@@ -33,9 +33,14 @@ fn calculate_process_list_height(manager: &ProcessManager, app: &App, terminal_w
         return 2; // "No processes" message + border
     }
 
-    // For Summary mode, count only noteworthy entries
-    let display_entries = if app.display.process_panel_mode == ProcessPanelViewMode::Summary {
-        let mut noteworthy_count = 0;
+    let usable_width = terminal_width.saturating_sub(2) as usize;
+    if usable_width == 0 {
+        return 2;
+    }
+
+    // For Summary mode, calculate based on noteworthy entries with their own column widths
+    if app.display.process_panel_mode == ProcessPanelViewMode::Summary {
+        let mut noteworthy_names: Vec<&String> = Vec::new();
         for name in &names {
             let handle = &processes[*name];
             let is_hidden = app.filters.hidden_processes.contains(*name);
@@ -44,30 +49,31 @@ fn calculate_process_list_height(manager: &ProcessManager, app: &App, terminal_w
                 || has_custom
                 || !matches!(handle.status, ProcessStatus::Running);
             if is_noteworthy {
-                noteworthy_count += 1;
+                noteworthy_names.push(name);
             }
         }
-        for name in &log_file_names {
-            if app.filters.hidden_processes.contains(name) {
-                noteworthy_count += 1;
-            }
-        }
-        if noteworthy_count == 0 {
-            return 2; // Just "Processes: X" + border
-        }
-        noteworthy_count
-    } else {
-        total_entries
-    };
+        let noteworthy_log_files: Vec<String> = log_file_names
+            .iter()
+            .filter(|name| app.filters.hidden_processes.contains(*name))
+            .cloned()
+            .collect();
 
-    let (column_width, _) = calculate_grid_params(&names, &log_file_names);
-    let usable_width = terminal_width.saturating_sub(2) as usize;
-    if usable_width == 0 {
-        return 2;
+        let noteworthy_count = noteworthy_names.len() + noteworthy_log_files.len();
+        if noteworthy_count == 0 {
+            return 2; // Just message + border
+        }
+
+        // Calculate column width based on noteworthy entries only
+        let (column_width, _) = calculate_grid_params(&noteworthy_names, &noteworthy_log_files);
+        let num_columns = (usable_width / column_width).max(1);
+        let num_rows = (noteworthy_count + num_columns - 1) / num_columns;
+        return (num_rows as u16) + 1;
     }
 
+    // Normal mode
+    let (column_width, _) = calculate_grid_params(&names, &log_file_names);
     let num_columns = (usable_width / column_width).max(1);
-    let num_rows = (display_entries + num_columns - 1) / num_columns; // Ceiling division
+    let num_rows = (total_entries + num_columns - 1) / num_columns; // Ceiling division
 
     // Add 1 for the bottom border
     (num_rows as u16) + 1
