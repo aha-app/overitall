@@ -480,6 +480,13 @@ impl ProcessManager {
         &self.processes
     }
 
+    #[doc(hidden)]
+    pub fn set_process_status_for_testing(&mut self, name: &str, status: ProcessStatus) {
+        if let Some(handle) = self.processes.get_mut(name) {
+            handle.status = status;
+        }
+    }
+
     /// Add a log file to tail for a specific process
     pub async fn add_log_file(&mut self, process_name: String, path: PathBuf) -> Result<()> {
         let mut reader = FileReader::new(process_name, path);

@@ -180,6 +180,45 @@ pub fn create_manager_with_long_logs() -> ProcessManager {
     manager
 }
 
+/// Helper to create a ProcessManager with mixed process states for testing Summary mode
+/// Creates processes with running, stopped, failed, and custom status states
+pub fn create_manager_with_mixed_states() -> ProcessManager {
+    use overitall::config::{StatusConfig, StatusTransition};
+    use overitall::process::ProcessStatus;
+
+    let mut manager = ProcessManager::new();
+
+    // Running process (not noteworthy)
+    manager.add_process("web".to_string(), "echo hi".to_string(), None, None);
+
+    // Another running process (not noteworthy)
+    manager.add_process("api".to_string(), "echo hi".to_string(), None, None);
+
+    // Running process with custom status (noteworthy)
+    let db_config = StatusConfig {
+        default: Some("Syncing".to_string()),
+        color: None,
+        transitions: vec![
+            StatusTransition {
+                pattern: "Ready".to_string(),
+                label: "Ready".to_string(),
+                color: Some("green".to_string()),
+            },
+        ],
+    };
+    manager.add_process("db".to_string(), "echo hi".to_string(), None, Some(&db_config));
+
+    // Stopped process (noteworthy)
+    manager.add_process("worker".to_string(), "echo hi".to_string(), None, None);
+    manager.set_process_status_for_testing("worker", ProcessStatus::Stopped);
+
+    // Failed process (noteworthy)
+    manager.add_process("mailer".to_string(), "echo hi".to_string(), None, None);
+    manager.set_process_status_for_testing("mailer", ProcessStatus::Failed("Exit code 1".to_string()));
+
+    manager
+}
+
 /// Helper to create a ProcessManager with many processes for testing grid layout
 /// Creates 12 processes with varied names and statuses to span multiple rows
 pub fn create_manager_with_many_processes() -> ProcessManager {

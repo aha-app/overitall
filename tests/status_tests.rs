@@ -154,3 +154,97 @@ fn test_snapshot_process_grid_multirow() {
     let output = render_app_to_string(&mut app, &manager, 80, 40);
     assert_snapshot!(output);
 }
+
+// ============================================================================
+// Process Panel View Mode Tests
+// ============================================================================
+
+#[test]
+fn test_process_panel_view_mode_cycling() {
+    use overitall::ui::display_state::ProcessPanelViewMode;
+
+    // Test Normal -> Summary -> Minimal -> Normal
+    let mode = ProcessPanelViewMode::Normal;
+    assert_eq!(mode.next(), ProcessPanelViewMode::Summary);
+    assert_eq!(mode.next().next(), ProcessPanelViewMode::Minimal);
+    assert_eq!(mode.next().next().next(), ProcessPanelViewMode::Normal);
+
+    // Test mode names
+    assert_eq!(ProcessPanelViewMode::Normal.name(), "normal");
+    assert_eq!(ProcessPanelViewMode::Summary.name(), "summary");
+    assert_eq!(ProcessPanelViewMode::Minimal.name(), "minimal");
+}
+
+#[test]
+fn test_snapshot_process_panel_normal_mode() {
+    use overitall::ui::display_state::ProcessPanelViewMode;
+
+    let mut app = create_test_app();
+    let manager = common::create_manager_with_mixed_states();
+    app.display.process_panel_mode = ProcessPanelViewMode::Normal;
+
+    let output = render_app_to_string(&mut app, &manager, 120, 20);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_snapshot_process_panel_summary_mode() {
+    use overitall::ui::display_state::ProcessPanelViewMode;
+
+    let mut app = create_test_app();
+    let manager = common::create_manager_with_mixed_states();
+    app.display.process_panel_mode = ProcessPanelViewMode::Summary;
+
+    // Summary mode shows only noteworthy processes (stopped, failed, custom status)
+    let output = render_app_to_string(&mut app, &manager, 120, 20);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_snapshot_process_panel_summary_mode_all_running() {
+    use overitall::ui::display_state::ProcessPanelViewMode;
+    use overitall::process::ProcessStatus;
+
+    let mut app = create_test_app();
+    let mut manager = create_manager_with_logs();
+    // Processes start with Stopped status - set them to Running for this test
+    manager.set_process_status_for_testing("web", ProcessStatus::Running);
+    manager.set_process_status_for_testing("worker", ProcessStatus::Running);
+    app.display.process_panel_mode = ProcessPanelViewMode::Summary;
+
+    // Summary mode with no noteworthy processes shows "All X processes running" message
+    let output = render_app_to_string(&mut app, &manager, 120, 20);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_snapshot_process_panel_minimal_mode() {
+    use overitall::ui::display_state::ProcessPanelViewMode;
+
+    let mut app = create_test_app();
+    let manager = common::create_manager_with_mixed_states();
+    app.display.process_panel_mode = ProcessPanelViewMode::Minimal;
+
+    // Minimal mode shows only the process count
+    let output = render_app_to_string(&mut app, &manager, 120, 20);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_snapshot_process_panel_summary_with_hidden() {
+    use overitall::ui::display_state::ProcessPanelViewMode;
+    use overitall::process::ProcessStatus;
+
+    let mut app = create_test_app();
+    let mut manager = create_manager_with_logs();
+    // Set both to Running so only hidden status makes them noteworthy
+    manager.set_process_status_for_testing("web", ProcessStatus::Running);
+    manager.set_process_status_for_testing("worker", ProcessStatus::Running);
+    app.display.process_panel_mode = ProcessPanelViewMode::Summary;
+
+    // Hide a process - this makes it noteworthy even if running
+    app.filters.hidden_processes.insert("web".to_string());
+
+    let output = render_app_to_string(&mut app, &manager, 120, 20);
+    assert_snapshot!(output);
+}
