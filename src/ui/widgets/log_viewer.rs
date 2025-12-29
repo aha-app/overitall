@@ -15,6 +15,32 @@ use crate::ui::batch_cache::BatchCacheKey;
 use crate::ui::display_state::TimestampMode;
 use crate::ui::filter::FilterType;
 
+/// Calculate the display width of a log line (without ANSI codes)
+fn calculate_line_width(log: &LogLine, timestamp_mode: TimestampMode, is_compact: bool) -> usize {
+    let timestamp_part = match timestamp_mode {
+        TimestampMode::Seconds => format!("[{}] ", log.formatted_timestamp()),
+        TimestampMode::Milliseconds => format!("[{}] ", log.arrival_time.format("%H:%M:%S%.3f")),
+        TimestampMode::Off => String::new(),
+    };
+    let process_part = format!("{}: ", log.source.process_name());
+    let content = if is_compact {
+        log.condensed_stripped_line()
+    } else {
+        log.stripped_line()
+    };
+    format!("{}{}{}", timestamp_part, process_part, content).width()
+}
+
+/// Calculate the number of visual lines a log entry will take when wrapped
+fn calculate_wrapped_height(line_width: usize, max_line_width: usize) -> usize {
+    if max_line_width == 0 {
+        return 1;
+    }
+    // Ceiling division: (line_width + max_line_width - 1) / max_line_width
+    // but at least 1 line
+    ((line_width + max_line_width - 1) / max_line_width).max(1)
+}
+
 /// Draw the log viewer in the middle of the screen
 pub fn draw_log_viewer(
     f: &mut Frame,
@@ -203,6 +229,28 @@ pub fn draw_log_viewer(
     let visible_lines = (area.height as usize).saturating_sub(1);
     let total_logs = display_logs_source.len();
 
+    // Calculate max line width for wrap mode height calculations
+    // Account for borders: 2 chars, plus 1 for safety
+    let max_line_width = (area.width as usize).saturating_sub(3);
+
+    // Check if we're in wrap mode (affects scroll calculations)
+    let is_wrap_mode = current_batch_validated.is_some() || app.display.is_wrap();
+
+    // In wrap mode, we need to know how many visual lines each log takes
+    // Pre-calculate wrapped heights for wrap mode to avoid repeated calculations
+    let wrapped_heights: Vec<usize> = if is_wrap_mode && total_logs > 0 {
+        display_logs_source
+            .iter()
+            .map(|log| {
+                // In batch/wrap mode, we show full content (not condensed)
+                let line_width = calculate_line_width(log, app.display.timestamp_mode, false);
+                calculate_wrapped_height(line_width, max_line_width)
+            })
+            .collect()
+    } else {
+        vec![]
+    };
+
     // Find the selected line index by ID (if any line is selected)
     let selected_line_index: Option<usize> = app.navigation.selected_line_id.and_then(|id| {
         display_logs_source.iter().position(|log| log.id == id)
@@ -217,7 +265,21 @@ pub fn draw_log_viewer(
 
         while start > 0 && lines_used < visible_lines {
             start -= 1;
-            lines_used += 1; // The log line itself
+
+            // In wrap mode, use the pre-calculated wrapped height
+            let log_height = if is_wrap_mode {
+                wrapped_heights.get(start).copied().unwrap_or(1)
+            } else {
+                1
+            };
+
+            // Check if we have room for this log
+            if lines_used + log_height > visible_lines {
+                // No room for this log, undo and stop
+                start += 1;
+                break;
+            }
+            lines_used += log_height;
 
             // Check if adding this log would add a separator before it
             if start > 0 && current_batch_validated.is_none() && !filtered_log_to_batch.is_empty() {
@@ -243,20 +305,82 @@ pub fn draw_log_viewer(
     } else if let Some(selected_idx) = selected_line_index {
         // Line selection mode: scroll to show the selected line
         if selected_idx < total_logs {
-            // Center the selected line in the viewport for better visibility
-            // This gives context both above and below the selection
-            let target_position = visible_lines / 3; // Position at 1/3 down (gives more context below)
+            if is_wrap_mode {
+                // In wrap mode: calculate positions based on wrapped heights
+                // We want the selected line fully visible, positioned about 1/3 down
+                let selected_height = wrapped_heights.get(selected_idx).copied().unwrap_or(1);
 
-            let start = if selected_idx < target_position {
-                // Selected line is near top - show from beginning
-                0
+                // Calculate how many visual lines are above the selected line
+                let visual_lines_before: usize = wrapped_heights[..selected_idx].iter().sum();
+
+                // Target: position selected line about 1/3 down from top
+                let target_visual_position = visible_lines / 3;
+
+                // Find the starting log index that achieves this positioning
+                let mut start = if visual_lines_before < target_visual_position {
+                    // Selected line is near the top visually - start from beginning
+                    0
+                } else {
+                    // Work backwards from selected_idx to find which log to start at
+                    let target_start_visual = visual_lines_before.saturating_sub(target_visual_position);
+                    let mut cumulative = 0;
+                    let mut start_idx = 0;
+                    for (i, &height) in wrapped_heights.iter().enumerate() {
+                        if cumulative >= target_start_visual {
+                            start_idx = i;
+                            break;
+                        }
+                        cumulative += height;
+                        start_idx = i + 1;
+                    }
+                    start_idx.min(selected_idx)
+                };
+
+                // Calculate end: show as many logs as fit, ensuring selected line is visible
+                let mut end = start;
+                let mut lines_used = 0;
+                while end < total_logs && lines_used < visible_lines {
+                    let height = wrapped_heights.get(end).copied().unwrap_or(1);
+                    if end > selected_idx && lines_used + height > visible_lines {
+                        // We've shown the selected line and can't fit more
+                        break;
+                    }
+                    // Must include at least up to selected_idx
+                    if end <= selected_idx || lines_used + height <= visible_lines {
+                        lines_used += height;
+                        end += 1;
+                    } else {
+                        break;
+                    }
+                }
+
+                // Ensure selected line is visible by adjusting start if needed
+                if end <= selected_idx {
+                    // Selected line isn't included, adjust to show it
+                    end = selected_idx + 1;
+                    // Recalculate start to fit
+                    let mut lines_needed: usize = wrapped_heights[..end].iter().skip(start).sum();
+                    while start < selected_idx && lines_needed + selected_height > visible_lines {
+                        lines_needed -= wrapped_heights.get(start).copied().unwrap_or(1);
+                        start += 1;
+                    }
+                }
+
+                let display = &display_logs_source[start..end.min(total_logs)];
+                (display, String::new(), start)
             } else {
-                // Position selected line at target_position from top
-                selected_idx.saturating_sub(target_position)
-            };
-            let end = (start + visible_lines).min(total_logs);
-            let display = &display_logs_source[start..end];
-            (display, String::new(), start)
+                // Non-wrap mode: simple line-based positioning
+                let target_position = visible_lines / 3;
+
+                let start = if selected_idx < target_position {
+                    0
+                } else {
+                    selected_idx.saturating_sub(target_position)
+                };
+                let end = (start + visible_lines).min(total_logs);
+                let display = &display_logs_source[start..end];
+                (display, String::new(), start)
+            }
         } else {
             // Invalid selected index, fall back to manual scroll
             let start = app.navigation.scroll_offset.min(total_logs.saturating_sub(visible_lines));
@@ -371,9 +495,6 @@ pub fn draw_log_viewer(
 
         // For width calculations, use cached stripped content (no ANSI codes)
         let full_line_clean = format!("{}{}{}", timestamp_part, process_part_plain, log_content_stripped);
-
-        // Calculate max width (account for borders: 2 chars)
-        let max_line_width = (area.width as usize).saturating_sub(3); // -2 for borders, -1 for safety
 
         // Determine if we need to truncate and render accordingly
         let line = if current_batch_validated.is_some() || app.display.is_wrap() {
