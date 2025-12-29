@@ -7,7 +7,7 @@ use crate::process::ProcessManager;
 use super::app::App;
 use super::display_state::ProcessPanelViewMode;
 use super::overlays::{draw_help_overlay, draw_expanded_line_overlay, draw_expanded_line_panel, draw_trace_selection_overlay};
-use super::widgets::{draw_process_list, draw_log_viewer, draw_status_bar, draw_command_input, calculate_grid_params};
+use super::widgets::{draw_process_list, draw_log_viewer, draw_status_bar, draw_command_input, calculate_row_count};
 
 /// Width threshold for split-screen view (below this, use overlay)
 const SPLIT_VIEW_THRESHOLD: u16 = 160;
@@ -38,74 +38,61 @@ fn calculate_process_list_height(manager: &ProcessManager, app: &App, terminal_w
         return 2;
     }
 
-    // For Summary mode, calculate based on noteworthy entries with their own column widths
-    if app.display.process_panel_mode == ProcessPanelViewMode::Summary {
-        let mut max_entry_width = 0usize;
-        let mut noteworthy_count = 0usize;
+    // Build cell widths for layout calculation
+    let mut cell_widths: Vec<usize> = Vec::new();
 
-        for name in &names {
-            let handle = &processes[*name];
-            let is_hidden = app.filters.hidden_processes.contains(*name);
-            let has_custom = handle.get_custom_status().is_some();
-            let is_noteworthy = is_hidden
-                || has_custom
-                || !matches!(handle.status, ProcessStatus::Running);
-            if is_noteworthy {
-                noteworthy_count += 1;
-                // Calculate entry width: name + " ●" + optional " label"
-                let label_len = if let Some((label, _)) = handle.get_custom_status() {
-                    label.len() + 1
-                } else {
-                    0
-                };
-                let entry_width = name.len() + 2 + label_len;
-                max_entry_width = max_entry_width.max(entry_width);
-            }
-        }
-        for name in &log_file_names {
-            if app.filters.hidden_processes.contains(name) {
-                noteworthy_count += 1;
-                let entry_width = name.len() + 2; // name + " ●"
-                max_entry_width = max_entry_width.max(entry_width);
-            }
-        }
+    for name in &names {
+        let handle = &processes[*name];
+        let is_hidden = app.filters.hidden_processes.contains(*name);
+        let has_custom = handle.get_custom_status().is_some();
+        let is_noteworthy = is_hidden
+            || has_custom
+            || !matches!(handle.status, ProcessStatus::Running);
 
-        if noteworthy_count == 0 {
-            return 2; // Just message + border
-        }
-
-        // Column width = max entry width + separator " │ " (3 chars)
-        let column_width = max_entry_width + 3;
-        let num_columns = (usable_width / column_width).max(1);
-
-        // Account for suffix "[N of M, p to expand]" on last row
-        // Suffix is ~25 chars, so last row fits fewer columns
-        let suffix_width = 27; // "[X of XX, p to expand]" + spacing
-        let last_row_max_cols = if column_width > 0 {
-            ((usable_width.saturating_sub(suffix_width)) / column_width).max(1)
+        // Calculate cell width: name + " ●" + optional " label"
+        let label_len = if let Some((label, _)) = handle.get_custom_status() {
+            label.len() + 1
         } else {
-            1
+            0
         };
+        let cell_width = name.len() + 2 + label_len;
 
-        // Calculate rows: fill rows with num_columns until we can fit remainder + suffix
-        let mut remaining = noteworthy_count;
-        let mut num_rows = 0;
-        while remaining > 0 {
-            if remaining <= last_row_max_cols {
-                num_rows += 1;
-                break;
-            }
-            remaining = remaining.saturating_sub(num_columns);
-            num_rows += 1;
+        match app.display.process_panel_mode {
+            ProcessPanelViewMode::Normal => cell_widths.push(cell_width),
+            ProcessPanelViewMode::Summary if is_noteworthy => cell_widths.push(cell_width),
+            _ => {}
         }
-
-        return (num_rows as u16) + 1;
     }
 
-    // Normal mode
-    let (column_width, _) = calculate_grid_params(&names, &log_file_names);
-    let num_columns = (usable_width / column_width).max(1);
-    let num_rows = (total_entries + num_columns - 1) / num_columns; // Ceiling division
+    for name in &log_file_names {
+        let is_hidden = app.filters.hidden_processes.contains(name);
+        let cell_width = name.len() + 2; // name + " ●"
+
+        match app.display.process_panel_mode {
+            ProcessPanelViewMode::Normal => cell_widths.push(cell_width),
+            ProcessPanelViewMode::Summary if is_hidden => cell_widths.push(cell_width),
+            _ => {}
+        }
+    }
+
+    if cell_widths.is_empty() {
+        return 2; // Just message + border for summary with no noteworthy
+    }
+
+    // For summary mode, add suffix as a cell
+    if app.display.process_panel_mode == ProcessPanelViewMode::Summary {
+        let suffix = format!("[{} of {}, p to expand]", cell_widths.len(), total_entries);
+        cell_widths.push(suffix.len());
+    }
+
+    // Add separator width to all but last cell
+    let cell_widths_with_sep: Vec<usize> = cell_widths
+        .iter()
+        .enumerate()
+        .map(|(i, &w)| if i < cell_widths.len() - 1 { w + 3 } else { w })
+        .collect();
+
+    let num_rows = calculate_row_count(&cell_widths_with_sep, usable_width);
 
     // Add 1 for the bottom border
     (num_rows as u16) + 1
