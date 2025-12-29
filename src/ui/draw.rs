@@ -5,6 +5,7 @@ use ratatui::{
 
 use crate::process::ProcessManager;
 use super::app::App;
+use super::display_state::ProcessPanelViewMode;
 use super::overlays::{draw_help_overlay, draw_expanded_line_overlay, draw_expanded_line_panel, draw_trace_selection_overlay};
 use super::widgets::{draw_process_list, draw_log_viewer, draw_status_bar, draw_command_input, calculate_grid_params};
 
@@ -12,7 +13,13 @@ use super::widgets::{draw_process_list, draw_log_viewer, draw_status_bar, draw_c
 const SPLIT_VIEW_THRESHOLD: u16 = 160;
 
 /// Calculate the height needed for the process list based on process count and terminal width
-fn calculate_process_list_height(manager: &ProcessManager, _app: &App, terminal_width: u16) -> u16 {
+fn calculate_process_list_height(manager: &ProcessManager, app: &App, terminal_width: u16) -> u16 {
+    // Summary and Minimal modes always use 1 row + 1 border = 2 lines
+    match app.display.process_panel_mode {
+        ProcessPanelViewMode::Summary | ProcessPanelViewMode::Minimal => return 2,
+        ProcessPanelViewMode::Normal => {}
+    }
+
     let processes = manager.get_processes();
     let mut names: Vec<&String> = processes.keys().collect();
     names.sort();
