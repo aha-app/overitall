@@ -1,9 +1,9 @@
 use ratatui::{
+    Frame,
     layout::Rect,
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph},
-    Frame,
 };
 
 use crate::process::{ProcessManager, ProcessStatus};
@@ -12,9 +12,11 @@ use crate::ui::display_state::ProcessPanelViewMode;
 
 /// Represents a cell to be rendered in the process grid
 struct Cell {
-    content: Vec<Span<'static>>,
+    name: String,
+    name_color: Color,
+    status_color: Color,
+    custom_label: Option<String>,
     width: usize,
-    process_name: Option<String>,
 }
 
 /// Calculate row layout: given cell widths and max width, returns padding for each cell.
@@ -62,7 +64,11 @@ fn calculate_row_count(cell_widths: &[usize], max_width: usize) -> usize {
 }
 
 /// Build cell widths for layout calculation based on view mode
-fn build_cell_widths(manager: &ProcessManager, app: &App, mode: ProcessPanelViewMode) -> (Vec<usize>, usize) {
+fn build_cell_widths(
+    manager: &ProcessManager,
+    app: &App,
+    mode: ProcessPanelViewMode,
+) -> (Vec<usize>, usize) {
     let processes = manager.get_processes();
     let mut names: Vec<&String> = processes.keys().collect();
     names.sort();
@@ -77,9 +83,8 @@ fn build_cell_widths(manager: &ProcessManager, app: &App, mode: ProcessPanelView
         let handle = &processes[*name];
         let is_hidden = app.filters.hidden_processes.contains(*name);
         let has_custom = handle.get_custom_status().is_some();
-        let is_noteworthy = is_hidden
-            || has_custom
-            || !matches!(handle.status, ProcessStatus::Running);
+        let is_noteworthy =
+            is_hidden || has_custom || !matches!(handle.status, ProcessStatus::Running);
 
         let label_len = if let Some((label, _)) = handle.get_custom_status() {
             label.len() + 1
@@ -125,7 +130,11 @@ fn add_separator_widths(cell_widths: &[usize]) -> Vec<usize> {
 }
 
 /// Calculate the height needed for the process list
-pub fn calculate_process_list_height(manager: &ProcessManager, app: &App, terminal_width: u16) -> u16 {
+pub fn calculate_process_list_height(
+    manager: &ProcessManager,
+    app: &App,
+    terminal_width: u16,
+) -> u16 {
     let mode = app.display.process_panel_mode;
 
     // Minimal mode always uses 1 row + 1 border = 2 lines
@@ -186,9 +195,8 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
         } else {
             app.process_colors.get(name)
         };
-        let is_noteworthy = is_hidden
-            || custom_label.is_some()
-            || !matches!(handle.status, ProcessStatus::Running);
+        let is_noteworthy =
+            is_hidden || custom_label.is_some() || !matches!(handle.status, ProcessStatus::Running);
 
         let cell = build_process_cell(name, name_color, status_color, custom_label.as_deref());
         if is_noteworthy {
@@ -217,19 +225,18 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
     let view_mode = app.display.process_panel_mode;
 
     let lines = match view_mode {
-        ProcessPanelViewMode::Normal => {
-            render_grid(&all_cells, None, usable_width, area, app)
-        }
+        ProcessPanelViewMode::Normal => render_grid(&all_cells, None, usable_width, area, app),
         ProcessPanelViewMode::Summary => {
             let noteworthy_cells: Vec<Cell> = noteworthy_indices
                 .into_iter()
                 .map(|i| {
-                    // We need to rebuild cells for noteworthy entries
                     let orig = &all_cells[i];
                     Cell {
-                        content: orig.content.clone(),
+                        name: orig.name.clone(),
+                        name_color: orig.name_color,
+                        status_color: orig.status_color,
+                        custom_label: orig.custom_label.clone(),
                         width: orig.width,
-                        process_name: orig.process_name.clone(),
                     }
                 })
                 .collect();
@@ -240,7 +247,11 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
                     Style::default().fg(Color::DarkGray),
                 )])]
             } else {
-                let suffix = format!("[{} of {}, p to expand]", noteworthy_cells.len(), total_count);
+                let suffix = format!(
+                    "[{} of {}, p to expand]",
+                    noteworthy_cells.len(),
+                    total_count
+                );
                 render_grid(&noteworthy_cells, Some(&suffix), usable_width, area, app)
             }
         }
@@ -263,30 +274,15 @@ fn build_process_cell(
     status_color: Color,
     custom_label: Option<&str>,
 ) -> Cell {
-    let mut content: Vec<Span<'static>> = Vec::new();
-
-    content.push(Span::styled(
-        name.to_string(),
-        Style::default().fg(name_color).add_modifier(Modifier::BOLD),
-    ));
-    content.push(Span::raw(" "));
-    content.push(Span::styled("●", Style::default().fg(status_color)));
-
-    let mut width = name.len() + 2; // name + " ●"
-
-    if let Some(label) = custom_label {
-        content.push(Span::raw(" "));
-        content.push(Span::styled(
-            label.to_string(),
-            Style::default().fg(status_color),
-        ));
-        width += 1 + label.len();
-    }
+    let label = custom_label.map(|s| s.to_string());
+    let width = name.len() + 2 + label.as_ref().map(|l| l.len() + 1).unwrap_or(0);
 
     Cell {
-        content,
+        name: name.to_string(),
+        name_color,
+        status_color,
+        custom_label: label,
         width,
-        process_name: Some(name.to_string()),
     }
 }
 
@@ -308,8 +304,7 @@ fn render_grid<'a>(
         cell_widths.push(s.len());
     }
 
-    // Add separator width (3 chars " │ ") to all but last cell in calculation
-    // We add separator to cell width for layout purposes
+    // Add separator width (3 chars " │ ") to all but last cell
     let cell_widths_with_sep: Vec<usize> = cell_widths
         .iter()
         .enumerate()
@@ -328,44 +323,50 @@ fn render_grid<'a>(
 
         for (col_idx, &padding) in row_padding.iter().enumerate() {
             let is_suffix_cell = cell_idx >= total_cells;
+            let is_last_in_row = col_idx == row_padding.len() - 1;
 
             if is_suffix_cell {
-                // This is the suffix cell
+                // Suffix cell
                 if let Some(s) = suffix {
                     if padding > 0 {
                         spans.push(Span::raw(" ".repeat(padding)));
                     }
-                    spans.push(Span::styled(
-                        s.to_string(),
-                        Style::default().fg(Color::DarkGray),
-                    ));
+                    spans.push(Span::styled(s.to_string(), Style::default().fg(Color::DarkGray)));
                 }
             } else {
-                // Regular process cell
+                // Regular process cell - build spans inline
                 let cell = &cells[cell_idx];
 
-                // Add padding before content (for column alignment)
+                // Record click region
+                let x_pos = area.x + x_offset as u16;
+                let y_pos = area.y + row_idx as u16;
+                app.regions.process_regions.push((
+                    cell.name.clone(),
+                    Rect::new(x_pos, y_pos, (cell.width + padding) as u16, 1),
+                ));
+
+                // Name
+                spans.push(Span::styled(
+                    cell.name.clone(),
+                    Style::default().fg(cell.name_color).add_modifier(Modifier::BOLD),
+                ));
+
+                // Padding after name (for column alignment)
                 if padding > 0 {
                     spans.push(Span::raw(" ".repeat(padding)));
                 }
 
-                // Record click region
-                if let Some(ref name) = cell.process_name {
-                    let x_pos = area.x + x_offset as u16 + padding as u16;
-                    let y_pos = area.y + row_idx as u16;
-                    app.regions.process_regions.push((
-                        name.clone(),
-                        Rect::new(x_pos, y_pos, cell.width as u16, 1),
-                    ));
+                // Status dot
+                spans.push(Span::raw(" "));
+                spans.push(Span::styled("●", Style::default().fg(cell.status_color)));
+
+                // Custom label if present
+                if let Some(ref label) = cell.custom_label {
+                    spans.push(Span::raw(" "));
+                    spans.push(Span::styled(label.clone(), Style::default().fg(cell.status_color)));
                 }
 
-                // Add cell content
-                for span in &cell.content {
-                    spans.push(span.clone());
-                }
-
-                // Add separator if not last cell in row
-                let is_last_in_row = col_idx == row_padding.len() - 1;
+                // Separator if not last cell in row
                 if !is_last_in_row {
                     spans.push(Span::styled(" │ ", Style::default().fg(Color::DarkGray)));
                 }
@@ -383,9 +384,7 @@ fn render_grid<'a>(
 }
 
 /// Get status color and optional custom label for a process
-fn get_process_status(
-    handle: &crate::process::ProcessHandle,
-) -> (Color, Option<String>) {
+fn get_process_status(handle: &crate::process::ProcessHandle) -> (Color, Option<String>) {
     match &handle.status {
         ProcessStatus::Terminating => (Color::Magenta, None),
         ProcessStatus::Failed(_) => (Color::Red, None),
