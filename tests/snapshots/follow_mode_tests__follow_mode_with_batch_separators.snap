@@ -2,7 +2,7 @@
 source: tests/follow_mode_tests.rs
 expression: output
 ---
-web [Stopped]                                                                                                           
+web ●                                                                                                                   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
                                                                                                                         
 [12:00:00] web: Log line number 9                                                                                       

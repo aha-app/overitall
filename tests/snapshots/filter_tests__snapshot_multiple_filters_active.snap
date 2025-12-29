@@ -2,7 +2,7 @@
 source: tests/filter_tests.rs
 expression: output
 ---
-web [Stopped]         worker [Stopped]                                                                                  
+web ●     worker ●                                                                                                      
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 (2 filters)                                                                                                             
 [12:00:00] worker: Processing job #1234                                                                                 

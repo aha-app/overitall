@@ -15,15 +15,16 @@ fn test_custom_status_label_displayed() {
 
     let output = render_app_to_string(&mut app, &manager, 120, 40);
 
-    // The "web" process should show its custom status label "Starting"
+    // The "web" process should show its custom status label "Starting" after the dot
     assert!(
         output.contains("Starting"),
         "Custom status label 'Starting' should be displayed for web process"
     );
-    // The "worker" process without custom status should show "Stopped" (default for not started)
+    // The "worker" process without custom status shows just a colored dot (no text label)
+    // In compact format, standard statuses don't show text
     assert!(
-        output.contains("Stopped"),
-        "Worker process without custom status should show 'Stopped'"
+        output.contains("worker") && output.contains("●"),
+        "Worker process should show with status indicator"
     );
 }
 
@@ -128,16 +129,15 @@ fn test_hidden_process_overrides_custom_status() {
 
     let output = render_app_to_string(&mut app, &manager, 120, 40);
 
-    // The web process should show "Hidden" not its custom status
-    assert!(
-        output.contains("Hidden"),
-        "Hidden process should show 'Hidden' status"
-    );
+    // In compact format, hidden status shows as a gray dot without text label
     // The custom status "Starting" should not be visible for the hidden process
-    // (but it might appear if there's another Starting somewhere, so we check the pattern)
-    // Check that web shows Hidden
     assert!(
-        output.contains("web") && output.contains("Hidden"),
-        "Web process should be marked as Hidden"
+        !output.contains("Starting"),
+        "Hidden process should not show custom 'Starting' label"
+    );
+    // Web process should still be displayed with a status indicator
+    assert!(
+        output.contains("web") && output.contains("●"),
+        "Web process should be displayed with status indicator"
     );
 }

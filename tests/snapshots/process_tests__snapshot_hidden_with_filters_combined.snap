@@ -2,7 +2,7 @@
 source: tests/process_tests.rs
 expression: output
 ---
-web [Stopped]         worker [Hidden]                                                                                   
+web ●     worker ●                                                                                                      
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 (1 filters)                                                                                                             
 [12:00:00] web: ERROR: Database connection failed                                                                       

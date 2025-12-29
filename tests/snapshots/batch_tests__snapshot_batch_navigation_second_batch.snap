@@ -2,7 +2,7 @@
 source: tests/batch_tests.rs
 expression: output
 ---
-web [Stopped]         worker [Stopped]                                                                                  
+web ●     worker ●                                                                                                      
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  [0%]                                                                                                                   
 [12:00:00] worker: Processing job #1234                                                                                 
