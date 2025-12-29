@@ -53,6 +53,10 @@ pub fn draw_help_overlay(f: &mut Frame, scroll_offset: u16) {
             Span::styled("  t", Style::default().fg(Color::Yellow)),
             Span::raw("       Cycle timestamps: seconds → ms → off"),
         ]),
+        Line::from(vec![
+            Span::styled("  p", Style::default().fg(Color::Yellow)),
+            Span::raw("       Cycle process panel: normal → summary → minimal"),
+        ]),
         Line::from(""),
         Line::from(vec![
             Span::styled("Commands:", Style::default().add_modifier(Modifier::BOLD)),

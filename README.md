@@ -132,6 +132,7 @@ oit --file Procfile.other
 - `Esc` - Exit current mode, close overlays, or jump to latest logs
 - `w` - Cycle display mode: compact → full → wrap
 - `t` - Cycle timestamp display: seconds → milliseconds → off
+- `p` - Cycle process panel: normal → summary → minimal
 
 
 #### Batch Navigation
