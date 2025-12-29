@@ -40,7 +40,9 @@ fn calculate_process_list_height(manager: &ProcessManager, app: &App, terminal_w
 
     // For Summary mode, calculate based on noteworthy entries with their own column widths
     if app.display.process_panel_mode == ProcessPanelViewMode::Summary {
-        let mut noteworthy_names: Vec<&String> = Vec::new();
+        let mut max_entry_width = 0usize;
+        let mut noteworthy_count = 0usize;
+
         for name in &names {
             let handle = &processes[*name];
             let is_hidden = app.filters.hidden_processes.contains(*name);
@@ -49,22 +51,31 @@ fn calculate_process_list_height(manager: &ProcessManager, app: &App, terminal_w
                 || has_custom
                 || !matches!(handle.status, ProcessStatus::Running);
             if is_noteworthy {
-                noteworthy_names.push(name);
+                noteworthy_count += 1;
+                // Calculate entry width: name + " ●" + optional " label"
+                let label_len = if let Some((label, _)) = handle.get_custom_status() {
+                    label.len() + 1
+                } else {
+                    0
+                };
+                let entry_width = name.len() + 2 + label_len;
+                max_entry_width = max_entry_width.max(entry_width);
             }
         }
-        let noteworthy_log_files: Vec<String> = log_file_names
-            .iter()
-            .filter(|name| app.filters.hidden_processes.contains(*name))
-            .cloned()
-            .collect();
+        for name in &log_file_names {
+            if app.filters.hidden_processes.contains(name) {
+                noteworthy_count += 1;
+                let entry_width = name.len() + 2; // name + " ●"
+                max_entry_width = max_entry_width.max(entry_width);
+            }
+        }
 
-        let noteworthy_count = noteworthy_names.len() + noteworthy_log_files.len();
         if noteworthy_count == 0 {
             return 2; // Just message + border
         }
 
-        // Calculate column width based on noteworthy entries only
-        let (column_width, _) = calculate_grid_params(&noteworthy_names, &noteworthy_log_files);
+        // Column width = max entry width + separator " │ " (3 chars)
+        let column_width = max_entry_width + 3;
         let num_columns = (usable_width / column_width).max(1);
         let num_rows = (noteworthy_count + num_columns - 1) / num_columns;
         return (num_rows as u16) + 1;

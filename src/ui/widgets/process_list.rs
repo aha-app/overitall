@@ -42,9 +42,17 @@ fn calculate_grid_params_for_entries(entries: &[ProcessEntry], usable_width: usi
     if entries.is_empty() {
         return (1, 1);
     }
-    let max_name_len = entries.iter().map(|e| e.name.len()).max().unwrap_or(0);
-    // " ●" = 2 chars, " │ " = 3 chars
-    let column_width = max_name_len + 2 + 3;
+    // Calculate max entry width including name + " ●" + optional " label"
+    let max_entry_width = entries
+        .iter()
+        .map(|e| {
+            let label_len = e.custom_label.as_ref().map(|l| l.len() + 1).unwrap_or(0);
+            e.name.len() + 2 + label_len // name + " ●" + optional " label"
+        })
+        .max()
+        .unwrap_or(0);
+    // Add separator width " │ " = 3 chars
+    let column_width = max_entry_width + 3;
     let num_columns = if usable_width > 0 && column_width > 0 {
         (usable_width / column_width).max(1)
     } else {
