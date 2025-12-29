@@ -351,11 +351,6 @@ fn render_grid<'a>(
                     Style::default().fg(cell.name_color).add_modifier(Modifier::BOLD),
                 ));
 
-                // Padding after name (for column alignment)
-                if padding > 0 {
-                    spans.push(Span::raw(" ".repeat(padding)));
-                }
-
                 // Status dot
                 spans.push(Span::raw(" "));
                 spans.push(Span::styled("●", Style::default().fg(cell.status_color)));
@@ -364,6 +359,11 @@ fn render_grid<'a>(
                 if let Some(ref label) = cell.custom_label {
                     spans.push(Span::raw(" "));
                     spans.push(Span::styled(label.clone(), Style::default().fg(cell.status_color)));
+                }
+
+                // Padding at end (for column alignment)
+                if padding > 0 {
+                    spans.push(Span::raw(" ".repeat(padding)));
                 }
 
                 // Separator if not last cell in row
