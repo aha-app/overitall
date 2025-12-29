@@ -120,7 +120,7 @@ fn test_custom_status_with_multiple_processes() {
 }
 
 #[test]
-fn test_hidden_process_overrides_custom_status() {
+fn test_hidden_process_shows_custom_status() {
     let mut app = create_test_app();
     let manager = create_manager_with_custom_status();
 
@@ -129,11 +129,10 @@ fn test_hidden_process_overrides_custom_status() {
 
     let output = render_app_to_string(&mut app, &manager, 120, 40);
 
-    // In compact format, hidden status shows as a gray dot without text label
-    // The custom status "Starting" should not be visible for the hidden process
+    // Hidden processes grey the name but keep the status indicator and custom label
     assert!(
-        !output.contains("Starting"),
-        "Hidden process should not show custom 'Starting' label"
+        output.contains("Starting"),
+        "Hidden process should still show custom 'Starting' label"
     );
     // Web process should still be displayed with a status indicator
     assert!(

@@ -68,8 +68,13 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
 
     for name in names.iter() {
         let handle = &processes[*name];
-        let (status_color, custom_label) = get_process_status(name, handle, app);
-        let name_color = app.process_colors.get(name);
+        let (status_color, custom_label) = get_process_status(handle);
+        let is_hidden = app.filters.hidden_processes.contains(*name);
+        let name_color = if is_hidden {
+            Color::DarkGray
+        } else {
+            app.process_colors.get(name)
+        };
         entries.push(ProcessEntry {
             name: (*name).clone(),
             status_color,
@@ -79,15 +84,15 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
     }
 
     for name in log_file_names.iter() {
-        let status_color = if app.filters.hidden_processes.contains(name) {
+        let is_hidden = app.filters.hidden_processes.contains(name);
+        let name_color = if is_hidden {
             Color::DarkGray
         } else {
-            Color::Cyan
+            app.process_colors.get(name)
         };
-        let name_color = app.process_colors.get(name);
         entries.push(ProcessEntry {
             name: name.clone(),
-            status_color,
+            status_color: Color::Cyan,
             name_color,
             custom_label: None,
         });
@@ -167,14 +172,8 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
 
 /// Get status color and optional custom label for a process
 fn get_process_status(
-    name: &str,
     handle: &crate::process::ProcessHandle,
-    app: &App,
 ) -> (Color, Option<String>) {
-    if app.filters.hidden_processes.contains(name) {
-        return (Color::DarkGray, None);
-    }
-
     match &handle.status {
         ProcessStatus::Terminating => (Color::Magenta, None),
         ProcessStatus::Failed(_) => (Color::Red, None),
