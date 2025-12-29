@@ -2,7 +2,7 @@
 source: tests/display_mode_tests.rs
 expression: output
 ---
-web [Stopped] | worker [Stopped]                                                                                        
+web [Stopped]         worker [Stopped]                                                                                  
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
                                                                                                                         
 [12:00:00] web: Short log message                                                                                       

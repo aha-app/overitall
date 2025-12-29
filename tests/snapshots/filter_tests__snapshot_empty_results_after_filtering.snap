@@ -2,7 +2,7 @@
 source: tests/filter_tests.rs
 expression: output
 ---
-web [Stopped] | worker [Stopped]                                                                                        
+web [Stopped]         worker [Stopped]                                                                                  
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 (1 filters)                                                                                                             
                                                                                                                         

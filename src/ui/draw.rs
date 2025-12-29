@@ -6,80 +6,36 @@ use ratatui::{
 use crate::process::ProcessManager;
 use super::app::App;
 use super::overlays::{draw_help_overlay, draw_expanded_line_overlay, draw_expanded_line_panel, draw_trace_selection_overlay};
-use super::widgets::{draw_process_list, draw_log_viewer, draw_status_bar, draw_command_input};
+use super::widgets::{draw_process_list, draw_log_viewer, draw_status_bar, draw_command_input, calculate_grid_params};
 
 /// Width threshold for split-screen view (below this, use overlay)
 const SPLIT_VIEW_THRESHOLD: u16 = 160;
 
 /// Calculate the height needed for the process list based on process count and terminal width
-fn calculate_process_list_height(manager: &ProcessManager, app: &App, terminal_width: u16) -> u16 {
+fn calculate_process_list_height(manager: &ProcessManager, _app: &App, terminal_width: u16) -> u16 {
     let processes = manager.get_processes();
-    if processes.is_empty() {
-        return 2; // "No processes" message + border
-    }
-
-    // Calculate total width of all process entries
-    // Format: "name [Status]" with " | " separators
-    let mut total_width: usize = 0;
     let mut names: Vec<&String> = processes.keys().collect();
     names.sort();
 
-    for (i, name) in names.iter().enumerate() {
-        if i > 0 {
-            total_width += 3; // " | " separator
-        }
-
-        let handle = &processes[*name];
-
-        // Estimate status text length
-        let status_len = if app.filters.hidden_processes.contains(*name) {
-            6 // "Hidden"
-        } else if let Some((custom_label, _)) = handle.get_custom_status() {
-            custom_label.len()
-        } else {
-            match &handle.status {
-                crate::process::ProcessStatus::Running => 7,
-                crate::process::ProcessStatus::Stopped => 7,
-                crate::process::ProcessStatus::Terminating => 11,
-                crate::process::ProcessStatus::Restarting => 10,
-                crate::process::ProcessStatus::Failed(_) => 6,
-            }
-        };
-
-        // "name [Status]" = name.len() + 3 (for " []") + status_len
-        total_width += name.len() + 3 + status_len;
-    }
-
-    // Include standalone log files in width calculation
     let mut log_file_names = manager.get_standalone_log_file_names();
     log_file_names.sort();
 
-    for name in log_file_names.iter() {
-        if total_width > 0 {
-            total_width += 3; // " | " separator
-        }
-
-        let status_len = if app.filters.hidden_processes.contains(name) {
-            6 // "Hidden"
-        } else {
-            3 // "LOG"
-        };
-
-        // "name [Status]" = name.len() + 3 (for " []") + status_len
-        total_width += name.len() + 3 + status_len;
+    let total_entries = names.len() + log_file_names.len();
+    if total_entries == 0 {
+        return 2; // "No processes" message + border
     }
 
-    // Calculate how many lines are needed (account for border taking 2 chars width)
+    let (column_width, _) = calculate_grid_params(&names, &log_file_names);
     let usable_width = terminal_width.saturating_sub(2) as usize;
     if usable_width == 0 {
         return 2;
     }
 
-    let content_lines = (total_width + usable_width - 1) / usable_width; // Ceiling division
-    let content_lines = content_lines.max(1) as u16;
+    let num_columns = (usable_width / column_width).max(1);
+    let num_rows = (total_entries + num_columns - 1) / num_columns; // Ceiling division
 
     // Add 1 for the bottom border
-    content_lines + 1
+    (num_rows as u16) + 1
 }
 
 /// Draw the UI to the terminal

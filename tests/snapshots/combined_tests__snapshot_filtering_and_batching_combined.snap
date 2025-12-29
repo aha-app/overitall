@@ -2,7 +2,7 @@
 source: tests/combined_tests.rs
 expression: output
 ---
-web [Stopped] | worker [Stopped]                                                                                        
+web [Stopped]         worker [Stopped]                                                                                  
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 (1 filters)                                                                                                             
 [12:00:00] web: Starting web server on port 3000                                                                        

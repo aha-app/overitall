@@ -9,141 +9,167 @@ use ratatui::{
 use crate::process::{ProcessManager, ProcessStatus};
 use crate::ui::app::App;
 
+/// Represents an entry in the process list (either a process or a log file)
+struct ProcessEntry {
+    name: String,
+    status_text: String,
+    status_color: Color,
+    name_color: Color,
+}
+
+/// Calculate grid layout parameters for process list
+pub fn calculate_grid_params(
+    process_names: &[&String],
+    log_file_names: &[String],
+) -> (usize, usize) {
+    let max_process_name = process_names.iter().map(|n| n.len()).max().unwrap_or(0);
+    let max_log_name = log_file_names.iter().map(|n| n.len()).max().unwrap_or(0);
+    let max_name_len = max_process_name.max(max_log_name);
+
+    // Status text max is "Terminating" (11 chars), plus " []" = 14 chars
+    // Column format: "name [Status]" with 2 chars spacing between columns
+    let column_width = max_name_len + 14 + 2;
+
+    let total_entries = process_names.len() + log_file_names.len();
+
+    (column_width, total_entries)
+}
+
 /// Draw the process list at the top of the screen
 pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, app: &mut App) {
-    // Clear previous process regions
     app.regions.process_regions.clear();
 
     let processes = manager.get_processes();
 
-    // Sort process names for consistent display
     let mut names: Vec<&String> = processes.keys().collect();
     names.sort();
 
-    // Build a horizontal layout of processes with separators
-    // Track character position for click region mapping
-    let mut spans = Vec::new();
-    let mut char_pos: u16 = 0;
-
-    for (i, name) in names.iter().enumerate() {
-        let handle = &processes[*name];
-
-        // Add separator between processes (but not before the first one)
-        if i > 0 {
-            spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
-            char_pos += 3; // " | " is 3 chars
-        }
-
-        // Check if process is hidden
-        // Priority: Hidden > Terminating/Failed > Custom status > Standard status
-        let (status_text, color) = if app.filters.hidden_processes.contains(*name) {
-            ("Hidden".to_string(), Color::DarkGray)
-        } else {
-            // Terminating and Failed always override custom status
-            match &handle.status {
-                ProcessStatus::Terminating => ("Terminating".to_string(), Color::Magenta),
-                ProcessStatus::Failed(_) => ("Failed".to_string(), Color::Red),
-                _ => {
-                    // For other statuses, prefer custom status if configured
-                    if let Some((custom_label, custom_color)) = handle.get_custom_status() {
-                        let color = custom_color.unwrap_or(Color::Green);
-                        (custom_label.to_string(), color)
-                    } else {
-                        // Fall back to standard status display
-                        match &handle.status {
-                            ProcessStatus::Running => ("Running".to_string(), Color::Green),
-                            ProcessStatus::Stopped => ("Stopped".to_string(), Color::Yellow),
-                            ProcessStatus::Restarting => ("Restarting".to_string(), Color::Cyan),
-                            // Already handled above, but needed for exhaustive match
-                            ProcessStatus::Terminating => ("Terminating".to_string(), Color::Magenta),
-                            ProcessStatus::Failed(_) => ("Failed".to_string(), Color::Red),
-                        }
-                    }
-                }
-            }
-        };
-
-        // Calculate the full width of this process entry: "name [status]"
-        let entry_width = name.len() + 3 + status_text.len(); // " [" + status + "]"
-
-        // Record the clickable region for this process
-        // Note: area.x is the start of the process list area
-        app.regions.process_regions.push((
-            (*name).clone(),
-            Rect::new(area.x + char_pos, area.y, entry_width as u16, 1),
-        ));
-
-        // Add process name and status
-        let name_color = app.process_colors.get(name);
-        spans.push(Span::styled(
-            (*name).clone(),
-            Style::default().fg(name_color).add_modifier(Modifier::BOLD),
-        ));
-        spans.push(Span::raw(" ["));
-        spans.push(Span::styled(status_text, Style::default().fg(color)));
-        spans.push(Span::raw("]"));
-
-        char_pos += entry_width as u16;
-    }
-
-    // Add standalone log files after processes
     let mut log_file_names = manager.get_standalone_log_file_names();
     log_file_names.sort();
 
-    for name in log_file_names.iter() {
-        // Add separator if there are any previous items
-        if !spans.is_empty() {
-            spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
-            char_pos += 3;
-        }
+    // Handle empty case
+    if names.is_empty() && log_file_names.is_empty() {
+        let line = Line::from(vec![Span::styled(
+            "No processes",
+            Style::default().fg(Color::DarkGray),
+        )]);
+        let paragraph = Paragraph::new(vec![line]).block(Block::default().borders(Borders::BOTTOM));
+        f.render_widget(paragraph, area);
+        return;
+    }
 
-        // Check if log file is hidden
-        let (status_text, color) = if app.filters.hidden_processes.contains(name) {
+    // Calculate grid dimensions
+    let (column_width, _) = calculate_grid_params(&names, &log_file_names);
+    let usable_width = area.width.saturating_sub(2) as usize; // Account for borders
+    let num_columns = (usable_width / column_width).max(1);
+
+    // Build entries with their display info
+    let mut entries: Vec<ProcessEntry> = Vec::new();
+
+    for name in names.iter() {
+        let handle = &processes[*name];
+        let (status_text, status_color) = get_process_status(name, handle, app);
+        let name_color = app.process_colors.get(name);
+        entries.push(ProcessEntry {
+            name: (*name).clone(),
+            status_text,
+            status_color,
+            name_color,
+        });
+    }
+
+    for name in log_file_names.iter() {
+        let (status_text, status_color) = if app.filters.hidden_processes.contains(name) {
             ("Hidden".to_string(), Color::DarkGray)
         } else {
             ("LOG".to_string(), Color::Cyan)
         };
-
-        // Calculate the full width of this log file entry
-        let entry_width = name.len() + 3 + status_text.len();
-
-        // Record the clickable region for this log file
-        app.regions.process_regions.push((
-            name.clone(),
-            Rect::new(area.x + char_pos, area.y, entry_width as u16, 1),
-        ));
-
-        // Add log file name and status
         let name_color = app.process_colors.get(name);
-        spans.push(Span::styled(
-            name.clone(),
-            Style::default().fg(name_color).add_modifier(Modifier::BOLD),
-        ));
-        spans.push(Span::raw(" ["));
-        spans.push(Span::styled(status_text, Style::default().fg(color)));
-        spans.push(Span::raw("]"));
-
-        char_pos += entry_width as u16;
+        entries.push(ProcessEntry {
+            name: name.clone(),
+            status_text,
+            status_color,
+            name_color,
+        });
     }
 
-    // If no processes or log files, show a message
-    if spans.is_empty() {
-        spans.push(Span::styled(
-            "No processes",
-            Style::default().fg(Color::DarkGray),
-        ));
+    // Build lines for grid layout
+    let mut lines: Vec<Line> = Vec::new();
+
+    for (row_idx, chunk) in entries.chunks(num_columns).enumerate() {
+        let mut spans: Vec<Span> = Vec::new();
+
+        for (col_idx, entry) in chunk.iter().enumerate() {
+            // Calculate entry text: "name [Status]"
+            let entry_text = format!("{} [{}]", entry.name, entry.status_text);
+            let entry_len = entry_text.len();
+
+            // Record clickable region
+            let x_pos = area.x + (col_idx * column_width) as u16;
+            let y_pos = area.y + row_idx as u16;
+            app.regions.process_regions.push((
+                entry.name.clone(),
+                Rect::new(x_pos, y_pos, entry_len as u16, 1),
+            ));
+
+            // Add name span
+            spans.push(Span::styled(
+                entry.name.clone(),
+                Style::default()
+                    .fg(entry.name_color)
+                    .add_modifier(Modifier::BOLD),
+            ));
+            spans.push(Span::raw(" ["));
+            spans.push(Span::styled(
+                entry.status_text.clone(),
+                Style::default().fg(entry.status_color),
+            ));
+            spans.push(Span::raw("]"));
+
+            // Add padding to align columns (except for last column in row)
+            if col_idx < num_columns - 1 {
+                let padding_needed = column_width.saturating_sub(entry_len);
+                if padding_needed > 0 {
+                    spans.push(Span::raw(" ".repeat(padding_needed)));
+                }
+            }
+        }
+
+        lines.push(Line::from(spans));
     }
 
-    // Create a single line with all processes
-    let line = Line::from(spans);
-
-    // Wrap into a paragraph that can handle text wrapping if needed
-    let paragraph = Paragraph::new(vec![line])
-        .block(
-            Block::default()
-                .borders(Borders::BOTTOM)
-        )
-        .wrap(ratatui::widgets::Wrap { trim: false });
+    let paragraph =
+        Paragraph::new(lines).block(Block::default().borders(Borders::BOTTOM));
 
     f.render_widget(paragraph, area);
+}
+
+/// Get status text and color for a process
+fn get_process_status(
+    name: &str,
+    handle: &crate::process::ProcessHandle,
+    app: &App,
+) -> (String, Color) {
+    if app.filters.hidden_processes.contains(name) {
+        return ("Hidden".to_string(), Color::DarkGray);
+    }
+
+    match &handle.status {
+        ProcessStatus::Terminating => ("Terminating".to_string(), Color::Magenta),
+        ProcessStatus::Failed(_) => ("Failed".to_string(), Color::Red),
+        _ => {
+            if let Some((custom_label, custom_color)) = handle.get_custom_status() {
+                let color = custom_color.unwrap_or(Color::Green);
+                (custom_label.to_string(), color)
+            } else {
+                match &handle.status {
+                    ProcessStatus::Running => ("Running".to_string(), Color::Green),
+                    ProcessStatus::Stopped => ("Stopped".to_string(), Color::Yellow),
+                    ProcessStatus::Restarting => ("Restarting".to_string(), Color::Cyan),
+                    ProcessStatus::Terminating => ("Terminating".to_string(), Color::Magenta),
+                    ProcessStatus::Failed(_) => ("Failed".to_string(), Color::Red),
+                }
+            }
+        }
+    }
 }

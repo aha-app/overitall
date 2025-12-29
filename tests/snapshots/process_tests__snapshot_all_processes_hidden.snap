@@ -2,7 +2,7 @@
 source: tests/process_tests.rs
 expression: output
 ---
-web [Hidden] | worker [Hidden]                                                                                          
+web [Hidden]          worker [Hidden]                                                                                   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
                                                                                                                         
                                                                                                                         
