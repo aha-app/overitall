@@ -2,7 +2,7 @@
 source: tests/display_mode_tests.rs
 expression: output
 ---
-web    ● │ worker ●                                                                                                     
+web ● │ worker ●                                                                                                        
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
                                                                                                                         
 [12:00:00] web: Starting web server on port 3000                                                                        

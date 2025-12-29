@@ -96,16 +96,24 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
     // Build lines for grid layout
     let mut lines: Vec<Line> = Vec::new();
 
+    // Only add padding for column alignment if there are multiple rows
+    let needs_padding = entries.len() > num_columns;
+
     for (row_idx, chunk) in entries.chunks(num_columns).enumerate() {
         let mut spans: Vec<Span> = Vec::new();
 
         for (col_idx, entry) in chunk.iter().enumerate() {
             // max_name_len = column_width - 5 (subtract " ●" and " │ ")
             let max_name_len = column_width.saturating_sub(5);
-            let name_padding = max_name_len.saturating_sub(entry.name.len());
+            let name_padding = if needs_padding {
+                max_name_len.saturating_sub(entry.name.len())
+            } else {
+                0
+            };
 
             // Calculate entry length for click region
-            let entry_len = max_name_len
+            let entry_len = entry.name.len()
+                + name_padding
                 + 2
                 + entry.custom_label.as_ref().map(|l| l.len() + 1).unwrap_or(0);
 
@@ -125,7 +133,7 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
                     .add_modifier(Modifier::BOLD),
             ));
 
-            // Add padding to right-align the status dot
+            // Add padding to right-align the status dot (only when multiple rows)
             if name_padding > 0 {
                 spans.push(Span::raw(" ".repeat(name_padding)));
             }

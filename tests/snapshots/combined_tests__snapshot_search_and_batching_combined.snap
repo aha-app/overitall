@@ -2,7 +2,7 @@
 source: tests/combined_tests.rs
 expression: output
 ---
-web    ● │ worker ●                                                                                                     
+web ● │ worker ●                                                                                                        
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 [Search: job] 2 matches                                                                                                 
 [12:00:00] worker: Processing job #1234                                                                                 
