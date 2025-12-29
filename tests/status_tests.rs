@@ -140,3 +140,17 @@ fn test_hidden_process_shows_custom_status() {
         "Web process should be displayed with status indicator"
     );
 }
+
+// ============================================================================
+// Process Grid Layout Tests
+// ============================================================================
+
+#[test]
+fn test_snapshot_process_grid_multirow() {
+    let mut app = create_test_app();
+    let manager = common::create_manager_with_many_processes();
+
+    // Use 80 width to force 3 rows with 12 processes
+    let output = render_app_to_string(&mut app, &manager, 80, 40);
+    assert_snapshot!(output);
+}

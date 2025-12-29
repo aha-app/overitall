@@ -179,3 +179,47 @@ pub fn create_manager_with_long_logs() -> ProcessManager {
 
     manager
 }
+
+/// Helper to create a ProcessManager with many processes for testing grid layout
+/// Creates 12 processes with varied names and statuses to span multiple rows
+pub fn create_manager_with_many_processes() -> ProcessManager {
+    use overitall::config::{StatusConfig, StatusTransition};
+
+    let mut manager = ProcessManager::new();
+
+    // Process with custom status
+    let web_config = StatusConfig {
+        default: Some("Booting".to_string()),
+        color: None,
+        transitions: vec![
+            StatusTransition {
+                pattern: "Ready".to_string(),
+                label: "Ready".to_string(),
+                color: Some("green".to_string()),
+            },
+        ],
+    };
+    manager.add_process("web".to_string(), "echo hi".to_string(), None, Some(&web_config));
+
+    // Process with longer custom status
+    let api_config = StatusConfig {
+        default: Some("Initializing".to_string()),
+        color: None,
+        transitions: vec![],
+    };
+    manager.add_process("api".to_string(), "echo hi".to_string(), None, Some(&api_config));
+
+    // Regular processes (no custom status)
+    manager.add_process("worker".to_string(), "echo hi".to_string(), None, None);
+    manager.add_process("scheduler".to_string(), "echo hi".to_string(), None, None);
+    manager.add_process("mailer".to_string(), "echo hi".to_string(), None, None);
+    manager.add_process("cache".to_string(), "echo hi".to_string(), None, None);
+    manager.add_process("db".to_string(), "echo hi".to_string(), None, None);
+    manager.add_process("redis".to_string(), "echo hi".to_string(), None, None);
+    manager.add_process("nginx".to_string(), "echo hi".to_string(), None, None);
+    manager.add_process("postgres".to_string(), "echo hi".to_string(), None, None);
+    manager.add_process("elasticsearch".to_string(), "echo hi".to_string(), None, None);
+    manager.add_process("sidekiq".to_string(), "echo hi".to_string(), None, None);
+
+    manager
+}
