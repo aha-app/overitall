@@ -26,9 +26,9 @@ pub fn calculate_grid_params(
     let max_log_name = log_file_names.iter().map(|n| n.len()).max().unwrap_or(0);
     let max_name_len = max_process_name.max(max_log_name);
 
-    // Compact format: "name ●" with 2 chars spacing between columns
-    // " ●" = 2 chars (space + dot)
-    let column_width = max_name_len + 2 + 2;
+    // Compact format: "name ●" with " │ " separator between columns
+    // " ●" = 2 chars, " │ " = 3 chars
+    let column_width = max_name_len + 2 + 3;
 
     let total_entries = process_names.len() + log_file_names.len();
 
@@ -132,12 +132,13 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
                 ));
             }
 
-            // Add padding to align columns (except for last column in row)
-            if col_idx < num_columns - 1 {
-                let padding_needed = column_width.saturating_sub(entry_len);
+            // Add separator and padding between columns (except for last column in row)
+            if col_idx < chunk.len() - 1 {
+                let padding_needed = column_width.saturating_sub(entry_len + 3); // +3 for " │ "
                 if padding_needed > 0 {
                     spans.push(Span::raw(" ".repeat(padding_needed)));
                 }
+                spans.push(Span::styled(" │ ", Style::default().fg(Color::DarkGray)));
             }
         }
 
