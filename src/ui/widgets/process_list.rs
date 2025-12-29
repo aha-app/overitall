@@ -231,6 +231,8 @@ fn render_summary_mode<'a>(
 ) -> Vec<Line<'a>> {
     let mut lines: Vec<Line> = Vec::new();
     let noteworthy_count = noteworthy_entries.len();
+    let suffix = format!("[{} of {}, p to expand]", noteworthy_count, total_count);
+    let suffix_width = suffix.len() + 2; // +2 for spacing
 
     if noteworthy_entries.is_empty() {
         // No noteworthy processes - show message
@@ -241,12 +243,32 @@ fn render_summary_mode<'a>(
         return lines;
     }
 
+    let usable_width = area.width.saturating_sub(2) as usize;
     let needs_padding = noteworthy_entries.len() > num_columns;
-    let total_rows = (noteworthy_entries.len() + num_columns - 1) / num_columns;
 
-    for (row_idx, chunk) in noteworthy_entries.chunks(num_columns).enumerate() {
+    // Calculate how many entries fit on last row with suffix
+    let last_row_max_columns = if column_width > 0 {
+        ((usable_width.saturating_sub(suffix_width)) / column_width).max(1)
+    } else {
+        1
+    };
+
+    // Build rows manually to handle last row specially
+    let mut remaining: &[ProcessEntry] = noteworthy_entries;
+    let mut row_idx = 0;
+
+    while !remaining.is_empty() {
+        let is_last_row = remaining.len() <= last_row_max_columns;
+        let cols_this_row = if is_last_row {
+            remaining.len().min(last_row_max_columns)
+        } else {
+            remaining.len().min(num_columns)
+        };
+
+        let (chunk, rest) = remaining.split_at(cols_this_row);
+        remaining = rest;
+
         let mut spans: Vec<Span> = Vec::new();
-        let is_last_row = row_idx == total_rows - 1;
 
         for (col_idx, entry) in chunk.iter().enumerate() {
             let max_name_len = column_width.saturating_sub(5);
@@ -296,14 +318,15 @@ fn render_summary_mode<'a>(
         }
 
         // Add suffix on last row
-        if is_last_row {
+        if remaining.is_empty() {
             spans.push(Span::styled(
-                format!("  [{} of {}, p to expand]", noteworthy_count, total_count),
+                format!("  {}", suffix),
                 Style::default().fg(Color::DarkGray),
             ));
         }
 
         lines.push(Line::from(spans));
+        row_idx += 1;
     }
 
     lines

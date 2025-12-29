@@ -77,7 +77,28 @@ fn calculate_process_list_height(manager: &ProcessManager, app: &App, terminal_w
         // Column width = max entry width + separator " │ " (3 chars)
         let column_width = max_entry_width + 3;
         let num_columns = (usable_width / column_width).max(1);
-        let num_rows = (noteworthy_count + num_columns - 1) / num_columns;
+
+        // Account for suffix "[N of M, p to expand]" on last row
+        // Suffix is ~25 chars, so last row fits fewer columns
+        let suffix_width = 27; // "[X of XX, p to expand]" + spacing
+        let last_row_max_cols = if column_width > 0 {
+            ((usable_width.saturating_sub(suffix_width)) / column_width).max(1)
+        } else {
+            1
+        };
+
+        // Calculate rows: fill rows with num_columns until we can fit remainder + suffix
+        let mut remaining = noteworthy_count;
+        let mut num_rows = 0;
+        while remaining > 0 {
+            if remaining <= last_row_max_cols {
+                num_rows += 1;
+                break;
+            }
+            remaining = remaining.saturating_sub(num_columns);
+            num_rows += 1;
+        }
+
         return (num_rows as u16) + 1;
     }
 
