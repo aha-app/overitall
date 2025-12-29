@@ -11,18 +11,25 @@ use crate::ui::app::App;
 use crate::ui::display_state::ProcessPanelViewMode;
 
 /// Represents a cell to be rendered in the process grid
+#[derive(Clone)]
 struct Cell {
     name: String,
     name_color: Color,
     status_color: Color,
     custom_label: Option<String>,
     width: usize,
+    is_noteworthy: bool,
 }
 
 /// Calculate row layout: given cell widths and max width, returns padding for each cell.
 /// Returns Vec<Vec<usize>> where each inner Vec is a row containing padding amounts.
 /// Finds the optimal number of columns such that all rows fit within max_width.
-fn calculate_row_layout(cell_widths: &[usize], max_width: usize) -> Vec<Vec<usize>> {
+/// The separator_width is applied between each column when calculating total width.
+fn calculate_row_layout(
+    cell_widths: &[usize],
+    max_width: usize,
+    separator_width: usize,
+) -> Vec<Vec<usize>> {
     if cell_widths.is_empty() {
         return vec![];
     }
@@ -38,7 +45,8 @@ fn calculate_row_layout(cell_widths: &[usize], max_width: usize) -> Vec<Vec<usiz
             col_widths[col] = col_widths[col].max(w);
         }
 
-        let total: usize = col_widths.iter().sum();
+        // Total width = sum of columns + separators between columns
+        let total: usize = col_widths.iter().sum::<usize>() + (num_cols - 1) * separator_width;
         if total <= max_width {
             // This layout works, compute padding for each cell
             let mut result = Vec::new();
@@ -59,8 +67,8 @@ fn calculate_row_layout(cell_widths: &[usize], max_width: usize) -> Vec<Vec<usiz
 }
 
 /// Calculate the number of rows needed for the given cell widths and max width
-fn calculate_row_count(cell_widths: &[usize], max_width: usize) -> usize {
-    calculate_row_layout(cell_widths, max_width).len()
+fn calculate_row_count(cell_widths: &[usize], max_width: usize, separator_width: usize) -> usize {
+    calculate_row_layout(cell_widths, max_width, separator_width).len()
 }
 
 /// Build cell widths for layout calculation based on view mode
@@ -69,45 +77,25 @@ fn build_cell_widths(
     app: &App,
     mode: ProcessPanelViewMode,
 ) -> (Vec<usize>, usize) {
-    let processes = manager.get_processes();
-    let mut names: Vec<&String> = processes.keys().collect();
-    names.sort();
-
-    let mut log_file_names = manager.get_standalone_log_file_names();
-    log_file_names.sort();
-
-    let total_count = names.len() + log_file_names.len();
+    let all_cells = build_process_cells(manager, app);
+    let total_count = all_cells.len();
     let mut cell_widths: Vec<usize> = Vec::new();
 
-    for name in &names {
-        let handle = &processes[*name];
-        let is_hidden = app.filters.hidden_processes.contains(*name);
-        let has_custom = handle.get_custom_status().is_some();
-        let is_noteworthy =
-            is_hidden || has_custom || !matches!(handle.status, ProcessStatus::Running);
-
-        let label_len = if let Some((label, _)) = handle.get_custom_status() {
-            label.len() + 1
-        } else {
-            0
-        };
-        let cell_width = name.len() + 2 + label_len;
-
-        match mode {
-            ProcessPanelViewMode::Normal => cell_widths.push(cell_width),
-            ProcessPanelViewMode::Summary if is_noteworthy => cell_widths.push(cell_width),
-            _ => {}
+    match mode {
+        ProcessPanelViewMode::Normal => {
+            for cell in &all_cells {
+                cell_widths.push(cell.width);
+            }
         }
-    }
-
-    for name in &log_file_names {
-        let is_hidden = app.filters.hidden_processes.contains(name);
-        let cell_width = name.len() + 2;
-
-        match mode {
-            ProcessPanelViewMode::Normal => cell_widths.push(cell_width),
-            ProcessPanelViewMode::Summary if is_hidden => cell_widths.push(cell_width),
-            _ => {}
+        ProcessPanelViewMode::Summary => {
+            for cell in &all_cells {
+                if cell.is_noteworthy {
+                    cell_widths.push(cell.width);
+                }
+            }
+        }
+        ProcessPanelViewMode::Minimal => {
+            // No cells in minimal mode
         }
     }
 
@@ -118,15 +106,6 @@ fn build_cell_widths(
     }
 
     (cell_widths, total_count)
-}
-
-/// Add separator widths to cell widths for layout calculation
-fn add_separator_widths(cell_widths: &[usize]) -> Vec<usize> {
-    cell_widths
-        .iter()
-        .enumerate()
-        .map(|(i, &w)| if i < cell_widths.len() - 1 { w + 3 } else { w })
-        .collect()
 }
 
 /// Calculate the height needed for the process list
@@ -142,21 +121,66 @@ pub fn calculate_process_list_height(
         return 2;
     }
 
+    let usable_width = terminal_width.saturating_sub(2) as usize;
+    if usable_width == 0 {
+        return 2;
+    }
+
     let (cell_widths, _total_count) = build_cell_widths(manager, app, mode);
 
     if cell_widths.is_empty() {
         return 2; // Empty or "all running" message + border
     }
 
-    let usable_width = terminal_width.saturating_sub(2) as usize;
-    if usable_width == 0 {
-        return 2;
+    let num_rows = calculate_row_count(&cell_widths, usable_width, 3);
+    (num_rows as u16) + 1 // +1 for border
+}
+
+fn build_process_cells(manager: &ProcessManager, app: &App) -> Vec<Cell> {
+    let processes = manager.get_processes();
+    let mut names: Vec<&String> = processes.keys().collect();
+    names.sort();
+    let mut log_file_names = manager.get_standalone_log_file_names();
+    log_file_names.sort();
+
+    // Build all cells with their display info
+    let mut all_cells: Vec<Cell> = Vec::new();
+
+    for name in names.iter() {
+        let handle = &processes[*name];
+        let (status_color, custom_label) = get_process_status(handle);
+        let is_hidden = app.filters.hidden_processes.contains(*name);
+        let name_color = if is_hidden {
+            Color::DarkGray
+        } else {
+            app.process_colors.get(name)
+        };
+        let is_noteworthy =
+            is_hidden || custom_label.is_some() || !matches!(handle.status, ProcessStatus::Running);
+
+        let cell = build_process_cell(
+            name,
+            name_color,
+            status_color,
+            custom_label.as_deref(),
+            is_noteworthy,
+        );
+        all_cells.push(cell);
     }
 
-    let cell_widths_with_sep = add_separator_widths(&cell_widths);
-    let num_rows = calculate_row_count(&cell_widths_with_sep, usable_width);
+    for name in log_file_names.iter() {
+        let is_hidden = app.filters.hidden_processes.contains(name);
+        let name_color = if is_hidden {
+            Color::DarkGray
+        } else {
+            app.process_colors.get(name)
+        };
 
-    (num_rows as u16) + 1 // +1 for border
+        let cell = build_process_cell(name, name_color, Color::Cyan, None, is_hidden);
+        all_cells.push(cell);
+    }
+
+    return all_cells;
 }
 
 /// Draw the process list at the top of the screen
@@ -182,44 +206,7 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
         return;
     }
 
-    // Build all cells with their display info
-    let mut all_cells: Vec<Cell> = Vec::new();
-    let mut noteworthy_indices: Vec<usize> = Vec::new();
-
-    for name in names.iter() {
-        let handle = &processes[*name];
-        let (status_color, custom_label) = get_process_status(handle);
-        let is_hidden = app.filters.hidden_processes.contains(*name);
-        let name_color = if is_hidden {
-            Color::DarkGray
-        } else {
-            app.process_colors.get(name)
-        };
-        let is_noteworthy =
-            is_hidden || custom_label.is_some() || !matches!(handle.status, ProcessStatus::Running);
-
-        let cell = build_process_cell(name, name_color, status_color, custom_label.as_deref());
-        if is_noteworthy {
-            noteworthy_indices.push(all_cells.len());
-        }
-        all_cells.push(cell);
-    }
-
-    for name in log_file_names.iter() {
-        let is_hidden = app.filters.hidden_processes.contains(name);
-        let name_color = if is_hidden {
-            Color::DarkGray
-        } else {
-            app.process_colors.get(name)
-        };
-
-        let cell = build_process_cell(name, name_color, Color::Cyan, None);
-        if is_hidden {
-            noteworthy_indices.push(all_cells.len());
-        }
-        all_cells.push(cell);
-    }
-
+    let all_cells: Vec<Cell> = build_process_cells(manager, app);
     let total_count = all_cells.len();
     let usable_width = area.width.saturating_sub(2) as usize;
     let view_mode = app.display.process_panel_mode;
@@ -227,18 +214,9 @@ pub fn draw_process_list(f: &mut Frame, area: Rect, manager: &ProcessManager, ap
     let lines = match view_mode {
         ProcessPanelViewMode::Normal => render_grid(&all_cells, None, usable_width, area, app),
         ProcessPanelViewMode::Summary => {
-            let noteworthy_cells: Vec<Cell> = noteworthy_indices
+            let noteworthy_cells: Vec<Cell> = all_cells
                 .into_iter()
-                .map(|i| {
-                    let orig = &all_cells[i];
-                    Cell {
-                        name: orig.name.clone(),
-                        name_color: orig.name_color,
-                        status_color: orig.status_color,
-                        custom_label: orig.custom_label.clone(),
-                        width: orig.width,
-                    }
-                })
+                .filter(|cell| cell.is_noteworthy)
                 .collect();
 
             if noteworthy_cells.is_empty() {
@@ -273,9 +251,10 @@ fn build_process_cell(
     name_color: Color,
     status_color: Color,
     custom_label: Option<&str>,
+    is_noteworthy: bool,
 ) -> Cell {
     let label = custom_label.map(|s| s.to_string());
-    let width = name.len() + 2 + label.as_ref().map(|l| l.len() + 1).unwrap_or(0);
+    let width = name.len() + 2 + label.as_ref().map(|l| l.len() + 3).unwrap_or(0);
 
     Cell {
         name: name.to_string(),
@@ -283,6 +262,7 @@ fn build_process_cell(
         status_color,
         custom_label: label,
         width,
+        is_noteworthy,
     }
 }
 
@@ -304,26 +284,21 @@ fn render_grid<'a>(
         cell_widths.push(s.len());
     }
 
-    // Add separator width (3 chars " │ ") to all but last cell
-    let cell_widths_with_sep: Vec<usize> = cell_widths
-        .iter()
-        .enumerate()
-        .map(|(i, &w)| if i < cell_widths.len() - 1 { w + 3 } else { w })
-        .collect();
-
-    let layout = calculate_row_layout(&cell_widths_with_sep, max_width);
+    let layout = calculate_row_layout(&cell_widths, max_width, 3);
 
     let mut lines: Vec<Line> = Vec::new();
     let mut cell_idx = 0;
     let total_cells = cells.len();
+    let total_cols = layout.first().map_or(0, |r| r.len());
 
     for (row_idx, row_padding) in layout.iter().enumerate() {
         let mut spans: Vec<Span> = Vec::new();
-        let mut x_offset = 0usize;
+        let mut x_offset = 0;
 
         for (col_idx, &padding) in row_padding.iter().enumerate() {
             let is_suffix_cell = cell_idx >= total_cells;
             let is_last_in_row = col_idx == row_padding.len() - 1;
+            let is_last_col = col_idx == total_cols - 1;
 
             if is_suffix_cell {
                 // Suffix cell
@@ -331,7 +306,10 @@ fn render_grid<'a>(
                     if padding > 0 {
                         spans.push(Span::raw(" ".repeat(padding)));
                     }
-                    spans.push(Span::styled(s.to_string(), Style::default().fg(Color::DarkGray)));
+                    spans.push(Span::styled(
+                        s.to_string(),
+                        Style::default().fg(Color::DarkGray),
+                    ));
                 }
             } else {
                 // Regular process cell - build spans inline
@@ -348,26 +326,31 @@ fn render_grid<'a>(
                 // Name
                 spans.push(Span::styled(
                     cell.name.clone(),
-                    Style::default().fg(cell.name_color).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(cell.name_color)
+                        .add_modifier(Modifier::BOLD),
                 ));
+
+                // Custom label if present
+                if let Some(ref label) = cell.custom_label {
+                    spans.push(Span::raw(" ["));
+                    spans.push(Span::styled(
+                        label.clone(),
+                        Style::default().fg(cell.status_color),
+                    ));
+                    spans.push(Span::raw("]"));
+                }
+
+                if padding > 0 {
+                    spans.push(Span::raw(" ".repeat(padding)));
+                }
 
                 // Status dot
                 spans.push(Span::raw(" "));
                 spans.push(Span::styled("●", Style::default().fg(cell.status_color)));
 
-                // Custom label if present
-                if let Some(ref label) = cell.custom_label {
-                    spans.push(Span::raw(" "));
-                    spans.push(Span::styled(label.clone(), Style::default().fg(cell.status_color)));
-                }
-
-                // Padding at end (for column alignment)
-                if padding > 0 {
-                    spans.push(Span::raw(" ".repeat(padding)));
-                }
-
                 // Separator if not last cell in row
-                if !is_last_in_row {
+                if !is_last_col {
                     spans.push(Span::styled(" │ ", Style::default().fg(Color::DarkGray)));
                 }
 
