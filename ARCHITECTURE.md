@@ -7,7 +7,7 @@ Overitall is a TUI with three main components:
 - **ProcessManager** (`process.rs`) - spawns processes, collects logs into a shared buffer
 - **Config** (`config.rs`) - persistent settings, loaded at startup, saved on changes
 
-The main loop in `main.rs` polls for terminal events and log updates, then redraws.
+The main loop in `main.rs` uses event-driven refresh: it wakes immediately on terminal events or new logs, with frame-rate limiting (~60fps) to batch rapid updates.
 
 ## Data Flow
 
