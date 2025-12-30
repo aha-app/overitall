@@ -226,8 +226,11 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
+    // Take log receiver for event-driven updates
+    let log_rx = manager.take_log_receiver();
+
     // TUI event loop
-    let result = run_app(&mut terminal, &mut app, &mut manager, &mut config, &mut ipc_server).await;
+    let result = run_app(&mut terminal, &mut app, &mut manager, &mut config, &mut ipc_server, log_rx).await;
 
     // Cleanup IPC socket
     if let Some(ref server) = ipc_server {
@@ -251,11 +254,17 @@ async fn run_app(
     manager: &mut ProcessManager,
     config: &mut Config,
     ipc_server: &mut Option<IpcServer>,
+    mut log_rx: tokio::sync::mpsc::UnboundedReceiver<process::LogLine>,
 ) -> anyhow::Result<()> {
     let mut shutdown_ui_shown = false;
     let mut kill_signals_sent = false;
     let mut headless_shutdown = false; // True when terminal is gone (SIGHUP)
     let ipc_handler = IpcCommandHandler::new(VERSION);
+
+    // Rate limiting for redraws - target ~60fps max
+    let min_frame_duration = tokio::time::Duration::from_millis(16);
+    let mut last_draw = tokio::time::Instant::now();
+    let mut needs_redraw = true;
 
     // Set up signal handlers for graceful shutdown on SIGINT/SIGTERM/SIGHUP
     // SIGINT is typically Ctrl+C when not in raw mode, or sent via `kill -INT <pid>`
@@ -269,8 +278,11 @@ async fn run_app(
     let mut event_stream = EventStream::new();
 
     loop {
-        // Process logs from all sources
-        manager.process_logs();
+        // Drain any pending logs (non-blocking)
+        while let Ok(log) = log_rx.try_recv() {
+            manager.process_single_log(log);
+            needs_redraw = true;
+        }
 
         // Handle IPC requests from CLI clients
         if let Some(server) = ipc_server.as_mut() {
@@ -303,11 +315,15 @@ async fn run_app(
             }
         }
 
-        // Draw UI (skip if terminal is gone during headless shutdown)
-        if !headless_shutdown {
+        // Draw UI with rate limiting (skip if terminal is gone during headless shutdown)
+        let now = tokio::time::Instant::now();
+        let time_since_last_draw = now.duration_since(last_draw);
+        if !headless_shutdown && needs_redraw && time_since_last_draw >= min_frame_duration {
             terminal.draw(|f| {
                 ui::draw(f, app, manager);
             })?;
+            last_draw = now;
+            needs_redraw = false;
         }
 
         // Handle pending restarts (after UI has been drawn showing "Restarting" status)
@@ -350,10 +366,12 @@ async fn run_app(
             break;
         }
 
-        // Use tokio::select! to handle terminal events, signals, and timeouts concurrently
+        // Use tokio::select! to handle terminal events, signals, logs, and timeouts concurrently
         // This ensures we can respond to SIGINT/SIGTERM even while waiting for terminal input
         tokio::select! {
-            // Handle Unix signals for graceful shutdown
+            biased;  // Check branches in order for predictable priority
+
+            // Handle Unix signals for graceful shutdown (highest priority)
             _ = sigint.recv() => {
                 // SIGINT received (e.g., kill -INT <pid>)
                 // Note: In raw terminal mode, Ctrl+C is captured as a keyboard event,
@@ -380,19 +398,37 @@ async fn run_app(
                                 if event_handler.handle_key_event(key).await? {
                                     return Ok(()); // Quit was requested
                                 }
+                                needs_redraw = true;
                             }
                         }
                         Event::Mouse(mouse) => {
                             let mut event_handler = EventHandler::new(app, manager, config);
                             event_handler.handle_mouse_event(mouse)?;
+                            needs_redraw = true;
+                        }
+                        Event::Resize(_, _) => {
+                            needs_redraw = true;
                         }
                         _ => {}
                     }
                 }
             }
-            // Timeout for periodic updates (log processing, IPC polling)
-            _ = tokio::time::sleep(tokio::time::Duration::from_millis(50)) => {
-                // Just continue to process logs and redraw
+            // Wake up immediately when new logs arrive (event-driven refresh)
+            maybe_log = log_rx.recv() => {
+                if let Some(log) = maybe_log {
+                    manager.process_single_log(log);
+                    needs_redraw = true;
+                }
+            }
+            // Timeout: wake up for next frame or periodic tasks
+            _ = tokio::time::sleep(if needs_redraw {
+                // If we need to redraw, sleep until next frame is due
+                min_frame_duration.saturating_sub(time_since_last_draw)
+            } else {
+                // Otherwise, longer sleep for periodic tasks
+                tokio::time::Duration::from_millis(100)
+            }) => {
+                // Continue to handle IPC, status checks, and pending redraws
             }
         }
     }

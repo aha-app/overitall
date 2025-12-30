@@ -269,7 +269,7 @@ pub struct ProcessManager {
     log_buffer: LogBuffer,
     velocity_tracker: LogVelocityTracker,
     log_tx: mpsc::UnboundedSender<LogLine>,
-    log_rx: mpsc::UnboundedReceiver<LogLine>,
+    log_rx: Option<mpsc::UnboundedReceiver<LogLine>>,
 }
 
 impl ProcessManager {
@@ -287,7 +287,7 @@ impl ProcessManager {
             log_buffer: LogBuffer::new_with_memory_limit(max_log_buffer_mb),
             velocity_tracker: LogVelocityTracker::default(),
             log_tx,
-            log_rx,
+            log_rx: Some(log_rx),
         }
     }
 
@@ -515,16 +515,16 @@ impl ProcessManager {
 
     /// Process incoming logs from the channel into the buffer
     /// Also checks each log line against status patterns for the corresponding process
+    /// Note: This only works if the receiver hasn't been taken via take_log_receiver()
     pub fn process_logs(&mut self) {
-        while let Ok(log) = self.log_rx.try_recv() {
-            // Track log velocity for sparkline display
-            self.velocity_tracker.record(log.arrival_time);
-            // Check log line against status patterns for the corresponding process
-            let process_name = log.source.process_name();
-            if let Some(handle) = self.processes.get_mut(process_name) {
-                handle.check_log_line(&log.line);
-            }
-            self.log_buffer.push(log);
+        // Collect logs first to avoid borrow issues
+        let logs: Vec<LogLine> = if let Some(ref mut log_rx) = self.log_rx {
+            std::iter::from_fn(|| log_rx.try_recv().ok()).collect()
+        } else {
+            Vec::new()
+        };
+        for log in logs {
+            self.process_single_log(log);
         }
     }
 
@@ -556,13 +556,32 @@ impl ProcessManager {
     /// Try to receive a log line (non-blocking)
     #[allow(dead_code)]
     pub fn try_recv_log(&mut self) -> Option<LogLine> {
-        self.log_rx.try_recv().ok()
+        self.log_rx.as_mut().and_then(|rx| rx.try_recv().ok())
     }
 
     /// Receive a log line (blocking)
     #[allow(dead_code)]
     pub async fn recv_log(&mut self) -> Option<LogLine> {
-        self.log_rx.recv().await
+        match &mut self.log_rx {
+            Some(rx) => rx.recv().await,
+            None => None,
+        }
+    }
+
+    /// Take the log receiver for use in async select!
+    /// After calling this, use process_single_log() to handle logs
+    pub fn take_log_receiver(&mut self) -> mpsc::UnboundedReceiver<LogLine> {
+        self.log_rx.take().expect("log receiver already taken")
+    }
+
+    /// Process a single log line (for use with external receiver)
+    pub fn process_single_log(&mut self, log: LogLine) {
+        self.velocity_tracker.record(log.arrival_time);
+        let process_name = log.source.process_name();
+        if let Some(handle) = self.processes.get_mut(process_name) {
+            handle.check_log_line(&log.line);
+        }
+        self.log_buffer.push(log);
     }
 
     /// Add a log line directly to the buffer (for testing)
