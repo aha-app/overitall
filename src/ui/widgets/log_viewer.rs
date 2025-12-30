@@ -475,7 +475,6 @@ pub fn draw_log_viewer(
 
         // Get color ANSI codes for this process/log file name
         let (color_start, color_reset) = app.process_colors.get_ansi(process_name);
-        let process_color = app.process_colors.get(process_name);
 
         // Process part with ANSI color codes for cached rendering paths
         let process_part_colored = format!("{}{}{}: ", color_start, process_name, color_reset);
@@ -519,66 +518,37 @@ pub fn draw_log_viewer(
             let cached = app.cache.ansi_cache.get_or_parse(cache_key, &full_line_with_ansi);
             AnsiCache::to_line_with_overrides(cached, bg_color, fg_override)
         } else if full_line_clean.width() > max_line_width {
-            // Truncate based on display width (using clean text for measurement)
-            let mut current_width = 0;
-            let mut truncate_at = 0;
-            // "… ↵" = 4 display chars (ellipsis + space + return symbol)
+            // Truncate with ANSI color preservation
             let suffix = "… ↵";
             let suffix_width = suffix.width();
             let target_width = max_line_width.saturating_sub(suffix_width);
 
-            for (idx, ch) in full_line_clean.char_indices() {
-                let char_width = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0);
-                if current_width + char_width > target_width {
-                    break;
-                }
-                current_width += char_width;
-                truncate_at = idx + ch.len_utf8();
-            }
-
-            // For truncated lines, show hint that Enter expands
-            let truncated_text = &full_line_clean[..truncate_at];
-            let base_style = if is_cursor {
-                Style::default().bg(Color::Blue).fg(Color::White)
+            let bg_color = if is_cursor {
+                Some(Color::Blue)
             } else if is_multi_selected {
-                Style::default().bg(Color::Rgb(30, 50, 70))
+                Some(Color::Rgb(30, 50, 70))
             } else {
-                Style::default()
+                None
             };
+
+            let fg_override = if is_cursor {
+                Some(Color::White)
+            } else {
+                None
+            };
+
             let hint_style = if is_cursor {
-                Style::default().bg(Color::Blue).fg(Color::Cyan)
+                Style::default().fg(Color::Cyan)
             } else if is_multi_selected {
-                Style::default().bg(Color::Rgb(30, 50, 70)).fg(Color::Cyan)
+                Style::default().fg(Color::Cyan)
             } else {
                 Style::default().fg(Color::DarkGray)
             };
 
-            // Split truncated text to apply color to process name
-            // Find the end of the process name in the truncated text
-            let prefix_len = timestamp_part.len() + process_part_plain.len();
-            if truncate_at >= prefix_len {
-                // Process name fully visible in truncated text
-                let process_style = if is_cursor {
-                    Style::default().bg(Color::Blue).fg(Color::White)
-                } else if is_multi_selected {
-                    Style::default().bg(Color::Rgb(30, 50, 70)).fg(process_color)
-                } else {
-                    Style::default().fg(process_color)
-                };
-                let rest_text = &truncated_text[prefix_len..];
-                Line::from(vec![
-                    Span::styled(timestamp_part.clone(), base_style),
-                    Span::styled(process_part_plain.clone(), process_style),
-                    Span::styled(rest_text.to_string(), base_style),
-                    Span::styled(suffix, hint_style),
-                ])
-            } else {
-                // Process name truncated, render as single span
-                Line::from(vec![
-                    Span::styled(truncated_text.to_string(), base_style),
-                    Span::styled(suffix, hint_style),
-                ])
-            }
+            // Use cached ANSI parsing and truncate the spans
+            let cache_key = AnsiCacheKey::new(log.id, app.display.is_compact(), app.display.timestamp_mode);
+            let cached = app.cache.ansi_cache.get_or_parse(cache_key, &full_line_with_ansi);
+            AnsiCache::to_truncated_line(cached, target_width, bg_color, fg_override, suffix, hint_style)
         } else {
             // Full line fits, parse ANSI codes with caching
             let bg_color = if is_cursor {

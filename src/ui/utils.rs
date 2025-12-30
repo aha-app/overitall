@@ -3,6 +3,7 @@ use ratatui::{
     style::Style,
 };
 use ansi_to_tui::IntoText;
+use unicode_width::UnicodeWidthChar;
 
 /// Helper function to create a centered rect using percentage of the available area
 pub fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
@@ -41,6 +42,39 @@ pub fn parse_ansi_to_spans(text: &str) -> Vec<(String, Style)> {
             vec![(text.to_string(), Style::default())]
         }
     }
+}
+
+/// Truncate spans to fit within a target display width, preserving styles.
+/// Returns the truncated spans - caller should append any suffix (like "… ↵").
+pub fn truncate_spans(spans: &[(String, Style)], target_width: usize) -> Vec<(String, Style)> {
+    let mut result = Vec::new();
+    let mut current_width = 0;
+
+    for (content, style) in spans {
+        if current_width >= target_width {
+            break;
+        }
+
+        let mut span_text = String::new();
+        for ch in content.chars() {
+            let char_width = UnicodeWidthChar::width(ch).unwrap_or(0);
+            if current_width + char_width > target_width {
+                break;
+            }
+            span_text.push(ch);
+            current_width += char_width;
+        }
+
+        if !span_text.is_empty() {
+            result.push((span_text, *style));
+        }
+
+        if current_width >= target_width {
+            break;
+        }
+    }
+
+    result
 }
 
 #[cfg(test)]
@@ -141,5 +175,58 @@ mod tests {
     fn test_condense_multiple_iso8601_timestamps() {
         let input = "Start: 2025-12-17T10:00:00Z End: 2025-12-17T11:00:00Z Done";
         assert_eq!(condense_log_line(input), "Start: End: Done");
+    }
+
+    #[test]
+    fn test_truncate_spans_basic() {
+        use super::truncate_spans;
+        use ratatui::style::Style;
+
+        let spans = vec![
+            ("Hello ".to_string(), Style::default()),
+            ("World".to_string(), Style::default()),
+        ];
+        let result = truncate_spans(&spans, 8);
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].0, "Hello ");
+        assert_eq!(result[1].0, "Wo");
+    }
+
+    #[test]
+    fn test_truncate_spans_preserves_styles() {
+        use super::truncate_spans;
+        use ratatui::style::{Color, Style};
+
+        let red = Style::default().fg(Color::Red);
+        let blue = Style::default().fg(Color::Blue);
+        let spans = vec![
+            ("abc".to_string(), red),
+            ("def".to_string(), blue),
+        ];
+        let result = truncate_spans(&spans, 4);
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].1, red);
+        assert_eq!(result[1].1, blue);
+    }
+
+    #[test]
+    fn test_truncate_spans_exact_boundary() {
+        use super::truncate_spans;
+        use ratatui::style::Style;
+
+        let spans = vec![("12345".to_string(), Style::default())];
+        let result = truncate_spans(&spans, 5);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].0, "12345");
+    }
+
+    #[test]
+    fn test_truncate_spans_zero_width() {
+        use super::truncate_spans;
+        use ratatui::style::Style;
+
+        let spans = vec![("Hello".to_string(), Style::default())];
+        let result = truncate_spans(&spans, 0);
+        assert!(result.is_empty());
     }
 }

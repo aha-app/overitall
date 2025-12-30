@@ -3,7 +3,7 @@ use ratatui::text::{Line, Span};
 use std::collections::HashMap;
 
 use crate::ui::display_state::TimestampMode;
-use crate::ui::utils::parse_ansi_to_spans;
+use crate::ui::utils::{parse_ansi_to_spans, truncate_spans};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AnsiCacheKey {
@@ -97,6 +97,42 @@ impl AnsiCache {
                 .collect();
             Line::from(spans)
         }
+    }
+
+    /// Create a truncated line from cached spans, with optional style overrides and a suffix.
+    pub fn to_truncated_line(
+        cached: &CachedSpans,
+        target_width: usize,
+        bg_color: Option<Color>,
+        fg_override: Option<Color>,
+        suffix: &str,
+        suffix_style: Style,
+    ) -> Line<'static> {
+        let truncated = truncate_spans(&cached.spans, target_width);
+
+        let mut spans: Vec<Span<'static>> = truncated
+            .into_iter()
+            .map(|(content, style)| {
+                let mut new_style = style;
+                if let Some(bg) = bg_color {
+                    new_style = new_style.bg(bg);
+                }
+                if let Some(fg) = fg_override {
+                    new_style = new_style.fg(fg);
+                }
+                Span::styled(content, new_style)
+            })
+            .collect();
+
+        // Apply bg override to suffix style if needed
+        let final_suffix_style = if let Some(bg) = bg_color {
+            suffix_style.bg(bg)
+        } else {
+            suffix_style
+        };
+        spans.push(Span::styled(suffix.to_string(), final_suffix_style));
+
+        Line::from(spans)
     }
 }
 
