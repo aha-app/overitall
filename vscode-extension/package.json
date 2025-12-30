@@ -2,7 +2,7 @@
   "name": "vscode-overitall",
   "displayName": "Overitall",
   "description": "Process management and log viewing for Overitall",
-  "version": "0.1.52",
+  "version": "0.1.53",
   "publisher": "jemmyw",
   "repository": {
     "type": "git",
