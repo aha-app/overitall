@@ -520,10 +520,3 @@ Capture logs during a specific time window without needing correlation IDs:
 
 This is useful when you want to isolate logs for a specific action (like clicking a button or running a command) without needing correlation IDs in your logs.
 
-## License
-
-[Your license here]
-
-## Contributing
-
-[Your contributing guidelines here]
