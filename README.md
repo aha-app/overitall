@@ -32,16 +32,16 @@ Download the latest release for macOS:
 
 ```bash
 # Download and install the latest release
-curl -L https://github.com/jemmyw/overitall/releases/latest/download/oit-macos-arm64.tar.gz | tar xz
+curl -L https://github.com/aha-app/overitall/releases/latest/download/oit-macos-arm64.tar.gz | tar xz
 sudo mv oit /usr/local/bin/
 ```
 
-Or download manually from the [releases page](https://github.com/jemmyw/overitall/releases).
+Or download manually from the [releases page](https://github.com/aha-app/overitall/releases).
 
 ### From Source
 
 ```bash
-git clone https://github.com/jemmyw/overitall.git
+git clone https://github.com/aha-app/overitall.git
 cd overitall
 cargo build --release
 ```

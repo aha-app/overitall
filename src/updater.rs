@@ -1,7 +1,7 @@
 use std::io::{BufRead, BufReader};
 use std::process::{Command, Stdio};
 
-const REPO: &str = "jemmyw/overitall";
+const REPO: &str = "aha-app/overitall";
 const ASSET_NAME: &str = "oit-macos-arm64.tar.gz";
 
 /// Check if gh CLI is available and authenticated

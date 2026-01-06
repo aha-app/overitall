@@ -3,10 +3,10 @@
   "displayName": "Overitall",
   "description": "Process management and log viewing for Overitall",
   "version": "0.1.53",
-  "publisher": "jemmyw",
+  "publisher": "aha-app",
   "repository": {
     "type": "git",
-    "url": "https://github.com/jemmyw/overitall"
+    "url": "https://github.com/aha-app/overitall"
   },
   "license": "MIT",
   "engines": {

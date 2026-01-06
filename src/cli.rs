@@ -22,7 +22,7 @@ Quick start:
   3. Edit .overitall.toml to configure log files (optional)
   4. Run 'oit' to start the TUI
 
-For more information, see: https://github.com/jemmyw/overitall")]
+For more information, see: https://github.com/aha-app/overitall")]
 pub struct Cli {
     /// Path to config file (defaults to .overitall.toml)
     #[arg(short, long, default_value = ".overitall.toml")]
@@ -206,7 +206,7 @@ pub enum EditorAction {
     Install,
 }
 
-const REPO: &str = "jemmyw/overitall";
+const REPO: &str = "aha-app/overitall";
 const VSIX_PATTERN: &str = "vscode-overitall-*.vsix";
 
 /// Check if an editor CLI is available
