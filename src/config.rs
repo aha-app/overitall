@@ -17,6 +17,8 @@ pub struct Config {
     pub max_log_buffer_mb: Option<usize>,
     #[serde(default)]
     pub hidden_processes: Vec<String>,
+    #[serde(default)]
+    pub ignored_processes: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disable_auto_update: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -147,6 +149,7 @@ mod tests {
             batch_window_ms: None,
             max_log_buffer_mb: None,
             hidden_processes: Vec::new(),
+            ignored_processes: Vec::new(),
             disable_auto_update: None,
             compact_mode: None,
             colors: HashMap::new(),
@@ -429,6 +432,80 @@ procfile = "Procfile"
 
         let loaded = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
         assert_eq!(loaded.hidden_processes, original.hidden_processes);
+    }
+
+    #[test]
+    fn test_ignored_processes_loads_from_config() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(
+            temp_file,
+            r#"
+procfile = "Procfile"
+ignored_processes = ["webpack", "worker"]
+
+[processes]
+"#
+        )
+        .unwrap();
+
+        let config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert_eq!(config.ignored_processes, vec!["webpack", "worker"]);
+    }
+
+    #[test]
+    fn test_ignored_processes_defaults_to_empty_when_missing() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(
+            temp_file,
+            r#"
+procfile = "Procfile"
+
+[processes]
+"#
+        )
+        .unwrap();
+
+        let config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert!(config.ignored_processes.is_empty());
+    }
+
+    #[test]
+    fn test_ignored_processes_saves_to_config() {
+        let config = Config {
+            ignored_processes: vec!["webpack".to_string(), "scheduler".to_string()],
+            ..test_config()
+        };
+
+        let temp_file = NamedTempFile::new().unwrap();
+        config.save(temp_file.path().to_str().unwrap()).unwrap();
+
+        let loaded_config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert_eq!(loaded_config.ignored_processes, vec!["webpack", "scheduler"]);
+    }
+
+    #[test]
+    fn test_ignored_processes_empty_array_serialized() {
+        let config = test_config();
+
+        let toml_string = toml::to_string_pretty(&config).unwrap();
+        assert!(
+            toml_string.contains("ignored_processes = []"),
+            "empty ignored_processes should be serialized as empty array"
+        );
+    }
+
+    #[test]
+    fn test_ignored_processes_roundtrip() {
+        let original = Config {
+            ignored_processes: vec!["webpack".to_string(), "worker".to_string()],
+            ..test_config()
+        };
+
+        let temp_file = NamedTempFile::new().unwrap();
+        original.save(temp_file.path().to_str().unwrap()).unwrap();
+
+        let loaded = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert_eq!(loaded.ignored_processes, original.ignored_processes);
     }
 
     #[test]

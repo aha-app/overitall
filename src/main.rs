@@ -138,8 +138,12 @@ async fn main() -> anyhow::Result<()> {
     let max_buffer_mb = config.max_log_buffer_mb.unwrap_or(50);
     let mut manager = ProcessManager::new_with_buffer_limit(max_buffer_mb);
 
-    // Add processes from Procfile
+    // Add processes from Procfile (skip ignored ones)
     for (name, command) in &procfile.processes {
+        if config.ignored_processes.contains(name) {
+            continue;
+        }
+
         // Get status config if available
         let status_config = config.processes.get(name)
             .and_then(|pc| pc.status.as_ref());

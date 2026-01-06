@@ -60,6 +60,7 @@ mod tests {
             batch_window_ms: None,
             max_log_buffer_mb: None,
             hidden_processes: Vec::new(),
+            ignored_processes: Vec::new(),
             disable_auto_update: None,
             compact_mode: None,
             colors: std::collections::HashMap::new(),

@@ -285,6 +285,7 @@ hidden_processes = ["worker"]
 - `filters.include` - Array of regex patterns to include
 - `filters.exclude` - Array of regex patterns to exclude
 - `hidden_processes` - Array of process names to hide from log viewer (automatically saved)
+- `ignored_processes` - Array of process names to skip entirely (not started at all)
 - `max_log_buffer_mb` - Maximum memory for log buffer in megabytes (default: 50)
 - `batch_window_ms` - Batch grouping window in milliseconds (default: 100)
 - `context_copy_seconds` - Time window for X (contextual copy) in seconds (default: 1.0)
