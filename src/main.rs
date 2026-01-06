@@ -22,6 +22,9 @@ use procfile::Procfile;
 use process::{ProcessManager, ProcessStatus};
 use ui::{App, DisplayMode, FilterType};
 
+use std::io::Write;
+use std::panic;
+
 use clap::Parser;
 use crossterm::{
     event::{DisableMouseCapture, EnableMouseCapture, Event, EventStream, KeyEventKind},
@@ -167,6 +170,13 @@ async fn main() -> anyhow::Result<()> {
     // Start all processes (collect failures, don't crash)
     let start_failures = manager.start_all().await;
 
+    // Install panic hook to restore terminal on panic
+    let original_hook = panic::take_hook();
+    panic::set_hook(Box::new(move |panic_info| {
+        let _ = restore_terminal();
+        original_hook(panic_info);
+    }));
+
     // Setup terminal
     enable_raw_mode()?;
     let mut stdout = std::io::stdout();
@@ -242,8 +252,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     // Cleanup terminal
-    disable_raw_mode()?;
-    execute!(terminal.backend_mut(), DisableMouseCapture, LeaveAlternateScreen)?;
+    restore_terminal()?;
 
     // Kill all processes before exiting
     manager.kill_all().await?;
@@ -652,5 +661,13 @@ async fn apply_ipc_action(
             }
         }
     }
+}
+
+fn restore_terminal() -> std::io::Result<()> {
+    let mut stdout = std::io::stdout();
+    disable_raw_mode()?;
+    execute!(stdout, DisableMouseCapture, LeaveAlternateScreen)?;
+    stdout.flush()?;
+    Ok(())
 }
 
