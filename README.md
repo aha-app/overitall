@@ -36,6 +36,13 @@ curl -L https://github.com/aha-app/overitall/releases/latest/download/oit-macos-
 sudo mv oit /usr/local/bin/
 ```
 
+For auto-updates to work, install to a user-writable location:
+
+```bash
+curl -L https://github.com/aha-app/overitall/releases/latest/download/oit-macos-arm64.tar.gz | tar xz
+mv oit ~/.local/bin/
+```
+
 Or download manually from the [releases page](https://github.com/aha-app/overitall/releases).
 
 ### From Source
