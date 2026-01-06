@@ -2,6 +2,10 @@
 
 A terminal user interface (TUI) for process and log management, combining the best of [overmind](https://github.com/DarthSim/overmind) (process management) and [lnav](https://lnav.org/) (log viewing).
 
+## Author
+
+Created by [Jeremy Wells](https://github.com/jemmyw)
+
 ## What is Overitall?
 
 Overitall (`oit`) is a Rust-based TUI that helps you manage multiple processes and their logs in a single, interactive interface. It's perfect for development environments where you need to run and monitor multiple services simultaneously (like Rails apps with web servers, background workers, and other services).
