@@ -157,6 +157,11 @@ oit --file Procfile.other
 - `b` - Focus on batch containing the selected line
 - `Esc` - Clear multi-select (when in multi-select mode)
 
+#### Mouse
+- Click on a process in the sidebar to select it
+- Scroll wheel to navigate logs
+- **Tip**: Hold `Shift` while selecting text to use your terminal's native text selection (bypasses the TUI's mouse capture)
+
 ### Commands
 
 All commands are entered by pressing `:` followed by the command.
