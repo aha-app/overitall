@@ -108,6 +108,17 @@ gh release create ${VERSION} \
   target/release/dist/oit-linux-arm64.tar.gz \
   vscode-extension/${VSIX_FILE}
 
+echo "Updating Homebrew tap repo..."
+HOMEBREW_TAP_DIR=$(mktemp -d)
+git clone --depth 1 git@github.com:aha-app/homebrew-overitall.git "${HOMEBREW_TAP_DIR}"
+cp Formula/oit.rb "${HOMEBREW_TAP_DIR}/Formula/"
+cd "${HOMEBREW_TAP_DIR}"
+git add Formula/oit.rb
+git commit -m "Update oit to ${NEW_VERSION}"
+git push
+cd -
+rm -rf "${HOMEBREW_TAP_DIR}"
+
 REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
 
 echo ""
