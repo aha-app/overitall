@@ -27,7 +27,7 @@ use std::panic;
 
 use clap::Parser;
 use crossterm::{
-    event::{DisableMouseCapture, EnableMouseCapture, Event, EventStream, KeyEventKind},
+    event::{DisableMouseCapture, EnableMouseCapture, Event, EventStream, KeyCode, KeyEventKind},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -412,6 +412,53 @@ async fn run_app(
                                     return Ok(()); // Quit was requested
                                 }
                                 needs_redraw = true;
+
+                                // After navigation keys, drain duplicate keys to prevent scroll inertia.
+                                // When holding a key, the OS queues repeated KeyPress events faster than
+                                // we process them. We discard duplicates to prevent backlog buildup.
+                                // New events will arrive if the key is still held.
+                                if matches!(
+                                    key.code,
+                                    KeyCode::Up
+                                        | KeyCode::Down
+                                        | KeyCode::Char('k')
+                                        | KeyCode::Char('j')
+                                        | KeyCode::PageUp
+                                        | KeyCode::PageDown
+                                ) {
+                                    while crossterm::event::poll(std::time::Duration::ZERO)? {
+                                        let event = crossterm::event::read()?;
+                                        match &event {
+                                            Event::Key(next_key)
+                                                if next_key.kind == KeyEventKind::Press
+                                                    && next_key.code == key.code =>
+                                            {
+                                                // Same navigation key - discard without processing
+                                            }
+                                            _ => {
+                                                // Different event - process it and stop draining
+                                                match event {
+                                                    Event::Key(k)
+                                                        if k.kind == KeyEventKind::Press =>
+                                                    {
+                                                        let mut handler =
+                                                            EventHandler::new(app, manager, config);
+                                                        if handler.handle_key_event(k).await? {
+                                                            return Ok(());
+                                                        }
+                                                    }
+                                                    Event::Mouse(mouse) => {
+                                                        let mut handler =
+                                                            EventHandler::new(app, manager, config);
+                                                        handler.handle_mouse_event(mouse)?;
+                                                    }
+                                                    _ => {}
+                                                }
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                         Event::Mouse(mouse) => {
