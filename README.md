@@ -370,16 +370,6 @@ Overitall automatically checks for updates on every startup. When a new version 
 2. Replace the current binary
 3. Restart with the new version
 
-This requires the `gh` CLI to be installed and authenticated (for private repo access during beta):
-
-```bash
-# Install gh CLI (https://cli.github.com/)
-brew install gh
-
-# Authenticate
-gh auth login
-```
-
 To skip the update check, use the `--no-update` flag:
 
 ```bash
