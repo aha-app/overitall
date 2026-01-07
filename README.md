@@ -8,7 +8,7 @@ Created by [Jeremy Wells](https://github.com/jemmyw)
 
 ## What is Overitall?
 
-Overitall (`oit`) is a Rust-based TUI that helps you manage multiple processes and their logs in a single, interactive interface. It's perfect for development environments where you need to run and monitor multiple services simultaneously (like Rails apps with web servers, background workers, and other services).
+Overitall (`oit`) is a TUI that helps you manage multiple processes and their logs in a single, interactive interface. It's perfect for development environments where you need to run and monitor multiple services simultaneously (like Rails apps with web servers, background workers, and other services).
 
 ### Key Features
 
@@ -65,7 +65,7 @@ cp target/release/oit /usr/local/bin/
 
 ## Quick Start
 
-1. Create a `Procfile` in your project directory:
+1. Create a [Procfile](https://devcenter.heroku.com/articles/procfile) in your project directory:
 
 ```procfile
 web: bundle exec rails server
