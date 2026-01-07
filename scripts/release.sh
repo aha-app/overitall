@@ -77,8 +77,20 @@ npm run package
 VSIX_FILE="vscode-overitall-${NEW_VERSION}.vsix"
 cd ..
 
+echo "Updating Homebrew formula..."
+HASH_MACOS_ARM64=$(shasum -a 256 target/release/dist/oit-macos-arm64.tar.gz | cut -d' ' -f1)
+HASH_MACOS_X86_64=$(shasum -a 256 target/release/dist/oit-macos-x86_64.tar.gz | cut -d' ' -f1)
+HASH_LINUX_ARM64=$(shasum -a 256 target/release/dist/oit-linux-arm64.tar.gz | cut -d' ' -f1)
+HASH_LINUX_X86_64=$(shasum -a 256 target/release/dist/oit-linux-x86_64.tar.gz | cut -d' ' -f1)
+
+sed -i '' "s/version \".*\"/version \"${NEW_VERSION}\"/" Formula/oit.rb
+sed -i '' "s/sha256 \".*\" # macos-arm64/sha256 \"${HASH_MACOS_ARM64}\" # macos-arm64/" Formula/oit.rb
+sed -i '' "s/sha256 \".*\" # macos-x86_64/sha256 \"${HASH_MACOS_X86_64}\" # macos-x86_64/" Formula/oit.rb
+sed -i '' "s/sha256 \".*\" # linux-arm64/sha256 \"${HASH_LINUX_ARM64}\" # linux-arm64/" Formula/oit.rb
+sed -i '' "s/sha256 \".*\" # linux-x86_64/sha256 \"${HASH_LINUX_X86_64}\" # linux-x86_64/" Formula/oit.rb
+
 echo "Committing version bump..."
-git add Cargo.toml Cargo.lock vscode-extension/package.json vscode-extension/package-lock.json
+git add Cargo.toml Cargo.lock vscode-extension/package.json vscode-extension/package-lock.json Formula/oit.rb
 git commit -m "Bump version to ${NEW_VERSION}"
 git push
 
@@ -101,7 +113,10 @@ REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
 echo ""
 echo "✓ Release ${VERSION} created!"
 echo ""
-echo "Install oit binary:"
+echo "Install via Homebrew:"
+echo "  brew install aha-app/overitall/oit"
+echo ""
+echo "Or install oit binary directly:"
 echo "  macOS ARM64:  curl -L https://github.com/${REPO}/releases/download/${VERSION}/oit-macos-arm64.tar.gz | tar xz"
 echo "  macOS x86_64: curl -L https://github.com/${REPO}/releases/download/${VERSION}/oit-macos-x86_64.tar.gz | tar xz"
 echo "  Linux x86_64: curl -L https://github.com/${REPO}/releases/download/${VERSION}/oit-linux-x86_64.tar.gz | tar xz"
