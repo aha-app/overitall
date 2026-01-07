@@ -207,7 +207,6 @@ pub enum EditorAction {
 }
 
 const REPO: &str = "aha-app/overitall";
-const VSIX_PATTERN: &str = "vscode-overitall-*.vsix";
 
 /// Check if an editor CLI is available
 fn is_editor_available(cli: &str) -> bool {
@@ -256,21 +255,9 @@ fn prompt_editor_choice() -> anyhow::Result<EditorChoice> {
 
 /// Install the VS Code extension from GitHub releases
 pub fn install_vscode_extension() -> anyhow::Result<()> {
-    use std::process::{Command, Stdio};
-
-    // Check if gh CLI is available
-    let gh_status = Command::new("gh")
-        .args(["auth", "status"])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status();
-
-    if !gh_status.map(|s| s.success()).unwrap_or(false) {
-        return Err(anyhow!(
-            "gh CLI not found or not authenticated.\n\
-             Install gh and run: gh auth login"
-        ));
-    }
+    use std::fs;
+    use std::io::{Read, Write};
+    use std::process::Command;
 
     // Check which editors are available
     let has_code = is_editor_available("code");
@@ -293,68 +280,68 @@ pub fn install_vscode_extension() -> anyhow::Result<()> {
         },
     };
 
-    // Get the latest release tag
+    // Get the latest release info from GitHub API
     println!("Checking for latest release...");
-    let tag_output = Command::new("gh")
-        .args([
-            "release",
-            "view",
-            "--repo",
-            REPO,
-            "--json",
-            "tagName",
-            "-q",
-            ".tagName",
-        ])
-        .output()?;
+    let api_url = format!("https://api.github.com/repos/{}/releases/latest", REPO);
+    let response: serde_json::Value = ureq::get(&api_url)
+        .set("User-Agent", "oit-updater")
+        .call()
+        .map_err(|e| anyhow!("Failed to check for updates: {}", e))?
+        .into_json()?;
 
-    if !tag_output.status.success() {
-        let stderr = String::from_utf8_lossy(&tag_output.stderr);
-        return Err(anyhow!("Failed to get latest release: {}", stderr));
-    }
-
-    let tag = String::from_utf8(tag_output.stdout)?
-        .trim()
-        .to_string();
+    let tag = response["tag_name"]
+        .as_str()
+        .ok_or_else(|| anyhow!("No tag_name in response"))?;
 
     let version = tag.trim_start_matches('v');
     println!("Latest release: {} ({})", tag, version);
 
+    // Find the VSIX asset in the release
+    let assets = response["assets"]
+        .as_array()
+        .ok_or_else(|| anyhow!("No assets in release"))?;
+
+    let vsix_asset = assets
+        .iter()
+        .find(|a| {
+            a["name"]
+                .as_str()
+                .map(|n| n.ends_with(".vsix"))
+                .unwrap_or(false)
+        })
+        .ok_or_else(|| anyhow!("VSIX file not found in release assets"))?;
+
+    let vsix_name = vsix_asset["name"]
+        .as_str()
+        .ok_or_else(|| anyhow!("Asset missing name"))?;
+
+    let download_url = vsix_asset["browser_download_url"]
+        .as_str()
+        .ok_or_else(|| anyhow!("Asset missing download URL"))?;
+
     // Create temp directory and download the VSIX
     let temp_dir = tempfile::tempdir()?;
-    let temp_path = temp_dir.path();
+    let vsix_path = temp_dir.path().join(vsix_name);
 
     println!("Downloading VS Code extension...");
-    let download_status = Command::new("gh")
-        .args([
-            "release",
-            "download",
-            &tag,
-            "--repo",
-            REPO,
-            "--pattern",
-            VSIX_PATTERN,
-            "--dir",
-            temp_path.to_str().unwrap(),
-        ])
-        .status()?;
+    let download_response = ureq::get(download_url)
+        .set("User-Agent", "oit-updater")
+        .call()
+        .map_err(|e| anyhow!("Failed to download extension: {}", e))?;
 
-    if !download_status.success() {
-        return Err(anyhow!("Failed to download extension"));
+    let mut file = fs::File::create(&vsix_path)?;
+    let mut reader = download_response.into_reader();
+    let mut buffer = [0u8; 8192];
+    loop {
+        let bytes_read = reader.read(&mut buffer)?;
+        if bytes_read == 0 {
+            break;
+        }
+        file.write_all(&buffer[..bytes_read])?;
     }
+    drop(file);
 
-    // Find the downloaded VSIX file
-    let vsix_file = std::fs::read_dir(temp_path)?
-        .filter_map(|e| e.ok())
-        .find(|e| {
-            e.file_name()
-                .to_string_lossy()
-                .ends_with(".vsix")
-        })
-        .ok_or_else(|| anyhow!("VSIX file not found in download"))?;
-
-    let vsix_path = vsix_file.path();
-    println!("Downloaded: {}", vsix_file.file_name().to_string_lossy());
+    println!("Downloaded: {}", vsix_name);
 
     // Install the extension to each selected editor
     let mut installed_editors = Vec::new();
@@ -376,7 +363,7 @@ pub fn install_vscode_extension() -> anyhow::Result<()> {
     }
 
     let editors_str = installed_editors.join(" and ");
-    println!("\n✓ Extension installed successfully to {}!", editors_str);
+    println!("\n Extension installed successfully to {}!", editors_str);
     println!("\nThe Overitall extension is now available.");
     println!("Look for the Overitall icon in the activity bar when you have a Procfile.");
 
