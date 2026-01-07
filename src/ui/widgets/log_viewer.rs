@@ -101,8 +101,11 @@ pub fn draw_log_viewer(
     };
 
     // Apply search filter if active (temporary filter)
-    // Use app.input.input if actively typing, otherwise use saved search_pattern
-    let active_search_pattern = if app.input.search_mode && !app.input.input.is_empty() {
+    // Skip search filter in batch view mode - batch view shows raw batch content
+    let active_search_pattern = if app.batch.batch_view_mode {
+        // In batch view, show raw logs without search filtering
+        ""
+    } else if app.input.search_mode && !app.input.input.is_empty() {
         &app.input.input
     } else if !app.input.search_pattern.is_empty() {
         &app.input.search_pattern
