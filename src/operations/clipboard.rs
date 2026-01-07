@@ -143,9 +143,14 @@ pub fn build_multi_select_text(app: &App, filtered: &FilteredLogs) -> Result<Cop
 }
 
 /// Build the text for copying trace lines.
+/// For manual trace recordings (where active_trace_id is None), uses the navigation snapshot.
 pub fn build_trace_text(app: &App, logs: &[LogLine]) -> Result<CopyResult, String> {
-    let trace_id = app.trace.active_trace_id.as_ref()
-        .ok_or_else(|| "No trace ID active".to_string())?;
+    // Handle manual trace recordings (rec command) where there's no trace ID
+    if app.trace.active_trace_id.is_none() {
+        return build_manual_trace_text(app);
+    }
+
+    let trace_id = app.trace.active_trace_id.as_ref().unwrap();
 
     let (start, end) = match (app.trace.trace_time_start, app.trace.trace_time_end) {
         (Some(s), Some(e)) => (s, e),
@@ -177,6 +182,34 @@ pub fn build_trace_text(app: &App, logs: &[LogLine]) -> Result<CopyResult, Strin
     Ok(CopyResult {
         text,
         message: format!("Copied trace to clipboard ({} lines)", count),
+    })
+}
+
+/// Build the text for copying manual trace recordings (from rec command).
+/// Uses the navigation snapshot which contains the recorded logs.
+fn build_manual_trace_text(app: &App) -> Result<CopyResult, String> {
+    let snapshot = app.navigation.snapshot.as_ref()
+        .ok_or_else(|| "No recorded logs to copy".to_string())?;
+
+    if snapshot.is_empty() {
+        return Err("No recorded logs to copy".to_string());
+    }
+
+    let count = snapshot.len();
+    let duration_str = match (app.trace.trace_time_start, app.trace.trace_time_end) {
+        (Some(start), Some(end)) => {
+            let duration = end - start;
+            format!("{:.1}s", duration.num_milliseconds() as f64 / 1000.0)
+        }
+        _ => "unknown".to_string(),
+    };
+
+    let mut text = format!("=== Recording ({} lines, {}) ===\n", count, duration_str);
+    text.push_str(&format_logs(snapshot));
+
+    Ok(CopyResult {
+        text,
+        message: format!("Copied recording to clipboard ({} lines)", count),
     })
 }
 
@@ -616,6 +649,46 @@ mod tests {
         assert!(result.text.contains("ERROR: Job failed trace-abc123"));
         assert!(!result.text.contains("Starting server"));
         assert_eq!(result.message, "Copied trace to clipboard (2 lines)");
+    }
+
+    #[test]
+    fn test_build_trace_text_manual_recording() {
+        let mut app = App::new();
+        let now = Local::now();
+
+        // Manual recording: trace_filter_mode is true but active_trace_id is None
+        app.trace.trace_filter_mode = true;
+        app.trace.active_trace_id = None;
+        app.trace.trace_time_start = Some(now);
+        app.trace.trace_time_end = Some(now + Duration::seconds(2));
+
+        // Create snapshot (what the rec command does)
+        let logs = create_test_logs();
+        app.navigation.create_snapshot(logs.clone());
+
+        // Empty logs passed to build_trace_text - it should use the snapshot instead
+        let result = build_trace_text(&app, &[]).unwrap();
+
+        // Should copy from snapshot with recording header
+        assert!(result.text.contains("=== Recording (5 lines, 2.0s) ==="));
+        assert!(result.text.contains("Starting server"));
+        assert!(result.text.contains("ERROR: Connection failed"));
+        assert!(result.text.contains("Processing job trace-abc123"));
+        assert_eq!(result.message, "Copied recording to clipboard (5 lines)");
+    }
+
+    #[test]
+    fn test_build_trace_text_manual_recording_no_snapshot() {
+        let mut app = App::new();
+
+        // Manual recording mode but no snapshot
+        app.trace.trace_filter_mode = true;
+        app.trace.active_trace_id = None;
+
+        let result = build_trace_text(&app, &[]);
+
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "No recorded logs to copy");
     }
 
     #[test]

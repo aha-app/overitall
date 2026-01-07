@@ -22,7 +22,7 @@ Any optimization MUST include before/after benchmarks. Document results in commi
 - Document new architecture patterns very concisely in ARCHITECTURE.md, only write out how it works, do not add discussion on pros/cons
 
 ## Git
-- Commit your changes. This is an experimental project so keep committing so I can push and release at will.
+- Work on new features in feature branches
 - Do not add Claude as a co-author or include any AI signature in commit messages.
 
 ## Reference
