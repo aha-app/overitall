@@ -1563,7 +1563,7 @@ dependencies = [
 
 [[package]]
 name = "overitall"
-version = "0.1.56"
+version = "0.1.57"
 dependencies = [
  "ansi-to-tui",
  "anyhow",
