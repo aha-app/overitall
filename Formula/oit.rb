@@ -26,6 +26,7 @@ class Oit < Formula
 
   def install
     bin.install "oit"
+    man1.install "oit.1"
   end
 
   test do

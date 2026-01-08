@@ -50,25 +50,29 @@ echo "  Building macOS ARM64..."
 cargo build --release
 mkdir -p target/release/dist
 cp target/release/oit target/release/dist/
-cd target/release/dist && tar -czf oit-macos-arm64.tar.gz oit && rm oit && cd ../../..
+cp man/oit.1 target/release/dist/
+cd target/release/dist && tar -czf oit-macos-arm64.tar.gz oit oit.1 && rm oit oit.1 && cd ../../..
 
 # macOS x86_64
 echo "  Building macOS x86_64..."
 cargo build --release --target x86_64-apple-darwin
 cp target/x86_64-apple-darwin/release/oit target/release/dist/
-cd target/release/dist && tar -czf oit-macos-x86_64.tar.gz oit && rm oit && cd ../../..
+cp man/oit.1 target/release/dist/
+cd target/release/dist && tar -czf oit-macos-x86_64.tar.gz oit oit.1 && rm oit oit.1 && cd ../../..
 
 # Linux x86_64
 echo "  Building Linux x86_64..."
 cargo zigbuild --release --target x86_64-unknown-linux-gnu
 cp target/x86_64-unknown-linux-gnu/release/oit target/release/dist/
-cd target/release/dist && tar -czf oit-linux-x86_64.tar.gz oit && rm oit && cd ../../..
+cp man/oit.1 target/release/dist/
+cd target/release/dist && tar -czf oit-linux-x86_64.tar.gz oit oit.1 && rm oit oit.1 && cd ../../..
 
 # Linux ARM64
 echo "  Building Linux ARM64..."
 cargo zigbuild --release --target aarch64-unknown-linux-gnu
 cp target/aarch64-unknown-linux-gnu/release/oit target/release/dist/
-cd target/release/dist && tar -czf oit-linux-arm64.tar.gz oit && rm oit && cd ../../..
+cp man/oit.1 target/release/dist/
+cd target/release/dist && tar -czf oit-linux-arm64.tar.gz oit oit.1 && rm oit oit.1 && cd ../../..
 
 echo "Building VS Code extension..."
 cd vscode-extension

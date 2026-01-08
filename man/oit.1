@@ -1,0 +1,436 @@
+.TH OIT 1 "January 2026" "oit" "User Commands"
+.SH NAME
+oit \- process and log management TUI
+.SH SYNOPSIS
+.B oit
+[\fB\-c\fR \fIconfig\fR]
+[\fB\-f\fR \fIprocfile\fR]
+[\fB\-\-init\fR]
+[\fB\-\-no\-update\fR]
+[\fB\-\-update\fR]
+.br
+.B oit
+\fIcommand\fR [\fIargs\fR]
+.SH DESCRIPTION
+.B Overitall (oit)
+is a terminal user interface (TUI) for process and log management, combining
+process management (like overmind) with log viewing (like lnav).
+.PP
+It reads a Procfile to start and manage processes, tracks their output and
+optional log files, and provides an interactive TUI for viewing interleaved
+logs with filtering, search, and batch navigation.
+.SH OPTIONS
+.TP
+.BR \-c ", " \-\-config " " \fIpath\fR
+Path to config file. Defaults to \fB.overitall.toml\fR.
+.TP
+.BR \-f ", " \-\-file " " \fIpath\fR
+Path to Procfile. Overrides the config file setting.
+.TP
+.B \-\-init
+Initialize a new \fB.overitall.toml\fR config file from an existing Procfile.
+.TP
+.B \-\-no\-update
+Skip auto-update check on startup.
+.TP
+.B \-\-update
+Check for updates and exit (doesn't start processes).
+.TP
+.BR \-V ", " \-\-version
+Print version information.
+.TP
+.BR \-h ", " \-\-help
+Print help information.
+.SH QUICK START
+.IP 1. 3
+Create a Procfile with your processes:
+.RS
+.nf
+web: bundle exec rails server
+worker: bundle exec sidekiq
+.fi
+.RE
+.IP 2. 3
+Generate a configuration file:
+.RS
+.nf
+oit --init
+.fi
+.RE
+.IP 3. 3
+Edit \fB.overitall.toml\fR to configure log files (optional).
+.IP 4. 3
+Run \fBoit\fR to start the TUI.
+.SH TUI KEYBOARD SHORTCUTS
+.SS Navigation
+.TP
+.B Up/Down
+Select previous/next log line.
+.TP
+.B Shift+Up/Down
+Extend selection (multi-select mode).
+.TP
+.B Enter
+Expand selected line (show full content in overlay).
+.TP
+.B Ctrl+B / Ctrl+F
+Page up/down (Vim-style).
+.TP
+.B PageUp/PageDown
+Page up/down.
+.TP
+.B Home/End
+Jump to top/bottom.
+.TP
+.B ?
+Show help overlay.
+.TP
+.B q
+Quit application.
+.SS Modes
+.TP
+.B :
+Enter command mode.
+.TP
+.B /
+Enter search mode.
+.TP
+.B Esc
+Exit current mode, close overlays, or jump to latest logs.
+.TP
+.B w
+Cycle display mode: compact -> full -> wrap.
+.TP
+.B t
+Cycle timestamp display: seconds -> milliseconds -> off.
+.TP
+.B p
+Cycle process panel: normal -> summary -> minimal.
+.SS Batch Navigation
+.TP
+.B [ / ]
+Previous/next batch.
+.TP
+.B + / -
+Increase/decrease batch window by 100ms.
+.SS Clipboard & Batch Operations
+.TP
+.B c
+Copy selected line(s) to clipboard.
+.TP
+.B Shift+C
+Copy entire batch to clipboard.
+.TP
+.B x
+Contextual copy (same process within +/-1s of selected line).
+.TP
+.B b
+Focus on batch containing the selected line.
+.SS Trace Capture
+.TP
+.B s
+Start/stop manual trace recording.
+.SH TUI COMMANDS
+Commands are entered by pressing \fB:\fR followed by the command.
+.SS Process Management
+.TP
+.B :s \fIname\fR
+Start a process.
+.TP
+.B :r \fI[name]\fR
+Restart a process (or all processes if no name given).
+.TP
+.B :k \fIname\fR
+Kill (stop) a process.
+.TP
+.B :q, :quit, :exit
+Quit the application.
+.SS Filtering
+.TP
+.B :f \fIpattern\fR
+Add include filter (show only matching lines).
+.TP
+.B :fn \fIpattern\fR
+Add exclude filter (hide matching lines).
+.TP
+.B :fc
+Clear all filters.
+.TP
+.B :fl
+List active filters.
+.SS Process Visibility
+.TP
+.B :hide \fIname\fR
+Hide logs from a specific process.
+.TP
+.B :show \fIname\fR
+Show logs from a specific process.
+.TP
+.B :hide all
+Hide all process logs.
+.TP
+.B :show all
+Show all process logs.
+.TP
+.B :only \fIname\fR
+Show only one process, hide all others.
+.SS Batch Navigation
+.TP
+.B :nb
+Next batch.
+.TP
+.B :pb
+Previous batch.
+.TP
+.B :sb
+Toggle batch view mode.
+.TP
+.B :bw \fI[milliseconds]\fR
+Show or set batch window (default: 100ms).
+.TP
+.B :bw fast|medium|slow
+Presets: 100ms / 1000ms / 5000ms.
+.SS Time Navigation
+.TP
+.B :goto HH:MM[:SS]
+Jump to absolute time.
+.TP
+.B :goto -5m, :goto +30s
+Jump relative to current selection. Supports s, m, h units.
+.TP
+.B :g
+Short form of :goto.
+.SS Display
+.TP
+.B :color
+Toggle process coloring on/off.
+.TP
+.B :traces
+Scan logs for correlation IDs and show selection overlay.
+.SH IPC COMMANDS
+When a TUI instance is running, these subcommands communicate with it via IPC:
+.TP
+.B ping
+Check if TUI is running.
+.TP
+.B status
+Get status from running TUI.
+.TP
+.B processes
+List all processes and their current status.
+.TP
+.B logs \fR[\fB--limit\fR \fIN\fR] [\fB--offset\fR \fIN\fR]
+Get recent log lines (default: 100).
+.TP
+.B search \fIpattern\fR [\fB--limit\fR \fIN\fR] [\fB--case-sensitive\fR]
+Search log lines for a pattern.
+.TP
+.B select \fIid\fR
+Select a log line by ID and open expanded view.
+.TP
+.B context \fIid\fR [\fB--before\fR \fIN\fR] [\fB--after\fR \fIN\fR]
+Get context lines around a specific log line.
+.TP
+.B goto \fIid\fR
+Jump to a specific log line by ID.
+.TP
+.B scroll \fIdirection\fR [\fB--lines\fR \fIN\fR]
+Scroll the log view (up, down, top, bottom).
+.TP
+.B freeze \fR[\fImode\fR]
+Freeze or unfreeze the display (on, off, toggle).
+.TP
+.B filters
+List current filters.
+.TP
+.B filter-add \fIpattern\fR [\fB--exclude\fR]
+Add a new filter.
+.TP
+.B filter-remove \fIpattern\fR
+Remove a filter by pattern.
+.TP
+.B filter-clear
+Clear all filters.
+.TP
+.B visibility
+List visibility status for all processes.
+.TP
+.B hide \fIname\fR
+Hide a process from log view.
+.TP
+.B show \fIname\fR
+Show a hidden process.
+.TP
+.BR restart ", " r " " \fI[name]\fR
+Restart a process or all processes.
+.TP
+.BR kill ", " k " " \fIname\fR
+Kill a running process.
+.TP
+.BR start ", " s " " \fIname\fR
+Start a stopped process.
+.TP
+.B errors \fR[\fB--limit\fR \fIN\fR] [\fB--level\fR error|warning] [\fB--process\fR \fIname\fR]
+Get recent error/warning log lines.
+.TP
+.B summary
+Get comprehensive AI-friendly summary of current state.
+.TP
+.B batch \fIid\fR [\fB--scroll\fR]
+Get all log lines from a specific batch.
+.TP
+.B trace
+Get trace recording status and active trace info.
+.TP
+.B commands
+List available IPC commands.
+.SH OTHER COMMANDS
+.TP
+.B skill install
+Install the AI skill to .claude/skills or .cursor/skills for Claude Code/Cursor integration.
+.TP
+.B vscode install
+Install the VS Code extension from GitHub releases.
+.TP
+.B cursor install
+Install the Cursor extension from GitHub releases.
+.SH CONFIGURATION
+The configuration file (\fB.overitall.toml\fR) uses TOML format:
+.PP
+.nf
+# Path to your Procfile
+procfile = "Procfile"
+
+# Process-specific configuration
+[processes.web]
+log_file = "log/web.log"
+
+[processes.worker]
+log_file = "log/worker.log"
+
+# Filters
+[filters]
+include = ["INFO", "ERROR"]
+exclude = ["DEBUG"]
+
+# Hidden processes
+hidden_processes = ["worker"]
+.fi
+.SS Configuration Options
+.TP
+.B procfile
+Path to your Procfile (required).
+.TP
+.B processes.<name>.log_file
+Path to the log file for a specific process.
+.TP
+.B processes.<name>.status
+Custom status configuration with pattern-based transitions.
+.TP
+.B log_files
+Array of standalone log files to tail.
+.TP
+.B filters.include
+Array of regex patterns to include.
+.TP
+.B filters.exclude
+Array of regex patterns to exclude.
+.TP
+.B hidden_processes
+Array of process names to hide from log viewer.
+.TP
+.B ignored_processes
+Array of process names to skip entirely.
+.TP
+.B max_log_buffer_mb
+Maximum memory for log buffer in megabytes (default: 50).
+.TP
+.B batch_window_ms
+Batch grouping window in milliseconds (default: 100).
+.TP
+.B context_copy_seconds
+Time window for contextual copy in seconds (default: 1.0).
+.TP
+.B disable_auto_update
+Set to true to disable auto-update checks.
+.TP
+.B compact_mode
+Set to false to show full log lines by default.
+.TP
+.B process_coloring
+Colorize process names in the log view (default: true).
+.SH FILES
+.TP
+.I .overitall.toml
+Default configuration file in the current directory.
+.TP
+.I Procfile
+Default process definition file.
+.TP
+.I .oit.sock
+Unix socket for IPC communication with running TUI.
+.SH EXAMPLES
+Initialize a new project:
+.PP
+.RS
+.nf
+oit --init
+.fi
+.RE
+.PP
+Start TUI with custom config:
+.PP
+.RS
+.nf
+oit -c my-config.toml
+.fi
+.RE
+.PP
+Use a different Procfile:
+.PP
+.RS
+.nf
+oit -f Procfile.dev
+.fi
+.RE
+.PP
+Check TUI status via IPC:
+.PP
+.RS
+.nf
+oit status
+.fi
+.RE
+.PP
+Search logs for errors:
+.PP
+.RS
+.nf
+oit search "ERROR" --limit 50
+.fi
+.RE
+.PP
+Restart a specific process:
+.PP
+.RS
+.nf
+oit restart worker
+.fi
+.RE
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+General error or IPC command failure.
+.SH AUTHOR
+Jeremy Wells <https://github.com/jemmyw>
+.SH BUGS
+Report bugs at: https://github.com/aha-app/overitall/issues
+.SH SEE ALSO
+.BR overmind (1),
+.BR foreman (1),
+.BR lnav (1)
+.PP
+Full documentation: https://github.com/aha-app/overitall
