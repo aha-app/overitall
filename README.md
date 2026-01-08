@@ -28,6 +28,8 @@ Overitall (`oit`) is a TUI that helps you manage multiple processes and their lo
 - **Auto-Update**: Automatically checks for and installs updates on startup
 - **AI Integration**: Install Claude Code/Cursor skill to let AI control the TUI via CLI
 
+<img width="1728" height="1004" alt="Screenshot of oit tui" src="https://github.com/user-attachments/assets/05ee14bc-e22b-4203-a840-6e97fac71e70" />
+
 ## Installation
 
 ### From GitHub Releases (Recommended)
