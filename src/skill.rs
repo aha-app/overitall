@@ -261,15 +261,31 @@ fn add_to_git_exclude(skill_dir: &str) -> Result<()> {
     Ok(())
 }
 
-/// Automatically install/update skill on TUI startup (silent, no prompts)
-pub fn auto_install_skill() {
-    if let Some(ai_dir) = detect_ai_tool_directory() {
-        // Always install/update to ensure latest skill content
-        if install_skill(ai_dir).is_ok() {
-            // Add to git exclude (ignore errors - not critical)
-            let _ = add_to_git_exclude(ai_dir);
-        }
+/// Install skill via CLI command (with user feedback)
+pub fn install_skill_command() -> Result<()> {
+    let ai_dir = detect_ai_tool_directory();
+
+    if ai_dir.is_none() {
+        anyhow::bail!(
+            "No .claude or .cursor directory found in current directory.\n\
+             Create a .claude directory to use with Claude Code, or .cursor for Cursor."
+        );
     }
+
+    let ai_dir = ai_dir.unwrap();
+    let skill_dir = Path::new(ai_dir).join("skills").join("oit");
+
+    install_skill(ai_dir)?;
+
+    // Add to git exclude (ignore errors - not critical)
+    let _ = add_to_git_exclude(ai_dir);
+
+    println!("Installed oit skill to {:?}", skill_dir);
+    println!("\nFiles created:");
+    println!("  - SKILL.md (main skill definition)");
+    println!("  - COMMANDS.md (full command reference)");
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -467,7 +483,7 @@ mod tests {
     }
 
     #[test]
-    fn test_auto_install_skill_creates_files() {
+    fn test_install_skill_command_creates_files() {
         let _guard = CWD_MUTEX.lock().unwrap();
         let temp_dir = TempDir::new().unwrap();
         let original_dir = std::env::current_dir().unwrap();
@@ -478,8 +494,8 @@ mod tests {
         // Create .git directory for exclude test
         fs::create_dir_all(".git/info").unwrap();
 
-        // Call auto_install_skill
-        auto_install_skill();
+        // Call install_skill_command
+        install_skill_command().unwrap();
 
         // Check that skill files were created
         assert!(Path::new(".claude/skills/oit/SKILL.md").exists());
@@ -493,7 +509,7 @@ mod tests {
     }
 
     #[test]
-    fn test_auto_install_skill_updates_existing_files() {
+    fn test_install_skill_command_updates_existing_files() {
         let _guard = CWD_MUTEX.lock().unwrap();
         let temp_dir = TempDir::new().unwrap();
         let original_dir = std::env::current_dir().unwrap();
@@ -504,8 +520,8 @@ mod tests {
         fs::write(".claude/skills/oit/SKILL.md", "old content").unwrap();
         fs::write(".claude/skills/oit/COMMANDS.md", "old content").unwrap();
 
-        // Call auto_install_skill
-        auto_install_skill();
+        // Call install_skill_command
+        install_skill_command().unwrap();
 
         // Check that files were updated with latest content
         let skill_content = fs::read_to_string(".claude/skills/oit/SKILL.md").unwrap();
@@ -515,18 +531,16 @@ mod tests {
     }
 
     #[test]
-    fn test_auto_install_skill_no_ai_dir() {
+    fn test_install_skill_command_no_ai_dir() {
         let _guard = CWD_MUTEX.lock().unwrap();
         let temp_dir = TempDir::new().unwrap();
         let original_dir = std::env::current_dir().unwrap();
         std::env::set_current_dir(temp_dir.path()).unwrap();
 
-        // No .claude or .cursor directory
-        auto_install_skill();
-
-        // No skill files should be created
-        assert!(!Path::new(".claude/skills/oit/SKILL.md").exists());
-        assert!(!Path::new(".cursor/skills/oit/SKILL.md").exists());
+        // No .claude or .cursor directory - should error
+        let result = install_skill_command();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("No .claude or .cursor directory"));
 
         std::env::set_current_dir(original_dir).unwrap();
     }

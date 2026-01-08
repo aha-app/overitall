@@ -197,6 +197,18 @@ pub enum Commands {
         #[command(subcommand)]
         action: EditorAction,
     },
+    /// AI skill management for Claude Code / Cursor
+    Skill {
+        #[command(subcommand)]
+        action: SkillAction,
+    },
+}
+
+/// Skill subcommands
+#[derive(Subcommand, Debug, Clone)]
+pub enum SkillAction {
+    /// Install the oit skill to .claude/skills or .cursor/skills
+    Install,
 }
 
 /// Editor extension subcommands
@@ -620,9 +632,9 @@ pub async fn run_ipc_command(command: &Commands) -> anyhow::Result<()> {
         Commands::Batch { id, scroll } => {
             IpcRequest::with_args("batch", serde_json::json!({"id": id, "scroll": scroll}))
         }
-        Commands::Vscode { .. } | Commands::Cursor { .. } => {
-            // This should be handled separately in main.rs, not via IPC
-            return Err(anyhow!("editor commands don't use IPC"));
+        Commands::Vscode { .. } | Commands::Cursor { .. } | Commands::Skill { .. } => {
+            // These should be handled separately in main.rs, not via IPC
+            return Err(anyhow!("editor/skill commands don't use IPC"));
         }
     };
 

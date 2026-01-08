@@ -13,7 +13,7 @@ mod traces;
 mod ui;
 mod updater;
 
-use cli::{check_already_running, get_socket_path, Cli, Commands, EditorAction, init_config, install_vscode_extension, run_ipc_command};
+use cli::{check_already_running, get_socket_path, Cli, Commands, EditorAction, SkillAction, init_config, install_vscode_extension, run_ipc_command};
 use config::Config;
 use event_handler::EventHandler;
 use ipc::state::{BufferStats, FilterInfo, LogLineInfo, ProcessInfo, StateSnapshot, ViewModeInfo};
@@ -73,11 +73,16 @@ async fn main() -> anyhow::Result<()> {
         return init_config(config_path, cli.procfile.as_deref());
     }
 
-    // Handle vscode/cursor subcommand (doesn't need IPC)
+    // Handle vscode/cursor/skill subcommands (don't need IPC)
     match &cli.command {
         Some(Commands::Vscode { action } | Commands::Cursor { action }) => {
             return match action {
                 EditorAction::Install => install_vscode_extension(),
+            };
+        }
+        Some(Commands::Skill { action }) => {
+            return match action {
+                SkillAction::Install => skill::install_skill_command(),
             };
         }
         _ => {}
@@ -107,9 +112,6 @@ async fn main() -> anyhow::Result<()> {
         eprintln!("Use 'oit ping' to verify, or remove .oit.sock if the previous instance crashed.");
         std::process::exit(1);
     }
-
-    // Auto-install Claude/Cursor skill if .claude or .cursor directory exists
-    skill::auto_install_skill();
 
     // Load config
     let mut config = Config::from_file(config_path)?;
