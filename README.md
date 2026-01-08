@@ -391,7 +391,11 @@ disable_auto_update = true
 
 ### AI Integration (Claude Code / Cursor)
 
-When you start the TUI with `oit`, if a `.claude/` or `.cursor/` directory exists in the current directory, the AI skill is automatically installed and kept up-to-date. This teaches Claude Code and Cursor how to control the running TUI via CLI commands.
+Install the AI skill to teach Claude Code and Cursor how to control the running TUI via CLI commands:
+
+```bash
+oit skill install
+```
 
 The skill is installed to `.claude/skills/oit/` (or `.cursor/skills/oit/`) and is automatically added to `.git/info/exclude` to prevent it from being committed to your repository.
 
@@ -500,7 +504,7 @@ Overitall is under active development. Current features:
 - Persistent configuration
 - Help system
 - Auto-update on startup (via gh CLI)
-- AI integration via automatic Claude Code/Cursor skill installation
+- AI integration via Claude Code/Cursor skill installation (`oit skill install`)
 
 #### Trace Detection
 
