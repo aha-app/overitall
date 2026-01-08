@@ -298,7 +298,7 @@ hidden_processes = ["worker"]
 - `context_copy_seconds` - Time window for X (contextual copy) in seconds (default: 1.0)
 - `disable_auto_update` - Set to `true` to disable auto-update checks (default: false)
 - `compact_mode` - Set to `false` to show full log lines by default (default: true)
-- `process_coloring` - Set to `true` to colorize process names in the log view (default: false)
+- `process_coloring` - Colorize process names in the log view (default: true)
 
 ### Standalone Log Files
 
@@ -352,11 +352,11 @@ The status resets to the default when the process is restarted.
 
 ### Process Coloring
 
-Enable distinct colors for each process/log file name in the log view. This makes it easier to visually distinguish logs from different sources.
+Each process/log file name is shown in a distinct color in the log view, making it easier to visually distinguish logs from different sources. This is enabled by default.
 
 ```toml
-# Enable colored process names (disabled by default)
-process_coloring = true
+# Disable colored process names (enabled by default)
+process_coloring = false
 
 # Optional: override specific process colors
 [colors]

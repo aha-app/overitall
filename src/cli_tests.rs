@@ -43,6 +43,7 @@ fn test_init_config_creates_file() {
     let config_content = fs::read_to_string(&config_path).unwrap();
     assert!(config_content.contains("procfile = \"Procfile\""));
     assert!(config_content.contains("batch_window_ms = 100"));
+    assert!(config_content.contains("process_coloring = true"), "process_coloring should be enabled by default");
     // Should not include process-specific log_file entries
     assert!(!config_content.contains("[processes.web]"));
     assert!(!config_content.contains("[processes.worker]"));
