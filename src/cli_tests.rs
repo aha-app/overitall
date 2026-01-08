@@ -42,9 +42,10 @@ fn test_init_config_creates_file() {
     // Read and verify the config
     let config_content = fs::read_to_string(&config_path).unwrap();
     assert!(config_content.contains("procfile = \"Procfile\""));
-    assert!(config_content.contains("[processes.web]"));
-    assert!(config_content.contains("[processes.worker]"));
     assert!(config_content.contains("batch_window_ms = 100"));
+    // Should not include process-specific log_file entries
+    assert!(!config_content.contains("[processes.web]"));
+    assert!(!config_content.contains("[processes.worker]"));
 }
 
 #[test]
@@ -189,7 +190,71 @@ fn test_init_config_with_custom_procfile() {
 
     let config_content = fs::read_to_string(&config_path).unwrap();
     assert!(config_content.contains("procfile = \"Procfile.dev\""));
-    assert!(config_content.contains("[processes.api]"));
+    // Should not include process-specific log_file entries
+    assert!(!config_content.contains("[processes.api]"));
+}
+
+#[test]
+fn test_init_config_adds_development_log_when_exists() {
+    let _guard = CWD_MUTEX.lock().unwrap();
+
+    let temp_dir = TempDir::new().unwrap();
+    let temp_path = temp_dir.path();
+
+    // Create a Procfile
+    let procfile_path = temp_path.join("Procfile");
+    fs::write(&procfile_path, "web: rails server\n").unwrap();
+
+    // Create log/development.log
+    let log_dir = temp_path.join("log");
+    fs::create_dir(&log_dir).unwrap();
+    fs::write(log_dir.join("development.log"), "").unwrap();
+
+    let config_path = temp_path.join(".overitall.toml");
+
+    let original_dir = std::env::current_dir().unwrap();
+    std::env::set_current_dir(temp_path).unwrap();
+
+    let result = init_config(config_path.to_str().unwrap(), None);
+
+    std::env::set_current_dir(original_dir).unwrap();
+
+    assert!(result.is_ok(), "init_config should succeed: {:?}", result.err());
+
+    let config_content = fs::read_to_string(&config_path).unwrap();
+    // Should include the standalone log file
+    assert!(config_content.contains("[[log_files]]"), "Should have log_files section");
+    assert!(config_content.contains("log/development.log"), "Should reference development.log");
+    assert!(config_content.contains("name = \"log\""), "Should have name 'log'");
+}
+
+#[test]
+fn test_init_config_no_log_when_development_log_missing() {
+    let _guard = CWD_MUTEX.lock().unwrap();
+
+    let temp_dir = TempDir::new().unwrap();
+    let temp_path = temp_dir.path();
+
+    // Create a Procfile
+    let procfile_path = temp_path.join("Procfile");
+    fs::write(&procfile_path, "web: rails server\n").unwrap();
+
+    // Do NOT create log/development.log
+
+    let config_path = temp_path.join(".overitall.toml");
+
+    let original_dir = std::env::current_dir().unwrap();
+    std::env::set_current_dir(temp_path).unwrap();
+
+    let result = init_config(config_path.to_str().unwrap(), None);
+
+    std::env::set_current_dir(original_dir).unwrap();
+
+    assert!(result.is_ok(), "init_config should succeed: {:?}", result.err());
+
+    let config_content = fs::read_to_string(&config_path).unwrap();
+    // Should NOT include log_files section
+    assert!(!config_content.contains("[[log_files]]"), "Should not have log_files section");
 }
 
 #[test]

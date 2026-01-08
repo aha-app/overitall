@@ -416,22 +416,20 @@ pub fn init_config(config_path: &str, procfile_override: Option<&str>) -> anyhow
         // Get sorted list of process names
         let process_names = procfile.process_names();
 
-        // Create default config
-        let mut processes = HashMap::new();
-        for name in &process_names {
-            processes.insert(
-                name.to_string(),
-                config::ProcessConfig {
-                    log_file: Some(std::path::PathBuf::from(format!("logs/{}.log", name))),
-                    status: None,
-                },
-            );
-        }
+        // Check if log/development.log exists for standalone log
+        let log_files = if Path::new("log/development.log").exists() {
+            vec![config::LogFileConfig {
+                name: "log".to_string(),
+                path: std::path::PathBuf::from("log/development.log"),
+            }]
+        } else {
+            Vec::new()
+        };
 
         let config = Config {
             procfile: std::path::PathBuf::from(procfile_path),
-            processes,
-            log_files: Vec::new(),
+            processes: HashMap::new(),
+            log_files,
             filters: config::FilterConfig {
                 include: vec![],
                 exclude: vec![],
