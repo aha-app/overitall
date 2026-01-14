@@ -319,6 +319,22 @@ impl ProcessManager {
         failures
     }
 
+    /// Start only the specified processes, continuing even if some fail.
+    /// Returns a list of (name, error_message) for any processes that failed to start.
+    pub async fn start_specific(&mut self, names: &[String]) -> Vec<(String, String)> {
+        let mut failures = Vec::new();
+        for name in names {
+            if let Err(e) = self.start_process(name).await {
+                // Set the process status to Failed
+                if let Some(process) = self.processes.get_mut(name) {
+                    process.status = ProcessStatus::Failed(e.to_string());
+                }
+                failures.push((name.clone(), e.to_string()));
+            }
+        }
+        failures
+    }
+
     pub async fn kill_process(&mut self, name: &str) -> Result<()> {
         let process = self.processes.get_mut(name)
             .ok_or_else(|| anyhow::anyhow!("Process '{}' not found", name))?;
@@ -1156,5 +1172,43 @@ mod tests {
         assert!(manager.has_process("web"));
         // has_standalone_log_file should return false for process
         assert!(!manager.has_standalone_log_file("web"));
+    }
+
+    #[tokio::test]
+    async fn test_start_specific() {
+        let mut manager = ProcessManager::new();
+        manager.add_process("proc1".to_string(), "sleep 10".to_string(), None, None);
+        manager.add_process("proc2".to_string(), "sleep 10".to_string(), None, None);
+        manager.add_process("proc3".to_string(), "sleep 10".to_string(), None, None);
+
+        // Start only proc1 and proc3
+        let to_start = vec!["proc1".to_string(), "proc3".to_string()];
+        let failures = manager.start_specific(&to_start).await;
+        assert!(failures.is_empty(), "Expected no failures, got {:?}", failures);
+
+        // Only proc1 and proc3 should be running
+        assert_eq!(manager.get_status("proc1"), Some(ProcessStatus::Running));
+        assert_eq!(manager.get_status("proc2"), Some(ProcessStatus::Stopped));
+        assert_eq!(manager.get_status("proc3"), Some(ProcessStatus::Running));
+
+        manager.kill_all().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_start_specific_with_unknown_process() {
+        let mut manager = ProcessManager::new();
+        manager.add_process("proc1".to_string(), "sleep 10".to_string(), None, None);
+
+        // Try to start a process that doesn't exist
+        let to_start = vec!["proc1".to_string(), "nonexistent".to_string()];
+        let failures = manager.start_specific(&to_start).await;
+
+        // proc1 should succeed, nonexistent should fail
+        assert_eq!(failures.len(), 1);
+        assert_eq!(failures[0].0, "nonexistent");
+
+        assert_eq!(manager.get_status("proc1"), Some(ProcessStatus::Running));
+
+        manager.kill_all().await.unwrap();
     }
 }
