@@ -73,3 +73,5 @@ Socket location: `.oit.sock` in the current working directory.
 ## Testing
 
 Use `TestBackend` for TUI tests, `insta` for snapshots. Run `cargo test`, review with `cargo insta review`.
+
+**Test helpers**: Some `ProcessManager` methods like `set_process_status_for_testing` and `reset_process_status` are marked `#[doc(hidden)] pub` because integration tests in `tests/` need access but `#[cfg(test)]` items aren't visible to them. A cleaner future approach would be a `test-helpers` feature flag with `#[cfg(any(test, feature = "test-helpers"))]`.
