@@ -155,19 +155,10 @@ async fn main() -> anyhow::Result<()> {
     let max_buffer_mb = config.max_log_buffer_mb.unwrap_or(50);
     let mut manager = ProcessManager::new_with_buffer_limit(max_buffer_mb);
 
-    // Add processes from Procfile (skip ignored ones and those not in CLI args)
+    // Add ALL processes from Procfile (skip only ignored ones)
     for (name, command) in &procfile.processes {
         // Skip if in ignored_processes (permanent config-based ignore)
         if config.ignored_processes.contains(name) {
-            continue;
-        }
-        // CLI args override config; empty means all processes
-        let start_only: &[String] = if !cli.processes.is_empty() {
-            &cli.processes
-        } else {
-            &config.start_processes
-        };
-        if !start_only.is_empty() && !start_only.contains(name) {
             continue;
         }
 
@@ -191,8 +182,14 @@ async fn main() -> anyhow::Result<()> {
         manager.add_standalone_log_file(log_file_config.name.clone(), log_path).await?;
     }
 
-    // Start all processes (collect failures, don't crash)
-    let start_failures = manager.start_all().await;
+    // Start processes: CLI args override config; empty means start all
+    let start_failures = if !cli.processes.is_empty() {
+        manager.start_specific(&cli.processes).await
+    } else if !config.start_processes.is_empty() {
+        manager.start_specific(&config.start_processes).await
+    } else {
+        manager.start_all().await
+    };
 
     // Install panic hook to restore terminal on panic
     let original_hook = panic::take_hook();
