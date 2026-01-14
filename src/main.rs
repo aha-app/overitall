@@ -130,6 +130,18 @@ async fn main() -> anyhow::Result<()> {
     let process_names: Vec<String> = procfile.processes.keys().cloned().collect();
     config.validate(&process_names)?;
 
+    // Validate CLI-specified process names exist in Procfile
+    for name in &cli.processes {
+        if !process_names.contains(name) {
+            eprintln!("Error: Process '{}' not found in Procfile.\n", name);
+            eprintln!("Available processes:");
+            for pn in &process_names {
+                eprintln!("  - {}", pn);
+            }
+            std::process::exit(1);
+        }
+    }
+
     // Determine working directory from Procfile path
     // If procfile is just "Procfile" (no directory), parent() returns Some("")
     // We need to filter out empty paths and use current_dir instead
@@ -143,9 +155,14 @@ async fn main() -> anyhow::Result<()> {
     let max_buffer_mb = config.max_log_buffer_mb.unwrap_or(50);
     let mut manager = ProcessManager::new_with_buffer_limit(max_buffer_mb);
 
-    // Add processes from Procfile (skip ignored ones)
+    // Add processes from Procfile (skip ignored ones and those not in CLI args)
     for (name, command) in &procfile.processes {
+        // Skip if in ignored_processes (permanent config-based ignore)
         if config.ignored_processes.contains(name) {
+            continue;
+        }
+        // If specific processes requested via CLI, only start those
+        if !cli.processes.is_empty() && !cli.processes.contains(name) {
             continue;
         }
 
