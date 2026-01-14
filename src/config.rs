@@ -1007,4 +1007,102 @@ procfile = "Procfile"
         let loaded = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
         assert_eq!(loaded.context_copy_seconds, Some(3.0));
     }
+
+    #[test]
+    fn test_start_processes_loads_from_config() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(
+            temp_file,
+            r#"
+procfile = "Procfile"
+start_processes = ["web", "worker"]
+
+[processes]
+"#
+        )
+        .unwrap();
+
+        let config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert_eq!(config.start_processes, vec!["web", "worker"]);
+    }
+
+    #[test]
+    fn test_start_processes_defaults_to_empty_when_missing() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(
+            temp_file,
+            r#"
+procfile = "Procfile"
+
+[processes]
+"#
+        )
+        .unwrap();
+
+        let config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert!(config.start_processes.is_empty());
+    }
+
+    #[test]
+    fn test_start_processes_saves_to_config() {
+        let config = Config {
+            start_processes: vec!["api".to_string(), "db".to_string()],
+            ..test_config()
+        };
+
+        let temp_file = NamedTempFile::new().unwrap();
+        config.save(temp_file.path().to_str().unwrap()).unwrap();
+
+        let loaded_config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert_eq!(loaded_config.start_processes, vec!["api", "db"]);
+    }
+
+    #[test]
+    fn test_start_processes_empty_array_serialized() {
+        let config = test_config();
+
+        let toml_string = toml::to_string_pretty(&config).unwrap();
+        assert!(
+            toml_string.contains("start_processes = []"),
+            "empty start_processes should be serialized as empty array"
+        );
+    }
+
+    #[test]
+    fn test_start_processes_roundtrip() {
+        let original = Config {
+            start_processes: vec!["web".to_string(), "worker".to_string(), "scheduler".to_string()],
+            ..test_config()
+        };
+
+        let temp_file = NamedTempFile::new().unwrap();
+        original.save(temp_file.path().to_str().unwrap()).unwrap();
+
+        let loaded = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert_eq!(loaded.start_processes, original.start_processes);
+    }
+
+    #[test]
+    fn test_validate_passes_with_valid_start_processes() {
+        let config = Config {
+            start_processes: vec!["web".to_string(), "worker".to_string()],
+            ..test_config()
+        };
+
+        let process_names = vec!["web".to_string(), "worker".to_string(), "scheduler".to_string()];
+        assert!(config.validate(&process_names).is_ok());
+    }
+
+    #[test]
+    fn test_validate_fails_with_unknown_start_process() {
+        let config = Config {
+            start_processes: vec!["web".to_string(), "unknown".to_string()],
+            ..test_config()
+        };
+
+        let process_names = vec!["web".to_string(), "worker".to_string()];
+        let result = config.validate(&process_names);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("start_processes contains unknown process"));
+    }
 }
