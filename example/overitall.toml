@@ -2,6 +2,7 @@ procfile = "example/Procfile"
 batch_window_ms = 5000
 max_log_buffer_mb = 50
 hidden_processes = []
+start_processes = ["web", "worker"]
 compact_mode = false
 process_coloring = true
 
