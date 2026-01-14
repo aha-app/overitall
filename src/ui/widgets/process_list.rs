@@ -378,7 +378,7 @@ fn get_process_status(handle: &crate::process::ProcessHandle) -> (Color, Option<
             } else {
                 match &handle.status {
                     ProcessStatus::Running => (Color::Green, None),
-                    ProcessStatus::Stopped => (Color::Yellow, None),
+                    ProcessStatus::Stopped => (Color::Red, None),
                     ProcessStatus::Restarting => (Color::Cyan, None),
                     ProcessStatus::Terminating => (Color::Magenta, None),
                     ProcessStatus::Failed(_) => (Color::Red, None),
