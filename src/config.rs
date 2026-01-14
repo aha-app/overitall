@@ -19,6 +19,8 @@ pub struct Config {
     pub hidden_processes: Vec<String>,
     #[serde(default)]
     pub ignored_processes: Vec<String>,
+    #[serde(default)]
+    pub start_processes: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disable_auto_update: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -130,6 +132,12 @@ impl Config {
             }
         }
 
+        for name in &self.start_processes {
+            if !process_set.contains(name.as_str()) {
+                anyhow::bail!("start_processes contains unknown process '{}'", name);
+            }
+        }
+
         Ok(())
     }
 }
@@ -150,6 +158,7 @@ mod tests {
             max_log_buffer_mb: None,
             hidden_processes: Vec::new(),
             ignored_processes: Vec::new(),
+            start_processes: Vec::new(),
             disable_auto_update: None,
             compact_mode: None,
             colors: HashMap::new(),

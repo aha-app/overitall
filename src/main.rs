@@ -161,8 +161,13 @@ async fn main() -> anyhow::Result<()> {
         if config.ignored_processes.contains(name) {
             continue;
         }
-        // If specific processes requested via CLI, only start those
-        if !cli.processes.is_empty() && !cli.processes.contains(name) {
+        // CLI args override config; empty means all processes
+        let start_only: &[String] = if !cli.processes.is_empty() {
+            &cli.processes
+        } else {
+            &config.start_processes
+        };
+        if !start_only.is_empty() && !start_only.contains(name) {
             continue;
         }
 
