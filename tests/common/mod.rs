@@ -161,6 +161,9 @@ pub fn create_manager_with_custom_status() -> ProcessManager {
     manager.add_process("web".to_string(), "echo hi".to_string(), None, Some(&status_config));
     manager.add_process("worker".to_string(), "echo hi".to_string(), None, None);
 
+    // Simulate process start to apply default custom status
+    manager.reset_process_status("web");
+
     manager
 }
 
@@ -207,6 +210,7 @@ pub fn create_manager_with_mixed_states() -> ProcessManager {
         ],
     };
     manager.add_process("db".to_string(), "echo hi".to_string(), None, Some(&db_config));
+    manager.reset_process_status("db"); // Apply default custom status
 
     // Stopped process (noteworthy)
     manager.add_process("worker".to_string(), "echo hi".to_string(), None, None);
@@ -239,6 +243,7 @@ pub fn create_manager_with_many_processes() -> ProcessManager {
         ],
     };
     manager.add_process("web".to_string(), "echo hi".to_string(), None, Some(&web_config));
+    manager.reset_process_status("web"); // Apply default custom status
 
     // Process with longer custom status
     let api_config = StatusConfig {
@@ -247,6 +252,7 @@ pub fn create_manager_with_many_processes() -> ProcessManager {
         transitions: vec![],
     };
     manager.add_process("api".to_string(), "echo hi".to_string(), None, Some(&api_config));
+    manager.reset_process_status("api"); // Apply default custom status
 
     // Regular processes (no custom status)
     manager.add_process("worker".to_string(), "echo hi".to_string(), None, None);

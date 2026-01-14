@@ -748,3 +748,38 @@ fn test_cli_parses_cursor_install_subcommand() {
         _ => panic!("Expected Cursor Install command"),
     }
 }
+
+#[test]
+fn test_cli_default_processes_is_empty() {
+    let cli = Cli::parse_from(["oit"]);
+    assert!(cli.processes.is_empty());
+}
+
+#[test]
+fn test_cli_parses_single_process() {
+    let cli = Cli::parse_from(["oit", "web"]);
+    assert_eq!(cli.processes, vec!["web"]);
+    assert!(cli.command.is_none());
+}
+
+#[test]
+fn test_cli_parses_multiple_processes() {
+    let cli = Cli::parse_from(["oit", "web", "worker", "scheduler"]);
+    assert_eq!(cli.processes, vec!["web", "worker", "scheduler"]);
+    assert!(cli.command.is_none());
+}
+
+#[test]
+fn test_cli_subcommand_takes_priority_over_processes() {
+    // "ping" should be parsed as a subcommand, not a process name
+    let cli = Cli::parse_from(["oit", "ping"]);
+    assert!(matches!(cli.command, Some(Commands::Ping)));
+    assert!(cli.processes.is_empty());
+}
+
+#[test]
+fn test_cli_processes_with_flags() {
+    let cli = Cli::parse_from(["oit", "--no-update", "web", "worker"]);
+    assert!(cli.no_update);
+    assert_eq!(cli.processes, vec!["web", "worker"]);
+}

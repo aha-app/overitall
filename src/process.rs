@@ -87,6 +87,9 @@ impl ProcessHandle {
             return Ok(());
         }
 
+        // Apply default status label when starting
+        self.reset_status();
+
         // Execute command through shell (handles quotes, spaces, variables, pipes, etc.)
         let mut cmd = Command::new("sh");
         cmd.args(&["-c", &self.command]);
@@ -319,6 +322,22 @@ impl ProcessManager {
         failures
     }
 
+    /// Start only the specified processes, continuing even if some fail.
+    /// Returns a list of (name, error_message) for any processes that failed to start.
+    pub async fn start_specific(&mut self, names: &[String]) -> Vec<(String, String)> {
+        let mut failures = Vec::new();
+        for name in names {
+            if let Err(e) = self.start_process(name).await {
+                // Set the process status to Failed
+                if let Some(process) = self.processes.get_mut(name) {
+                    process.status = ProcessStatus::Failed(e.to_string());
+                }
+                failures.push((name.clone(), e.to_string()));
+            }
+        }
+        failures
+    }
+
     pub async fn kill_process(&mut self, name: &str) -> Result<()> {
         let process = self.processes.get_mut(name)
             .ok_or_else(|| anyhow::anyhow!("Process '{}' not found", name))?;
@@ -343,10 +362,13 @@ impl ProcessManager {
         }
     }
 
-    /// Set all processes to Restarting status (fast, non-blocking)
+    /// Set all running processes to Restarting status (fast, non-blocking)
+    /// Only restarts processes that are currently Running - stopped processes stay stopped
     pub fn set_all_restarting(&mut self) {
         for (_name, process) in self.processes.iter_mut() {
-            process.status = ProcessStatus::Restarting;
+            if process.status == ProcessStatus::Running {
+                process.status = ProcessStatus::Restarting;
+            }
         }
     }
 
@@ -484,6 +506,14 @@ impl ProcessManager {
     pub fn set_process_status_for_testing(&mut self, name: &str, status: ProcessStatus) {
         if let Some(handle) = self.processes.get_mut(name) {
             handle.status = status;
+        }
+    }
+
+    #[doc(hidden)]
+    /// Reset a process's custom status to its default (for testing)
+    pub fn reset_process_status(&mut self, name: &str) {
+        if let Some(handle) = self.processes.get_mut(name) {
+            handle.reset_status();
         }
     }
 
@@ -780,13 +810,20 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_set_all_restarting() {
+    async fn test_set_all_restarting_only_affects_running() {
         let mut manager = ProcessManager::new();
         manager.add_process("proc1".to_string(), "sleep 10".to_string(), None, None);
         manager.add_process("proc2".to_string(), "sleep 10".to_string(), None, None);
+        manager.add_process("proc3".to_string(), "sleep 10".to_string(), None, None);
+
+        // Start only proc1 and proc2
+        manager.start_process("proc1").await.unwrap();
+        manager.start_process("proc2").await.unwrap();
+        // proc3 stays stopped
 
         manager.set_all_restarting();
 
+        // Running processes should be set to Restarting
         assert_eq!(
             manager.get_status("proc1"),
             Some(ProcessStatus::Restarting)
@@ -795,6 +832,13 @@ mod tests {
             manager.get_status("proc2"),
             Some(ProcessStatus::Restarting)
         );
+        // Stopped process should stay stopped
+        assert_eq!(
+            manager.get_status("proc3"),
+            Some(ProcessStatus::Stopped)
+        );
+
+        manager.kill_all().await.unwrap();
     }
 
     #[tokio::test]
@@ -869,7 +913,7 @@ mod tests {
     }
 
     #[test]
-    fn test_process_handle_with_status_config_default() {
+    fn test_process_handle_with_status_config_no_default_until_start() {
         use crate::config::{StatusConfig, StatusTransition};
         let config = StatusConfig {
             default: Some("Starting".to_string()),
@@ -889,6 +933,34 @@ mod tests {
             None,
             Some(&config),
         );
+
+        // Default is not applied until reset_status() is called (which happens in start())
+        assert!(handle.get_custom_status().is_none());
+    }
+
+    #[test]
+    fn test_process_handle_with_status_config_default_after_reset() {
+        use crate::config::{StatusConfig, StatusTransition};
+        let config = StatusConfig {
+            default: Some("Starting".to_string()),
+            color: None,
+            transitions: vec![
+                StatusTransition {
+                    pattern: "Ready".to_string(),
+                    label: "Ready".to_string(),
+                    color: Some("green".to_string()),
+                },
+            ],
+        };
+
+        let mut handle = ProcessHandle::new(
+            "test".to_string(),
+            "echo hello".to_string(),
+            None,
+            Some(&config),
+        );
+
+        handle.reset_status(); // Simulates what happens in start()
 
         let status = handle.get_custom_status();
         assert!(status.is_some());
@@ -921,6 +993,7 @@ mod tests {
             Some(&config),
         );
 
+        handle.reset_status(); // Simulates process start
         assert_eq!(handle.get_custom_status().unwrap().0, "Starting");
 
         let changed = handle.check_log_line("Server ready to accept connections");
@@ -953,6 +1026,8 @@ mod tests {
             None,
             Some(&config),
         );
+
+        handle.reset_status(); // Simulates process start
 
         let changed = handle.check_log_line("Some unrelated log message");
         assert!(!changed);
@@ -1037,8 +1112,11 @@ mod tests {
         let mut manager = ProcessManager::new();
         manager.add_process("web".to_string(), "echo hi".to_string(), None, Some(&config));
 
-        // Verify initial status
-        let handle = manager.processes.get("web").unwrap();
+        // Simulate process start (applies default status)
+        let handle = manager.processes.get_mut("web").unwrap();
+        handle.reset_status();
+
+        // Verify initial status after start
         assert_eq!(handle.get_custom_status().unwrap().0, "Starting");
 
         // Add a log directly to the channel
@@ -1051,8 +1129,9 @@ mod tests {
         let mut manager = ProcessManager::new();
         manager.add_process("web".to_string(), "echo hi".to_string(), None, Some(&config));
 
-        // Test check_log_line directly since we can't easily access the internal channel
+        // Simulate process start and test check_log_line
         let handle = manager.processes.get_mut("web").unwrap();
+        handle.reset_status();
         let changed = handle.check_log_line("Server ready to accept connections");
         assert!(changed);
 
@@ -1124,6 +1203,7 @@ mod tests {
         manager.add_process("web".to_string(), "echo hi".to_string(), None, Some(&config));
 
         let handle = manager.processes.get_mut("web").unwrap();
+        handle.reset_status(); // Simulates process start
         assert_eq!(handle.get_custom_status().unwrap().0, "Starting");
 
         // First transition
@@ -1156,5 +1236,43 @@ mod tests {
         assert!(manager.has_process("web"));
         // has_standalone_log_file should return false for process
         assert!(!manager.has_standalone_log_file("web"));
+    }
+
+    #[tokio::test]
+    async fn test_start_specific() {
+        let mut manager = ProcessManager::new();
+        manager.add_process("proc1".to_string(), "sleep 10".to_string(), None, None);
+        manager.add_process("proc2".to_string(), "sleep 10".to_string(), None, None);
+        manager.add_process("proc3".to_string(), "sleep 10".to_string(), None, None);
+
+        // Start only proc1 and proc3
+        let to_start = vec!["proc1".to_string(), "proc3".to_string()];
+        let failures = manager.start_specific(&to_start).await;
+        assert!(failures.is_empty(), "Expected no failures, got {:?}", failures);
+
+        // Only proc1 and proc3 should be running
+        assert_eq!(manager.get_status("proc1"), Some(ProcessStatus::Running));
+        assert_eq!(manager.get_status("proc2"), Some(ProcessStatus::Stopped));
+        assert_eq!(manager.get_status("proc3"), Some(ProcessStatus::Running));
+
+        manager.kill_all().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_start_specific_with_unknown_process() {
+        let mut manager = ProcessManager::new();
+        manager.add_process("proc1".to_string(), "sleep 10".to_string(), None, None);
+
+        // Try to start a process that doesn't exist
+        let to_start = vec!["proc1".to_string(), "nonexistent".to_string()];
+        let failures = manager.start_specific(&to_start).await;
+
+        // proc1 should succeed, nonexistent should fail
+        assert_eq!(failures.len(), 1);
+        assert_eq!(failures[0].0, "nonexistent");
+
+        assert_eq!(manager.get_status("proc1"), Some(ProcessStatus::Running));
+
+        manager.kill_all().await.unwrap();
     }
 }

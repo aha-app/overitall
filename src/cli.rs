@@ -22,6 +22,10 @@ Quick start:
   3. Edit .overitall.toml to configure log files (optional)
   4. Run 'oit' to start the TUI
 
+Start specific processes:
+  oit web worker    # Only start 'web' and 'worker' processes
+  oit               # Start all processes (default)
+
 For more information, see: https://github.com/aha-app/overitall")]
 pub struct Cli {
     /// Path to config file (defaults to .overitall.toml)
@@ -47,6 +51,10 @@ pub struct Cli {
     /// Subcommand for IPC client operations
     #[command(subcommand)]
     pub command: Option<Commands>,
+
+    /// Processes to start (defaults to all if none specified)
+    #[arg(trailing_var_arg = true)]
+    pub processes: Vec<String>,
 }
 
 /// CLI subcommands for communicating with a running TUI instance
@@ -438,6 +446,7 @@ pub fn init_config(config_path: &str, procfile_override: Option<&str>) -> anyhow
             max_log_buffer_mb: Some(50),
             hidden_processes: Vec::new(),
             ignored_processes: Vec::new(),
+            start_processes: Vec::new(),
             disable_auto_update: None,
             compact_mode: None,
             colors: std::collections::HashMap::new(),

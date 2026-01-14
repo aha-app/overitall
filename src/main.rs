@@ -130,6 +130,18 @@ async fn main() -> anyhow::Result<()> {
     let process_names: Vec<String> = procfile.processes.keys().cloned().collect();
     config.validate(&process_names)?;
 
+    // Validate CLI-specified process names exist in Procfile
+    for name in &cli.processes {
+        if !process_names.contains(name) {
+            eprintln!("Error: Process '{}' not found in Procfile.\n", name);
+            eprintln!("Available processes:");
+            for pn in &process_names {
+                eprintln!("  - {}", pn);
+            }
+            std::process::exit(1);
+        }
+    }
+
     // Determine working directory from Procfile path
     // If procfile is just "Procfile" (no directory), parent() returns Some("")
     // We need to filter out empty paths and use current_dir instead
@@ -143,8 +155,9 @@ async fn main() -> anyhow::Result<()> {
     let max_buffer_mb = config.max_log_buffer_mb.unwrap_or(50);
     let mut manager = ProcessManager::new_with_buffer_limit(max_buffer_mb);
 
-    // Add processes from Procfile (skip ignored ones)
+    // Add ALL processes from Procfile (skip only ignored ones)
     for (name, command) in &procfile.processes {
+        // Skip if in ignored_processes (permanent config-based ignore)
         if config.ignored_processes.contains(name) {
             continue;
         }
@@ -169,8 +182,14 @@ async fn main() -> anyhow::Result<()> {
         manager.add_standalone_log_file(log_file_config.name.clone(), log_path).await?;
     }
 
-    // Start all processes (collect failures, don't crash)
-    let start_failures = manager.start_all().await;
+    // Start processes: CLI args override config; empty means start all
+    let start_failures = if !cli.processes.is_empty() {
+        manager.start_specific(&cli.processes).await
+    } else if !config.start_processes.is_empty() {
+        manager.start_specific(&config.start_processes).await
+    } else {
+        manager.start_all().await
+    };
 
     // Install panic hook to restore terminal on panic
     let original_hook = panic::take_hook();
@@ -684,17 +703,18 @@ async fn apply_ipc_action(
             }
         }
         IpcAction::RestartAllProcesses => {
-            // Non-blocking: set restart flags for all processes
-            let names: Vec<String> = manager
+            // Non-blocking: set restart flags for all running processes
+            // Stopped processes stay stopped
+            let running_count = manager
                 .get_all_statuses()
                 .into_iter()
-                .map(|(n, _)| n)
-                .collect();
-            if names.is_empty() {
-                app.display.set_status_error("No processes to restart".to_string());
+                .filter(|(_, status)| *status == ProcessStatus::Running)
+                .count();
+            if running_count == 0 {
+                app.display.set_status_error("No running processes to restart".to_string());
             } else {
                 manager.set_all_restarting();
-                app.display.set_status_info(format!("Restarting {} process(es)...", names.len()));
+                app.display.set_status_info(format!("Restarting {} process(es)...", running_count));
             }
         }
         IpcAction::KillProcess { name } => {

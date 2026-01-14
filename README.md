@@ -110,6 +110,13 @@ oit --init -f Procfile.dev
 oit
 ```
 
+To start only specific processes:
+
+```bash
+oit web worker     # Start only web and worker processes
+oit web            # Start only the web process
+```
+
 Or specify a custom config file or Procfile:
 
 ```bash

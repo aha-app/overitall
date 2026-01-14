@@ -19,6 +19,7 @@ Any optimization MUST include before/after benchmarks. Document results in commi
 ## Documentation
 - Add new features in README.md
 - Add commands and keys in the help system
+- Update the man doc
 - Document new architecture patterns very concisely in ARCHITECTURE.md, only write out how it works, do not add discussion on pros/cons
 
 ## Git

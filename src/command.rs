@@ -314,12 +314,17 @@ impl<'a> CommandExecutor<'a> {
 
     fn execute_restart_all(&mut self) -> Result<()> {
         // Non-blocking: just set the status and let the main loop handle the actual restart
-        let names: Vec<String> = self.manager.get_all_statuses().into_iter().map(|(n, _)| n).collect();
-        if names.is_empty() {
-            self.app.display.set_status_error("No processes to restart".to_string());
+        // Only restarts running processes - stopped processes stay stopped
+        use crate::process::ProcessStatus;
+        let running_count = self.manager.get_all_statuses()
+            .into_iter()
+            .filter(|(_, status)| *status == ProcessStatus::Running)
+            .count();
+        if running_count == 0 {
+            self.app.display.set_status_error("No running processes to restart".to_string());
         } else {
             self.manager.set_all_restarting();
-            self.app.display.set_status_info(format!("Restarting {} process(es)...", names.len()));
+            self.app.display.set_status_info(format!("Restarting {} process(es)...", running_count));
         }
         Ok(())
     }

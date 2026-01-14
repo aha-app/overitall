@@ -61,6 +61,7 @@ mod tests {
             max_log_buffer_mb: None,
             hidden_processes: Vec::new(),
             ignored_processes: Vec::new(),
+            start_processes: Vec::new(),
             disable_auto_update: None,
             compact_mode: None,
             colors: std::collections::HashMap::new(),
