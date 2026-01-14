@@ -362,10 +362,13 @@ impl ProcessManager {
         }
     }
 
-    /// Set all processes to Restarting status (fast, non-blocking)
+    /// Set all running processes to Restarting status (fast, non-blocking)
+    /// Only restarts processes that are currently Running - stopped processes stay stopped
     pub fn set_all_restarting(&mut self) {
         for (_name, process) in self.processes.iter_mut() {
-            process.status = ProcessStatus::Restarting;
+            if process.status == ProcessStatus::Running {
+                process.status = ProcessStatus::Restarting;
+            }
         }
     }
 
@@ -807,13 +810,20 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_set_all_restarting() {
+    async fn test_set_all_restarting_only_affects_running() {
         let mut manager = ProcessManager::new();
         manager.add_process("proc1".to_string(), "sleep 10".to_string(), None, None);
         manager.add_process("proc2".to_string(), "sleep 10".to_string(), None, None);
+        manager.add_process("proc3".to_string(), "sleep 10".to_string(), None, None);
+
+        // Start only proc1 and proc2
+        manager.start_process("proc1").await.unwrap();
+        manager.start_process("proc2").await.unwrap();
+        // proc3 stays stopped
 
         manager.set_all_restarting();
 
+        // Running processes should be set to Restarting
         assert_eq!(
             manager.get_status("proc1"),
             Some(ProcessStatus::Restarting)
@@ -822,6 +832,13 @@ mod tests {
             manager.get_status("proc2"),
             Some(ProcessStatus::Restarting)
         );
+        // Stopped process should stay stopped
+        assert_eq!(
+            manager.get_status("proc3"),
+            Some(ProcessStatus::Stopped)
+        );
+
+        manager.kill_all().await.unwrap();
     }
 
     #[tokio::test]

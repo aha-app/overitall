@@ -703,17 +703,18 @@ async fn apply_ipc_action(
             }
         }
         IpcAction::RestartAllProcesses => {
-            // Non-blocking: set restart flags for all processes
-            let names: Vec<String> = manager
+            // Non-blocking: set restart flags for all running processes
+            // Stopped processes stay stopped
+            let running_count = manager
                 .get_all_statuses()
                 .into_iter()
-                .map(|(n, _)| n)
-                .collect();
-            if names.is_empty() {
-                app.display.set_status_error("No processes to restart".to_string());
+                .filter(|(_, status)| *status == ProcessStatus::Running)
+                .count();
+            if running_count == 0 {
+                app.display.set_status_error("No running processes to restart".to_string());
             } else {
                 manager.set_all_restarting();
-                app.display.set_status_info(format!("Restarting {} process(es)...", names.len()));
+                app.display.set_status_info(format!("Restarting {} process(es)...", running_count));
             }
         }
         IpcAction::KillProcess { name } => {
