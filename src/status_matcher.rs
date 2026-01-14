@@ -51,8 +51,8 @@ impl StatusMatcher {
             default: config.default.clone(),
             default_color,
             transitions,
-            current_label: config.default.clone(),
-            current_color: default_color,
+            current_label: None,
+            current_color: None,
         })
     }
 
@@ -137,10 +137,21 @@ mod tests {
     }
 
     #[test]
-    fn test_default_label_on_creation() {
+    fn test_no_default_label_on_creation() {
         let config = make_config(Some("Preparing"), vec![]);
 
         let matcher = StatusMatcher::new(&config).unwrap();
+
+        // Default is not applied until reset() is called (i.e., when process starts)
+        assert!(matcher.get_display_status().is_none());
+    }
+
+    #[test]
+    fn test_default_label_after_reset() {
+        let config = make_config(Some("Preparing"), vec![]);
+
+        let mut matcher = StatusMatcher::new(&config).unwrap();
+        matcher.reset();
 
         let status = matcher.get_display_status();
         assert!(status.is_some());
@@ -200,6 +211,7 @@ mod tests {
         let config = make_config(Some("Starting"), vec![("Ready", "Ready", Some("green"))]);
 
         let mut matcher = StatusMatcher::new(&config).unwrap();
+        matcher.reset(); // Apply default status (simulates process start)
 
         let changed = matcher.check_line("Some unrelated log line");
         assert!(!changed);
@@ -347,14 +359,15 @@ mod tests {
     }
 
     #[test]
-    fn test_default_color_on_creation() {
+    fn test_default_color_after_reset() {
         let config = make_config_with_color(
             Some("Building"),
             Some("yellow"),
             vec![("Ready", "Ready", Some("green"))],
         );
 
-        let matcher = StatusMatcher::new(&config).unwrap();
+        let mut matcher = StatusMatcher::new(&config).unwrap();
+        matcher.reset(); // Apply default status (simulates process start)
 
         let status = matcher.get_display_status();
         assert!(status.is_some());
@@ -394,7 +407,8 @@ mod tests {
             vec![],
         );
 
-        let matcher = StatusMatcher::new(&config).unwrap();
+        let mut matcher = StatusMatcher::new(&config).unwrap();
+        matcher.reset(); // Apply default status (simulates process start)
 
         let status = matcher.get_display_status();
         assert!(status.is_some());

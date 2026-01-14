@@ -87,6 +87,9 @@ impl ProcessHandle {
             return Ok(());
         }
 
+        // Apply default status label when starting
+        self.reset_status();
+
         // Execute command through shell (handles quotes, spaces, variables, pipes, etc.)
         let mut cmd = Command::new("sh");
         cmd.args(&["-c", &self.command]);
@@ -503,6 +506,14 @@ impl ProcessManager {
         }
     }
 
+    #[doc(hidden)]
+    /// Reset a process's custom status to its default (for testing)
+    pub fn reset_process_status(&mut self, name: &str) {
+        if let Some(handle) = self.processes.get_mut(name) {
+            handle.reset_status();
+        }
+    }
+
     /// Add a log file to tail for a specific process
     pub async fn add_log_file(&mut self, process_name: String, path: PathBuf) -> Result<()> {
         let mut reader = FileReader::new(process_name, path);
@@ -885,7 +896,7 @@ mod tests {
     }
 
     #[test]
-    fn test_process_handle_with_status_config_default() {
+    fn test_process_handle_with_status_config_no_default_until_start() {
         use crate::config::{StatusConfig, StatusTransition};
         let config = StatusConfig {
             default: Some("Starting".to_string()),
@@ -905,6 +916,34 @@ mod tests {
             None,
             Some(&config),
         );
+
+        // Default is not applied until reset_status() is called (which happens in start())
+        assert!(handle.get_custom_status().is_none());
+    }
+
+    #[test]
+    fn test_process_handle_with_status_config_default_after_reset() {
+        use crate::config::{StatusConfig, StatusTransition};
+        let config = StatusConfig {
+            default: Some("Starting".to_string()),
+            color: None,
+            transitions: vec![
+                StatusTransition {
+                    pattern: "Ready".to_string(),
+                    label: "Ready".to_string(),
+                    color: Some("green".to_string()),
+                },
+            ],
+        };
+
+        let mut handle = ProcessHandle::new(
+            "test".to_string(),
+            "echo hello".to_string(),
+            None,
+            Some(&config),
+        );
+
+        handle.reset_status(); // Simulates what happens in start()
 
         let status = handle.get_custom_status();
         assert!(status.is_some());
@@ -937,6 +976,7 @@ mod tests {
             Some(&config),
         );
 
+        handle.reset_status(); // Simulates process start
         assert_eq!(handle.get_custom_status().unwrap().0, "Starting");
 
         let changed = handle.check_log_line("Server ready to accept connections");
@@ -969,6 +1009,8 @@ mod tests {
             None,
             Some(&config),
         );
+
+        handle.reset_status(); // Simulates process start
 
         let changed = handle.check_log_line("Some unrelated log message");
         assert!(!changed);
@@ -1053,8 +1095,11 @@ mod tests {
         let mut manager = ProcessManager::new();
         manager.add_process("web".to_string(), "echo hi".to_string(), None, Some(&config));
 
-        // Verify initial status
-        let handle = manager.processes.get("web").unwrap();
+        // Simulate process start (applies default status)
+        let handle = manager.processes.get_mut("web").unwrap();
+        handle.reset_status();
+
+        // Verify initial status after start
         assert_eq!(handle.get_custom_status().unwrap().0, "Starting");
 
         // Add a log directly to the channel
@@ -1067,8 +1112,9 @@ mod tests {
         let mut manager = ProcessManager::new();
         manager.add_process("web".to_string(), "echo hi".to_string(), None, Some(&config));
 
-        // Test check_log_line directly since we can't easily access the internal channel
+        // Simulate process start and test check_log_line
         let handle = manager.processes.get_mut("web").unwrap();
+        handle.reset_status();
         let changed = handle.check_log_line("Server ready to accept connections");
         assert!(changed);
 
@@ -1140,6 +1186,7 @@ mod tests {
         manager.add_process("web".to_string(), "echo hi".to_string(), None, Some(&config));
 
         let handle = manager.processes.get_mut("web").unwrap();
+        handle.reset_status(); // Simulates process start
         assert_eq!(handle.get_custom_status().unwrap().0, "Starting");
 
         // First transition
