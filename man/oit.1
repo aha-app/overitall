@@ -8,6 +8,7 @@ oit \- process and log management TUI
 [\fB\-\-init\fR]
 [\fB\-\-no\-update\fR]
 [\fB\-\-update\fR]
+[\fIprocess\fR ...]
 .br
 .B oit
 \fIcommand\fR [\fIargs\fR]
@@ -41,6 +42,12 @@ Print version information.
 .TP
 .BR \-h ", " \-\-help
 Print help information.
+.TP
+.I process ...
+Optional process names to start. If specified, only these processes will
+auto-start; others remain stopped but visible. Overrides the
+\fBstart_processes\fR config option. Use \fB:s\fR command to start stopped
+processes later.
 .SH QUICK START
 .IP 1. 3
 Create a Procfile with your processes:
@@ -342,6 +349,11 @@ Array of process names to hide from log viewer.
 .B ignored_processes
 Array of process names to skip entirely.
 .TP
+.B start_processes
+Array of process names to auto-start. If empty or omitted, all processes
+start automatically. Processes not in this list remain stopped but visible;
+use \fB:s\fR to start them manually. CLI arguments override this setting.
+.TP
 .B max_log_buffer_mb
 Maximum memory for log buffer in megabytes (default: 50).
 .TP
@@ -391,6 +403,14 @@ Use a different Procfile:
 .RS
 .nf
 oit -f Procfile.dev
+.fi
+.RE
+.PP
+Start only specific processes:
+.PP
+.RS
+.nf
+oit web worker
 .fi
 .RE
 .PP
