@@ -296,6 +296,7 @@ hidden_processes = ["worker"]
 - `filters.exclude` - Array of regex patterns to exclude
 - `hidden_processes` - Array of process names to hide from log viewer (automatically saved)
 - `ignored_processes` - Array of process names to skip entirely (not started at all)
+- `start_processes` - Array of process names to auto-start (if empty, all processes start)
 - `max_log_buffer_mb` - Maximum memory for log buffer in megabytes (default: 50)
 - `batch_window_ms` - Batch grouping window in milliseconds (default: 100)
 - `context_copy_seconds` - Time window for X (contextual copy) in seconds (default: 1.0)
@@ -324,6 +325,24 @@ path = "log/sidekiq.log"
 Standalone log files appear in the process list with a `[LOG]` indicator instead of a process status. You can hide/show them using the same commands as processes (`:hide rails`, `:show rails`).
 
 Note: You cannot start, stop, or restart standalone log files - these commands are only for processes.
+
+### Selective Process Start
+
+Control which processes auto-start when launching `oit`:
+
+```toml
+# Only auto-start web and worker (other processes remain stopped)
+start_processes = ["web", "worker"]
+```
+
+CLI arguments override the config:
+
+```bash
+oit web worker     # Start only web and worker (ignores config)
+oit                # Uses start_processes from config
+```
+
+Processes that don't auto-start are still available in the TUI - use `:s <name>` to start them manually. This differs from `ignored_processes`, which completely excludes processes from the TUI.
 
 ### Custom Process Status Labels
 
