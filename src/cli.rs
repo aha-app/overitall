@@ -452,6 +452,7 @@ pub fn init_config(config_path: &str, procfile_override: Option<&str>) -> anyhow
             colors: std::collections::HashMap::new(),
             process_coloring: Some(true),
             context_copy_seconds: None,
+            groups: std::collections::HashMap::new(),
             config_path: None,
         };
 

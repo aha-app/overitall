@@ -31,6 +31,8 @@ pub struct Config {
     pub process_coloring: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context_copy_seconds: Option<f64>,
+    #[serde(default)]
+    pub groups: HashMap<String, Vec<String>>,
 
     // This field is not serialized, just used at runtime
     #[serde(skip)]
@@ -138,6 +140,33 @@ impl Config {
             }
         }
 
+        for (group_name, members) in &self.groups {
+            if process_set.contains(group_name.as_str()) {
+                anyhow::bail!(
+                    "Group name '{}' conflicts with a process name",
+                    group_name
+                );
+            }
+            if log_file_names.contains(group_name.as_str()) {
+                anyhow::bail!(
+                    "Group name '{}' conflicts with a log file name",
+                    group_name
+                );
+            }
+            if members.is_empty() {
+                anyhow::bail!("Group '{}' cannot be empty", group_name);
+            }
+            for member in members {
+                if !process_set.contains(member.as_str()) {
+                    anyhow::bail!(
+                        "Group '{}' contains unknown process '{}'",
+                        group_name,
+                        member
+                    );
+                }
+            }
+        }
+
         Ok(())
     }
 }
@@ -164,6 +193,7 @@ mod tests {
             colors: HashMap::new(),
             process_coloring: None,
             context_copy_seconds: None,
+            groups: HashMap::new(),
             config_path: None,
         }
     }
@@ -1104,5 +1134,143 @@ procfile = "Procfile"
         let result = config.validate(&process_names);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("start_processes contains unknown process"));
+    }
+
+    #[test]
+    fn test_groups_loads_from_config() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(
+            temp_file,
+            r#"
+procfile = "Procfile"
+
+[groups]
+rails = ["puma", "workers"]
+frontend = ["webpack", "esbuild"]
+"#
+        )
+        .unwrap();
+
+        let config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert_eq!(config.groups.len(), 2);
+        assert_eq!(config.groups.get("rails"), Some(&vec!["puma".to_string(), "workers".to_string()]));
+        assert_eq!(config.groups.get("frontend"), Some(&vec!["webpack".to_string(), "esbuild".to_string()]));
+    }
+
+    #[test]
+    fn test_groups_defaults_to_empty() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(
+            temp_file,
+            r#"
+procfile = "Procfile"
+"#
+        )
+        .unwrap();
+
+        let config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert!(config.groups.is_empty());
+    }
+
+    #[test]
+    fn test_groups_roundtrip() {
+        let mut groups = HashMap::new();
+        groups.insert("rails".to_string(), vec!["puma".to_string(), "workers".to_string()]);
+        groups.insert("frontend".to_string(), vec!["webpack".to_string()]);
+
+        let config = Config {
+            groups,
+            ..test_config()
+        };
+
+        let temp_file = NamedTempFile::new().unwrap();
+        config.save(temp_file.path().to_str().unwrap()).unwrap();
+
+        let loaded = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert_eq!(loaded.groups.len(), 2);
+        assert_eq!(loaded.groups.get("rails"), Some(&vec!["puma".to_string(), "workers".to_string()]));
+        assert_eq!(loaded.groups.get("frontend"), Some(&vec!["webpack".to_string()]));
+    }
+
+    #[test]
+    fn test_validate_passes_with_valid_groups() {
+        let mut groups = HashMap::new();
+        groups.insert("rails".to_string(), vec!["web".to_string(), "worker".to_string()]);
+
+        let config = Config {
+            groups,
+            ..test_config()
+        };
+
+        let process_names = vec!["web".to_string(), "worker".to_string(), "scheduler".to_string()];
+        assert!(config.validate(&process_names).is_ok());
+    }
+
+    #[test]
+    fn test_validate_fails_when_group_name_conflicts_with_process() {
+        let mut groups = HashMap::new();
+        groups.insert("web".to_string(), vec!["worker".to_string()]);
+
+        let config = Config {
+            groups,
+            ..test_config()
+        };
+
+        let process_names = vec!["web".to_string(), "worker".to_string()];
+        let result = config.validate(&process_names);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Group name 'web' conflicts with a process name"));
+    }
+
+    #[test]
+    fn test_validate_fails_when_group_name_conflicts_with_log_file() {
+        let mut groups = HashMap::new();
+        groups.insert("rails".to_string(), vec!["web".to_string()]);
+
+        let config = Config {
+            log_files: vec![LogFileConfig {
+                name: "rails".to_string(),
+                path: PathBuf::from("log/development.log"),
+            }],
+            groups,
+            ..test_config()
+        };
+
+        let process_names = vec!["web".to_string(), "worker".to_string()];
+        let result = config.validate(&process_names);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Group name 'rails' conflicts with a log file name"));
+    }
+
+    #[test]
+    fn test_validate_fails_when_group_contains_unknown_process() {
+        let mut groups = HashMap::new();
+        groups.insert("rails".to_string(), vec!["web".to_string(), "unknown".to_string()]);
+
+        let config = Config {
+            groups,
+            ..test_config()
+        };
+
+        let process_names = vec!["web".to_string(), "worker".to_string()];
+        let result = config.validate(&process_names);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Group 'rails' contains unknown process 'unknown'"));
+    }
+
+    #[test]
+    fn test_validate_fails_when_group_is_empty() {
+        let mut groups = HashMap::new();
+        groups.insert("empty".to_string(), vec![]);
+
+        let config = Config {
+            groups,
+            ..test_config()
+        };
+
+        let process_names = vec!["web".to_string(), "worker".to_string()];
+        let result = config.validate(&process_names);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Group 'empty' cannot be empty"));
     }
 }
