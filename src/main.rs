@@ -327,7 +327,7 @@ async fn run_app(
             // Poll for incoming commands
             if let Ok(requests) = server.poll_commands() {
                 for (conn_id, request) in requests {
-                    let snapshot = create_state_snapshot(app, manager);
+                    let snapshot = create_state_snapshot(app, manager, config);
                     let handler_result = ipc_handler.handle(&request, Some(&snapshot));
 
                     // Process any actions from the handler
@@ -535,7 +535,7 @@ fn color_to_string(color: Color) -> String {
 }
 
 /// Create a StateSnapshot from current App and ProcessManager state for IPC commands
-fn create_state_snapshot(app: &App, manager: &ProcessManager) -> StateSnapshot {
+fn create_state_snapshot(app: &App, manager: &ProcessManager, config: &Config) -> StateSnapshot {
     // Build process info list
     let processes: Vec<ProcessInfo> = manager
         .get_processes()
@@ -605,6 +605,7 @@ fn create_state_snapshot(app: &App, manager: &ProcessManager) -> StateSnapshot {
     StateSnapshot {
         processes,
         log_files: manager.get_standalone_log_file_names(),
+        groups: config.groups.clone(),
         filter_count: app.filters.filters.len(),
         active_filters,
         search_pattern: if app.input.search_pattern.is_empty() {

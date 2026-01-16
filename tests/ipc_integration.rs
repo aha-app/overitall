@@ -296,7 +296,7 @@ async fn test_restart_specific_process() {
     assert!(received.success);
     let result = received.result.unwrap();
     assert_eq!(result["restarting"], true);
-    assert_eq!(result["process"], "web");
+    assert_eq!(result["processes"], serde_json::json!(["web"]));
 }
 
 /// Restart command without process name restarts all
@@ -367,7 +367,7 @@ async fn test_kill_process() {
     assert!(received.success);
     let result = received.result.unwrap();
     assert_eq!(result["killed"], true);
-    assert_eq!(result["name"], "worker");
+    assert_eq!(result["names"], serde_json::json!(["worker"]));
 }
 
 /// Kill command without name returns error
@@ -436,7 +436,7 @@ async fn test_start_process() {
     assert!(received.success);
     let result = received.result.unwrap();
     assert_eq!(result["started"], true);
-    assert_eq!(result["name"], "api");
+    assert_eq!(result["names"], serde_json::json!(["api"]));
 }
 
 /// Start command without name returns error
@@ -498,6 +498,7 @@ fn test_snapshot_with_logs(logs: Vec<LogLineInfo>) -> StateSnapshot {
             },
         ],
         log_files: vec![],
+        groups: std::collections::HashMap::new(),
         filter_count: 0,
         active_filters: vec![],
         search_pattern: None,
@@ -670,6 +671,7 @@ async fn test_summary_command_returns_comprehensive_state() {
             },
         ],
         log_files: vec![],
+        groups: std::collections::HashMap::new(),
         filter_count: 2,
         active_filters: vec![
             FilterInfo {

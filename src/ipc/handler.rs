@@ -3,6 +3,7 @@ use serde_json::{json, Value};
 use super::action::{IpcAction, IpcHandlerResult};
 use super::protocol::{IpcRequest, IpcResponse};
 use super::state::StateSnapshot;
+use crate::group::GroupResolver;
 
 /// Handles IPC commands from CLI clients
 ///
@@ -36,8 +37,8 @@ impl IpcCommandHandler {
             "filter_remove" => self.handle_filter_remove(&request.args),
             "filter_clear" => self.handle_filter_clear(),
             "visibility" => IpcHandlerResult::response_only(self.handle_visibility(state)),
-            "hide" => self.handle_hide(&request.args),
-            "show" => self.handle_show(&request.args),
+            "hide" => self.handle_hide(&request.args, state),
+            "show" => self.handle_show(&request.args, state),
             "restart" => self.handle_restart(&request.args, state),
             "kill" => self.handle_kill(&request.args, state),
             "start" => self.handle_start(&request.args, state),
@@ -610,30 +611,44 @@ impl IpcCommandHandler {
         }
     }
 
-    fn handle_hide(&self, args: &Value) -> IpcHandlerResult {
+    fn handle_hide(&self, args: &Value, state: Option<&StateSnapshot>) -> IpcHandlerResult {
         // Process name is required
         let name = match args.get("name").and_then(|v| v.as_str()) {
-            Some(n) => n.to_string(),
+            Some(n) => n,
             None => {
                 return IpcHandlerResult::response_only(IpcResponse::err(
                     "missing required argument: name".to_string(),
                 ));
             }
         };
+
+        // Resolve groups if state is available
+        let resolved: Vec<String> = if let Some(s) = state {
+            let process_names: Vec<String> = s.processes.iter().map(|p| p.name.clone()).collect();
+            let resolver = GroupResolver::new(&s.groups, process_names);
+            resolver.resolve(name)
+        } else {
+            vec![name.to_string()]
+        };
+
+        let actions: Vec<IpcAction> = resolved
+            .iter()
+            .map(|n| IpcAction::HideProcess { name: n.clone() })
+            .collect();
 
         IpcHandlerResult::with_actions(
             IpcResponse::ok(json!({
                 "hidden": true,
-                "name": name
+                "names": resolved
             })),
-            vec![IpcAction::HideProcess { name }],
+            actions,
         )
     }
 
-    fn handle_show(&self, args: &Value) -> IpcHandlerResult {
+    fn handle_show(&self, args: &Value, state: Option<&StateSnapshot>) -> IpcHandlerResult {
         // Process name is required
         let name = match args.get("name").and_then(|v| v.as_str()) {
-            Some(n) => n.to_string(),
+            Some(n) => n,
             None => {
                 return IpcHandlerResult::response_only(IpcResponse::err(
                     "missing required argument: name".to_string(),
@@ -641,12 +656,26 @@ impl IpcCommandHandler {
             }
         };
 
+        // Resolve groups if state is available
+        let resolved: Vec<String> = if let Some(s) = state {
+            let process_names: Vec<String> = s.processes.iter().map(|p| p.name.clone()).collect();
+            let resolver = GroupResolver::new(&s.groups, process_names);
+            resolver.resolve(name)
+        } else {
+            vec![name.to_string()]
+        };
+
+        let actions: Vec<IpcAction> = resolved
+            .iter()
+            .map(|n| IpcAction::ShowProcess { name: n.clone() })
+            .collect();
+
         IpcHandlerResult::with_actions(
             IpcResponse::ok(json!({
                 "shown": true,
-                "name": name
+                "names": resolved
             })),
-            vec![IpcAction::ShowProcess { name }],
+            actions,
         )
     }
 
@@ -656,24 +685,39 @@ impl IpcCommandHandler {
 
         match name {
             Some(name) => {
-                // Check if it's a standalone log file
+                // Resolve groups if state is available
+                let resolved: Vec<String> = if let Some(s) = state {
+                    let process_names: Vec<String> =
+                        s.processes.iter().map(|p| p.name.clone()).collect();
+                    let resolver = GroupResolver::new(&s.groups, process_names);
+                    resolver.resolve(name)
+                } else {
+                    vec![name.to_string()]
+                };
+
+                // Check for log files in resolved names
                 if let Some(s) = state {
-                    if s.log_files.contains(&name.to_string()) {
-                        return IpcHandlerResult::response_only(IpcResponse::err(format!(
-                            "Cannot restart log file: {}",
-                            name
-                        )));
+                    for n in &resolved {
+                        if s.log_files.contains(n) {
+                            return IpcHandlerResult::response_only(IpcResponse::err(format!(
+                                "Cannot restart log file: {}",
+                                n
+                            )));
+                        }
                     }
                 }
-                // Restart specific process
+
+                let actions: Vec<IpcAction> = resolved
+                    .iter()
+                    .map(|n| IpcAction::RestartProcess { name: n.clone() })
+                    .collect();
+
                 IpcHandlerResult::with_actions(
                     IpcResponse::ok(json!({
                         "restarting": true,
-                        "process": name
+                        "processes": resolved
                     })),
-                    vec![IpcAction::RestartProcess {
-                        name: name.to_string(),
-                    }],
+                    actions,
                 )
             }
             None => {
@@ -692,7 +736,7 @@ impl IpcCommandHandler {
     fn handle_kill(&self, args: &Value, state: Option<&StateSnapshot>) -> IpcHandlerResult {
         // Process name is required
         let name = match args.get("name").and_then(|v| v.as_str()) {
-            Some(n) => n.to_string(),
+            Some(n) => n,
             None => {
                 return IpcHandlerResult::response_only(IpcResponse::err(
                     "missing required argument: name".to_string(),
@@ -700,29 +744,45 @@ impl IpcCommandHandler {
             }
         };
 
-        // Check if it's a standalone log file
+        // Resolve groups if state is available
+        let resolved: Vec<String> = if let Some(s) = state {
+            let process_names: Vec<String> = s.processes.iter().map(|p| p.name.clone()).collect();
+            let resolver = GroupResolver::new(&s.groups, process_names);
+            resolver.resolve(name)
+        } else {
+            vec![name.to_string()]
+        };
+
+        // Check for log files in resolved names
         if let Some(s) = state {
-            if s.log_files.contains(&name) {
-                return IpcHandlerResult::response_only(IpcResponse::err(format!(
-                    "Cannot stop log file: {}",
-                    name
-                )));
+            for n in &resolved {
+                if s.log_files.contains(n) {
+                    return IpcHandlerResult::response_only(IpcResponse::err(format!(
+                        "Cannot stop log file: {}",
+                        n
+                    )));
+                }
             }
         }
+
+        let actions: Vec<IpcAction> = resolved
+            .iter()
+            .map(|n| IpcAction::KillProcess { name: n.clone() })
+            .collect();
 
         IpcHandlerResult::with_actions(
             IpcResponse::ok(json!({
                 "killed": true,
-                "name": name
+                "names": resolved
             })),
-            vec![IpcAction::KillProcess { name }],
+            actions,
         )
     }
 
     fn handle_start(&self, args: &Value, state: Option<&StateSnapshot>) -> IpcHandlerResult {
         // Process name is required
         let name = match args.get("name").and_then(|v| v.as_str()) {
-            Some(n) => n.to_string(),
+            Some(n) => n,
             None => {
                 return IpcHandlerResult::response_only(IpcResponse::err(
                     "missing required argument: name".to_string(),
@@ -730,22 +790,38 @@ impl IpcCommandHandler {
             }
         };
 
-        // Check if it's a standalone log file
+        // Resolve groups if state is available
+        let resolved: Vec<String> = if let Some(s) = state {
+            let process_names: Vec<String> = s.processes.iter().map(|p| p.name.clone()).collect();
+            let resolver = GroupResolver::new(&s.groups, process_names);
+            resolver.resolve(name)
+        } else {
+            vec![name.to_string()]
+        };
+
+        // Check for log files in resolved names
         if let Some(s) = state {
-            if s.log_files.contains(&name) {
-                return IpcHandlerResult::response_only(IpcResponse::err(format!(
-                    "Cannot start log file: {}",
-                    name
-                )));
+            for n in &resolved {
+                if s.log_files.contains(n) {
+                    return IpcHandlerResult::response_only(IpcResponse::err(format!(
+                        "Cannot start log file: {}",
+                        n
+                    )));
+                }
             }
         }
+
+        let actions: Vec<IpcAction> = resolved
+            .iter()
+            .map(|n| IpcAction::StartProcess { name: n.clone() })
+            .collect();
 
         IpcHandlerResult::with_actions(
             IpcResponse::ok(json!({
                 "started": true,
-                "name": name
+                "names": resolved
             })),
-            vec![IpcAction::StartProcess { name }],
+            actions,
         )
     }
 
@@ -1381,6 +1457,7 @@ mod tests {
                 },
             ],
             log_files: Vec::new(),
+            groups: std::collections::HashMap::new(),
             filter_count: 3,
             active_filters: vec![],
             search_pattern: Some("error".to_string()),
@@ -1469,6 +1546,7 @@ mod tests {
                 },
             ],
             log_files: Vec::new(),
+            groups: std::collections::HashMap::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -1525,6 +1603,7 @@ mod tests {
         let snapshot = StateSnapshot {
             processes: vec![],
             log_files: Vec::new(),
+            groups: std::collections::HashMap::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -1586,6 +1665,7 @@ mod tests {
         let snapshot = StateSnapshot {
             processes: vec![],
             log_files: Vec::new(),
+            groups: std::collections::HashMap::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -1681,6 +1761,7 @@ mod tests {
         let snapshot = StateSnapshot {
             processes: vec![],
             log_files: Vec::new(),
+            groups: std::collections::HashMap::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -1760,6 +1841,7 @@ mod tests {
         let snapshot = StateSnapshot {
             processes: vec![],
             log_files: Vec::new(),
+            groups: std::collections::HashMap::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -1819,6 +1901,7 @@ mod tests {
         let snapshot = StateSnapshot {
             processes: vec![],
             log_files: Vec::new(),
+            groups: std::collections::HashMap::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -1897,6 +1980,7 @@ mod tests {
         let snapshot = StateSnapshot {
             processes: vec![],
             log_files: Vec::new(),
+            groups: std::collections::HashMap::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -1934,6 +2018,7 @@ mod tests {
         let snapshot = StateSnapshot {
             processes: vec![],
             log_files: Vec::new(),
+            groups: std::collections::HashMap::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -2069,6 +2154,7 @@ mod tests {
         let snapshot = StateSnapshot {
             processes: vec![],
             log_files: Vec::new(),
+            groups: std::collections::HashMap::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -2124,6 +2210,7 @@ mod tests {
         let snapshot = StateSnapshot {
             processes: vec![],
             log_files: Vec::new(),
+            groups: std::collections::HashMap::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -2161,6 +2248,7 @@ mod tests {
         let snapshot = StateSnapshot {
             processes: vec![],
             log_files: Vec::new(),
+            groups: std::collections::HashMap::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -2386,6 +2474,7 @@ mod tests {
         let snapshot = StateSnapshot {
             processes: vec![],
             log_files: Vec::new(),
+            groups: std::collections::HashMap::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -2429,6 +2518,7 @@ mod tests {
         let snapshot = StateSnapshot {
             processes: vec![],
             log_files: Vec::new(),
+            groups: std::collections::HashMap::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -2563,6 +2653,7 @@ mod tests {
         let snapshot = StateSnapshot {
             processes: vec![],
             log_files: Vec::new(),
+            groups: std::collections::HashMap::new(),
             filter_count: 2,
             active_filters: vec![
                 FilterInfo {
@@ -2755,6 +2846,7 @@ mod tests {
                 },
             ],
             log_files: Vec::new(),
+            groups: std::collections::HashMap::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -2813,7 +2905,7 @@ mod tests {
         assert!(result.response.success);
         let data = result.response.result.unwrap();
         assert_eq!(data["hidden"], true);
-        assert_eq!(data["name"], "web");
+        assert_eq!(data["names"], json!(["web"]));
 
         assert_eq!(result.actions.len(), 1);
         assert!(matches!(
@@ -2843,7 +2935,7 @@ mod tests {
         assert!(result.response.success);
         let data = result.response.result.unwrap();
         assert_eq!(data["shown"], true);
-        assert_eq!(data["name"], "worker");
+        assert_eq!(data["names"], json!(["worker"]));
 
         assert_eq!(result.actions.len(), 1);
         assert!(matches!(
@@ -2897,7 +2989,7 @@ mod tests {
         assert!(result.response.success);
         let data = result.response.result.unwrap();
         assert_eq!(data["restarting"], true);
-        assert_eq!(data["process"], "web");
+        assert_eq!(data["processes"], json!(["web"]));
 
         assert_eq!(result.actions.len(), 1);
         assert!(matches!(
@@ -2927,7 +3019,7 @@ mod tests {
         assert!(result.response.success);
         let data = result.response.result.unwrap();
         assert_eq!(data["killed"], true);
-        assert_eq!(data["name"], "worker");
+        assert_eq!(data["names"], json!(["worker"]));
 
         assert_eq!(result.actions.len(), 1);
         assert!(matches!(
@@ -2957,7 +3049,7 @@ mod tests {
         assert!(result.response.success);
         let data = result.response.result.unwrap();
         assert_eq!(data["started"], true);
-        assert_eq!(data["name"], "web");
+        assert_eq!(data["names"], json!(["web"]));
 
         assert_eq!(result.actions.len(), 1);
         assert!(matches!(
@@ -3108,6 +3200,7 @@ mod tests {
         let snapshot = StateSnapshot {
             processes: vec![],
             log_files: Vec::new(),
+            groups: std::collections::HashMap::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -3167,6 +3260,7 @@ mod tests {
         let snapshot = StateSnapshot {
             processes: vec![],
             log_files: Vec::new(),
+            groups: std::collections::HashMap::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -3219,6 +3313,7 @@ mod tests {
         let snapshot = StateSnapshot {
             processes: vec![],
             log_files: Vec::new(),
+            groups: std::collections::HashMap::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -3268,6 +3363,7 @@ mod tests {
         let snapshot = StateSnapshot {
             processes: vec![],
             log_files: Vec::new(),
+            groups: std::collections::HashMap::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -3318,6 +3414,7 @@ mod tests {
         let snapshot = StateSnapshot {
             processes: vec![],
             log_files: Vec::new(),
+            groups: std::collections::HashMap::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -3406,6 +3503,7 @@ mod tests {
                 },
             ],
             log_files: Vec::new(),
+            groups: std::collections::HashMap::new(),
             filter_count: 1,
             active_filters: vec![FilterInfo {
                 pattern: "debug".to_string(),
@@ -3518,6 +3616,7 @@ mod tests {
         let snapshot = StateSnapshot {
             processes: vec![],
             log_files: Vec::new(),
+            groups: std::collections::HashMap::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -3555,6 +3654,7 @@ mod tests {
         let snapshot = StateSnapshot {
             processes: vec![],
             log_files: Vec::new(),
+            groups: std::collections::HashMap::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,
@@ -3619,6 +3719,7 @@ mod tests {
         let snapshot = StateSnapshot {
             processes: vec![],
             log_files: Vec::new(),
+            groups: std::collections::HashMap::new(),
             filter_count: 0,
             active_filters: vec![],
             search_pattern: None,

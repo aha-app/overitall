@@ -2,6 +2,7 @@
 // These are simple data structures passed to the IPC handler for state-dependent commands
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Snapshot of application state for IPC commands
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -11,6 +12,9 @@ pub struct StateSnapshot {
 
     /// Standalone log file names
     pub log_files: Vec<String>,
+
+    /// Process groups for batch operations
+    pub groups: HashMap<String, Vec<String>>,
 
     /// Number of active filters
     pub filter_count: usize,
@@ -136,6 +140,7 @@ impl Default for StateSnapshot {
         Self {
             processes: Vec::new(),
             log_files: Vec::new(),
+            groups: HashMap::new(),
             filter_count: 0,
             active_filters: Vec::new(),
             search_pattern: None,
@@ -284,6 +289,7 @@ mod tests {
                 },
             ],
             log_files: Vec::new(),
+            groups: HashMap::new(),
             filter_count: 2,
             active_filters: vec![
                 FilterInfo {
@@ -374,6 +380,7 @@ mod tests {
                 custom_color: None,
             }],
             log_files: Vec::new(),
+            groups: HashMap::new(),
             filter_count: 1,
             active_filters: vec![FilterInfo {
                 pattern: "info".to_string(),
