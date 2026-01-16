@@ -3813,4 +3813,215 @@ mod tests {
         assert!(arg_names.contains(&"id"));
         assert!(arg_names.contains(&"scroll"));
     }
+
+    // Tests for group resolution in IPC handlers
+
+    fn snapshot_with_groups() -> StateSnapshot {
+        use super::super::state::{BufferStats, ProcessInfo, ViewModeInfo};
+
+        let mut groups = std::collections::HashMap::new();
+        groups.insert(
+            "rails".to_string(),
+            vec!["puma".to_string(), "workers".to_string()],
+        );
+        groups.insert("backend".to_string(), vec!["api".to_string()]);
+
+        StateSnapshot {
+            processes: vec![
+                ProcessInfo {
+                    name: "puma".to_string(),
+                    status: "running".to_string(),
+                    error: None,
+                    custom_label: None,
+                    custom_color: None,
+                },
+                ProcessInfo {
+                    name: "workers".to_string(),
+                    status: "running".to_string(),
+                    error: None,
+                    custom_label: None,
+                    custom_color: None,
+                },
+                ProcessInfo {
+                    name: "api".to_string(),
+                    status: "running".to_string(),
+                    error: None,
+                    custom_label: None,
+                    custom_color: None,
+                },
+            ],
+            log_files: Vec::new(),
+            groups,
+            filter_count: 0,
+            active_filters: vec![],
+            search_pattern: None,
+            view_mode: ViewModeInfo::default(),
+            auto_scroll: true,
+            log_count: 0,
+            buffer_stats: BufferStats::default(),
+            trace_recording: false,
+            active_trace_id: None,
+            recent_logs: Vec::new(),
+            total_log_lines: 0,
+            hidden_processes: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn hide_with_group_resolves_to_members() {
+        let handler = test_handler();
+        let request = IpcRequest::with_args("hide", json!({"name": "rails"}));
+        let snapshot = snapshot_with_groups();
+
+        let result = handler.handle(&request, Some(&snapshot));
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        assert_eq!(data["hidden"], true);
+        assert_eq!(data["names"], json!(["puma", "workers"]));
+
+        assert_eq!(result.actions.len(), 2);
+        assert!(matches!(
+            &result.actions[0],
+            IpcAction::HideProcess { name } if name == "puma"
+        ));
+        assert!(matches!(
+            &result.actions[1],
+            IpcAction::HideProcess { name } if name == "workers"
+        ));
+    }
+
+    #[test]
+    fn show_with_group_resolves_to_members() {
+        let handler = test_handler();
+        let request = IpcRequest::with_args("show", json!({"name": "rails"}));
+        let snapshot = snapshot_with_groups();
+
+        let result = handler.handle(&request, Some(&snapshot));
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        assert_eq!(data["shown"], true);
+        assert_eq!(data["names"], json!(["puma", "workers"]));
+
+        assert_eq!(result.actions.len(), 2);
+        assert!(matches!(
+            &result.actions[0],
+            IpcAction::ShowProcess { name } if name == "puma"
+        ));
+        assert!(matches!(
+            &result.actions[1],
+            IpcAction::ShowProcess { name } if name == "workers"
+        ));
+    }
+
+    #[test]
+    fn restart_with_group_resolves_to_members() {
+        let handler = test_handler();
+        let request = IpcRequest::with_args("restart", json!({"name": "rails"}));
+        let snapshot = snapshot_with_groups();
+
+        let result = handler.handle(&request, Some(&snapshot));
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        assert_eq!(data["restarting"], true);
+        assert_eq!(data["processes"], json!(["puma", "workers"]));
+
+        assert_eq!(result.actions.len(), 2);
+        assert!(matches!(
+            &result.actions[0],
+            IpcAction::RestartProcess { name } if name == "puma"
+        ));
+        assert!(matches!(
+            &result.actions[1],
+            IpcAction::RestartProcess { name } if name == "workers"
+        ));
+    }
+
+    #[test]
+    fn kill_with_group_resolves_to_members() {
+        let handler = test_handler();
+        let request = IpcRequest::with_args("kill", json!({"name": "rails"}));
+        let snapshot = snapshot_with_groups();
+
+        let result = handler.handle(&request, Some(&snapshot));
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        assert_eq!(data["killed"], true);
+        assert_eq!(data["names"], json!(["puma", "workers"]));
+
+        assert_eq!(result.actions.len(), 2);
+        assert!(matches!(
+            &result.actions[0],
+            IpcAction::KillProcess { name } if name == "puma"
+        ));
+        assert!(matches!(
+            &result.actions[1],
+            IpcAction::KillProcess { name } if name == "workers"
+        ));
+    }
+
+    #[test]
+    fn start_with_group_resolves_to_members() {
+        let handler = test_handler();
+        let request = IpcRequest::with_args("start", json!({"name": "rails"}));
+        let snapshot = snapshot_with_groups();
+
+        let result = handler.handle(&request, Some(&snapshot));
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        assert_eq!(data["started"], true);
+        assert_eq!(data["names"], json!(["puma", "workers"]));
+
+        assert_eq!(result.actions.len(), 2);
+        assert!(matches!(
+            &result.actions[0],
+            IpcAction::StartProcess { name } if name == "puma"
+        ));
+        assert!(matches!(
+            &result.actions[1],
+            IpcAction::StartProcess { name } if name == "workers"
+        ));
+    }
+
+    #[test]
+    fn hide_with_single_member_group() {
+        let handler = test_handler();
+        let request = IpcRequest::with_args("hide", json!({"name": "backend"}));
+        let snapshot = snapshot_with_groups();
+
+        let result = handler.handle(&request, Some(&snapshot));
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        assert_eq!(data["names"], json!(["api"]));
+
+        assert_eq!(result.actions.len(), 1);
+        assert!(matches!(
+            &result.actions[0],
+            IpcAction::HideProcess { name } if name == "api"
+        ));
+    }
+
+    #[test]
+    fn hide_with_process_name_not_group() {
+        let handler = test_handler();
+        let request = IpcRequest::with_args("hide", json!({"name": "puma"}));
+        let snapshot = snapshot_with_groups();
+
+        let result = handler.handle(&request, Some(&snapshot));
+
+        assert!(result.response.success);
+        let data = result.response.result.unwrap();
+        assert_eq!(data["names"], json!(["puma"]));
+
+        assert_eq!(result.actions.len(), 1);
+        assert!(matches!(
+            &result.actions[0],
+            IpcAction::HideProcess { name } if name == "puma"
+        ));
+    }
 }
