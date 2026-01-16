@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use ratatui::style::Color;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -262,6 +262,136 @@ impl ProcessHandle {
         self.start(log_tx).await?;
         Ok(())
     }
+
+    /// Apply the result of a background restart operation
+    pub fn apply_restart_result(&mut self, result: RestartSuccess) {
+        // Abort old tasks if they exist
+        if let Some(task) = self.stdout_task.take() {
+            task.abort();
+        }
+        if let Some(task) = self.stderr_task.take() {
+            task.abort();
+        }
+
+        self.child = Some(result.child);
+        self.pgid = result.pgid;
+        self.stdout_task = Some(result.stdout_task);
+        self.stderr_task = Some(result.stderr_task);
+        self.status = ProcessStatus::Running;
+    }
+}
+
+/// Data needed to perform a restart in a background task
+struct RestartData {
+    name: String,
+    command: String,
+    working_dir: Option<PathBuf>,
+    old_pgid: Option<i32>,
+    log_tx: mpsc::UnboundedSender<LogLine>,
+}
+
+/// Successful restart result containing new process handles
+pub struct RestartSuccess {
+    pub child: Child,
+    pub pgid: Option<i32>,
+    pub stdout_task: JoinHandle<()>,
+    pub stderr_task: JoinHandle<()>,
+}
+
+/// Result of a background restart operation
+pub struct RestartResult {
+    pub name: String,
+    pub outcome: Result<RestartSuccess>,
+}
+
+/// Performs a restart operation in a background task
+async fn perform_restart(data: RestartData) -> RestartResult {
+    use anyhow::Context;
+    use nix::sys::signal::{killpg, Signal};
+    use nix::unistd::Pid;
+
+    // Kill old process if it exists
+    if let Some(pgid) = data.old_pgid {
+        let pid = Pid::from_raw(pgid);
+
+        // Try graceful shutdown first with SIGTERM
+        let _ = killpg(pid, Signal::SIGTERM);
+
+        // Wait a bit for graceful shutdown
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+        // Force kill with SIGKILL if still needed
+        let _ = killpg(pid, Signal::SIGKILL);
+    }
+
+    // Start new process
+    let spawn_result = async {
+        let mut cmd = Command::new("sh");
+        cmd.args(&["-c", &data.command]);
+
+        if let Some(ref working_dir) = data.working_dir {
+            cmd.current_dir(working_dir);
+        }
+
+        cmd.process_group(0);
+
+        let mut child = cmd
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .kill_on_drop(true)
+            .spawn()
+            .with_context(|| {
+                format!(
+                    "Failed to spawn process '{}': command='{}'{}",
+                    data.name,
+                    data.command,
+                    data.working_dir
+                        .as_ref()
+                        .map(|d| format!(", working_dir='{}'", d.display()))
+                        .unwrap_or_default()
+                )
+            })?;
+
+        let pgid = child.id().map(|pid| pid as i32);
+
+        // Capture stdout
+        let stdout = child.stdout.take().unwrap();
+        let name = data.name.clone();
+        let tx = data.log_tx.clone();
+        let stdout_task = tokio::spawn(async move {
+            let reader = BufReader::new(stdout);
+            let mut lines = reader.lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                let _ = tx.send(LogLine::new(LogSource::ProcessStdout(name.clone()), line));
+            }
+        });
+
+        // Capture stderr
+        let stderr = child.stderr.take().unwrap();
+        let name = data.name.clone();
+        let tx = data.log_tx;
+        let stderr_task = tokio::spawn(async move {
+            let reader = BufReader::new(stderr);
+            let mut lines = reader.lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                let _ = tx.send(LogLine::new(LogSource::ProcessStderr(name.clone()), line));
+            }
+        });
+
+        Ok(RestartSuccess {
+            child,
+            pgid,
+            stdout_task,
+            stderr_task,
+        })
+    }
+    .await;
+
+    RestartResult {
+        name: data.name,
+        outcome: spawn_result,
+    }
 }
 
 /// Manages multiple processes
@@ -273,6 +403,9 @@ pub struct ProcessManager {
     velocity_tracker: LogVelocityTracker,
     log_tx: mpsc::UnboundedSender<LogLine>,
     log_rx: Option<mpsc::UnboundedReceiver<LogLine>>,
+    restart_rx: mpsc::UnboundedReceiver<RestartResult>,
+    restart_tx: mpsc::UnboundedSender<RestartResult>,
+    restarts_in_flight: HashSet<String>,
 }
 
 impl ProcessManager {
@@ -283,6 +416,7 @@ impl ProcessManager {
 
     pub fn new_with_buffer_limit(max_log_buffer_mb: usize) -> Self {
         let (log_tx, log_rx) = mpsc::unbounded_channel();
+        let (restart_tx, restart_rx) = mpsc::unbounded_channel();
         Self {
             processes: HashMap::new(),
             log_sources: Vec::new(),
@@ -291,6 +425,9 @@ impl ProcessManager {
             velocity_tracker: LogVelocityTracker::default(),
             log_tx,
             log_rx: Some(log_rx),
+            restart_rx,
+            restart_tx,
+            restarts_in_flight: HashSet::new(),
         }
     }
 
@@ -381,20 +518,76 @@ impl ProcessManager {
             .collect()
     }
 
-    /// Perform the actual restart for processes in Restarting status
-    /// This should be called from the event loop after UI has been redrawn
-    /// Returns a tuple of (successfully_restarted, failed) process names
-    pub async fn perform_pending_restarts(&mut self) -> (Vec<String>, Vec<(String, String)>) {
+    /// Spawn background restart tasks for all processes in Restarting status.
+    /// This is non-blocking - the restarts happen in background tasks and results
+    /// are sent via the restart channel. Call poll_restart_completions() to receive results.
+    pub fn spawn_pending_restarts(&mut self) {
         let restarting: Vec<String> = self.get_restarting_processes();
+
+        for name in restarting {
+            // Skip if we've already spawned a restart for this process
+            if self.restarts_in_flight.contains(&name) {
+                continue;
+            }
+
+            if let Some(process) = self.processes.get_mut(&name) {
+                // Collect data needed for restart
+                let restart_data = RestartData {
+                    name: name.clone(),
+                    command: process.command.clone(),
+                    working_dir: process.working_dir.clone(),
+                    old_pgid: process.pgid.take(),
+                    log_tx: self.log_tx.clone(),
+                };
+
+                // Abort old output capture tasks
+                if let Some(task) = process.stdout_task.take() {
+                    task.abort();
+                }
+                if let Some(task) = process.stderr_task.take() {
+                    task.abort();
+                }
+
+                // Clear child handle - we'll set a new one when restart completes
+                process.child = None;
+                process.reset_status();
+
+                // Track that we've spawned this restart
+                self.restarts_in_flight.insert(name.clone());
+
+                // Spawn the restart task
+                let restart_tx = self.restart_tx.clone();
+                tokio::spawn(async move {
+                    let result = perform_restart(restart_data).await;
+                    let _ = restart_tx.send(result);
+                });
+            }
+        }
+    }
+
+    /// Poll for completed restart operations.
+    /// Returns a tuple of (successfully_restarted, failed) process names.
+    /// Failed processes have their status set to Failed.
+    pub fn poll_restart_completions(&mut self) -> (Vec<String>, Vec<(String, String)>) {
         let mut succeeded = Vec::new();
         let mut failed = Vec::new();
 
-        for name in restarting {
-            if let Some(process) = self.processes.get_mut(&name) {
-                let log_tx = self.log_tx.clone();
-                match process.restart(log_tx).await {
-                    Ok(_) => succeeded.push(name),
-                    Err(e) => failed.push((name, e.to_string())),
+        while let Ok(result) = self.restart_rx.try_recv() {
+            // Remove from in-flight tracking
+            self.restarts_in_flight.remove(&result.name);
+
+            match result.outcome {
+                Ok(success) => {
+                    if let Some(process) = self.processes.get_mut(&result.name) {
+                        process.apply_restart_result(success);
+                        succeeded.push(result.name);
+                    }
+                }
+                Err(e) => {
+                    if let Some(process) = self.processes.get_mut(&result.name) {
+                        process.status = ProcessStatus::Failed(e.to_string());
+                    }
+                    failed.push((result.name, e.to_string()));
                 }
             }
         }
@@ -874,7 +1067,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_perform_pending_restarts() {
+    async fn test_spawn_and_poll_restarts() {
         let mut manager = ProcessManager::new();
         manager.add_process("test".to_string(), "echo hello".to_string(), None, None);
 
@@ -886,8 +1079,15 @@ mod tests {
         manager.set_restarting("test");
         assert_eq!(manager.get_status("test"), Some(ProcessStatus::Restarting));
 
-        // Perform the restart
-        let (succeeded, failed) = manager.perform_pending_restarts().await;
+        // Spawn the restart (non-blocking)
+        manager.spawn_pending_restarts();
+
+        // Wait for the restart to complete (background task needs time)
+        // The restart task kills the old process (500ms grace period) then spawns new
+        tokio::time::sleep(tokio::time::Duration::from_millis(700)).await;
+
+        // Poll for completion
+        let (succeeded, failed) = manager.poll_restart_completions();
         assert_eq!(succeeded.len(), 1);
         assert!(succeeded.contains(&"test".to_string()));
         assert!(failed.is_empty());

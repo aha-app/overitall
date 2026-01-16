@@ -362,16 +362,21 @@ async fn run_app(
         }
 
         // Handle pending restarts (after UI has been drawn showing "Restarting" status)
+        // This is non-blocking: spawn_pending_restarts launches background tasks,
+        // poll_restart_completions checks for completed restarts
         if manager.has_pending_restarts() {
-            let (succeeded, failed) = manager.perform_pending_restarts().await;
+            manager.spawn_pending_restarts();
+        }
 
-            // Update status bar with result
-            if !failed.is_empty() {
-                let failed_names: Vec<&str> = failed.iter().map(|(n, _)| n.as_str()).collect();
-                app.display.set_status_error(format!("Restart failed: {}", failed_names.join(", ")));
-            } else if !succeeded.is_empty() {
-                app.display.set_status_success(format!("Restarted: {}", succeeded.join(", ")));
-            }
+        // Check for completed restart operations
+        let (succeeded, failed) = manager.poll_restart_completions();
+        if !failed.is_empty() {
+            let failed_names: Vec<&str> = failed.iter().map(|(n, _)| n.as_str()).collect();
+            app.display.set_status_error(format!("Restart failed: {}", failed_names.join(", ")));
+            needs_redraw = true;
+        } else if !succeeded.is_empty() {
+            app.display.set_status_success(format!("Restarted: {}", succeeded.join(", ")));
+            needs_redraw = true;
         }
 
         // Check if we're shutting down
