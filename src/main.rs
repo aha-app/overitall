@@ -2,6 +2,7 @@ mod cli;
 mod command;
 mod config;
 mod event_handler;
+mod group;
 mod ipc;
 mod log;
 mod operations;

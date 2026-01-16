@@ -64,20 +64,37 @@ pub fn only_process(
     config: &mut Config,
     process: &str,
 ) -> Result<(), String> {
-    if !manager.has_process(process) && !manager.has_standalone_log_file(process) {
-        return Err(format!("Process or log file not found: {}", process));
+    only_processes(app, manager, config, &[process.to_string()])
+}
+
+/// Show only the specified processes or log files, hiding all others.
+/// Returns an error message if any process/log file doesn't exist.
+pub fn only_processes(
+    app: &mut App,
+    manager: &ProcessManager,
+    config: &mut Config,
+    processes: &[String],
+) -> Result<(), String> {
+    use std::collections::HashSet;
+
+    let show_set: HashSet<&str> = processes.iter().map(|s| s.as_str()).collect();
+
+    for process in &show_set {
+        if !manager.has_process(process) && !manager.has_standalone_log_file(process) {
+            return Err(format!("Process or log file not found: {}", process));
+        }
     }
 
     let all_processes: Vec<String> = manager.get_processes().keys().cloned().collect();
     let all_log_files = manager.get_standalone_log_file_names();
     app.filters.hidden_processes.clear();
     for p in all_processes {
-        if p != process {
+        if !show_set.contains(p.as_str()) {
             app.filters.hidden_processes.insert(p);
         }
     }
     for lf in all_log_files {
-        if lf != process {
+        if !show_set.contains(lf.as_str()) {
             app.filters.hidden_processes.insert(lf);
         }
     }

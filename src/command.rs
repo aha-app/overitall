@@ -1,4 +1,5 @@
 use crate::config::Config;
+use crate::group::GroupResolver;
 use crate::operations::{batch, batch_window, coloring, filter, goto, process, traces, visibility};
 use crate::process::ProcessManager;
 use crate::ui::App;
@@ -209,6 +210,11 @@ impl<'a> CommandExecutor<'a> {
         Self { app, manager, config }
     }
 
+    fn create_resolver(&self) -> GroupResolver<'_> {
+        let process_names: Vec<String> = self.manager.get_processes().keys().cloned().collect();
+        GroupResolver::new(&self.config.groups, process_names)
+    }
+
     pub async fn execute(&mut self, command: Command) -> Result<()> {
         match command {
             Command::Quit => {
@@ -285,29 +291,58 @@ impl<'a> CommandExecutor<'a> {
     }
 
     async fn execute_start(&mut self, name: &str) -> Result<()> {
-        // Check if it's a standalone log file first
-        if self.manager.has_standalone_log_file(name) {
-            self.app.display.set_status_error(format!("Cannot start log file: {}", name));
-            return Ok(());
+        let resolved = self.create_resolver().resolve(name);
+        let is_group = resolved.len() > 1;
+
+        let mut started = Vec::new();
+        let mut errors = Vec::new();
+
+        for process_name in resolved {
+            if self.manager.has_standalone_log_file(&process_name) {
+                errors.push(format!("Cannot start log file: {}", process_name));
+                continue;
+            }
+            match process::start_process(self.manager, &process_name).await {
+                Ok(_) => started.push(process_name),
+                Err(msg) => errors.push(msg),
+            }
         }
-        match process::start_process(self.manager, name).await {
-            Ok(msg) => self.app.display.set_status_success(msg),
-            Err(msg) => self.app.display.set_status_error(msg),
+
+        if !errors.is_empty() {
+            self.app.display.set_status_error(errors.join("; "));
+        } else if is_group {
+            self.app.display.set_status_success(format!("Started: {}", started.join(", ")));
+        } else if !started.is_empty() {
+            self.app.display.set_status_success(format!("Started: {}", started[0]));
         }
         Ok(())
     }
 
     fn execute_restart(&mut self, name: &str) -> Result<()> {
-        // Check if it's a standalone log file first
-        if self.manager.has_standalone_log_file(name) {
-            self.app.display.set_status_error(format!("Cannot restart log file: {}", name));
-            return Ok(());
+        let resolved = self.create_resolver().resolve(name);
+        let is_group = resolved.len() > 1;
+
+        let mut restarting = Vec::new();
+        let mut errors = Vec::new();
+
+        for process_name in resolved {
+            if self.manager.has_standalone_log_file(&process_name) {
+                errors.push(format!("Cannot restart log file: {}", process_name));
+                continue;
+            }
+            if self.manager.set_restarting(&process_name) {
+                restarting.push(process_name);
+            } else {
+                errors.push(format!("Process not found: {}", process_name));
+            }
         }
-        // Non-blocking: just set the status and let the main loop handle the actual restart
-        if self.manager.set_restarting(name) {
-            self.app.display.set_status_info(format!("Restarting: {}", name));
-        } else {
-            self.app.display.set_status_error(format!("Process not found: {}", name));
+
+        if !errors.is_empty() {
+            self.app.display.set_status_error(errors.join("; "));
+        } else if is_group {
+            self.app.display.set_status_info(format!("Restarting: {}", restarting.join(", ")));
+        } else if !restarting.is_empty() {
+            self.app.display.set_status_info(format!("Restarting: {}", restarting[0]));
         }
         Ok(())
     }
@@ -330,14 +365,29 @@ impl<'a> CommandExecutor<'a> {
     }
 
     async fn execute_kill(&mut self, name: &str) -> Result<()> {
-        // Check if it's a standalone log file first
-        if self.manager.has_standalone_log_file(name) {
-            self.app.display.set_status_error(format!("Cannot stop log file: {}", name));
-            return Ok(());
+        let resolved = self.create_resolver().resolve(name);
+        let is_group = resolved.len() > 1;
+
+        let mut killed = Vec::new();
+        let mut errors = Vec::new();
+
+        for process_name in resolved {
+            if self.manager.has_standalone_log_file(&process_name) {
+                errors.push(format!("Cannot stop log file: {}", process_name));
+                continue;
+            }
+            match process::kill_process(self.manager, &process_name).await {
+                Ok(_) => killed.push(process_name),
+                Err(msg) => errors.push(msg),
+            }
         }
-        match process::kill_process(self.manager, name).await {
-            Ok(msg) => self.app.display.set_status_success(msg),
-            Err(msg) => self.app.display.set_status_error(msg),
+
+        if !errors.is_empty() {
+            self.app.display.set_status_error(errors.join("; "));
+        } else if is_group {
+            self.app.display.set_status_success(format!("Stopped: {}", killed.join(", ")));
+        } else if !killed.is_empty() {
+            self.app.display.set_status_success(format!("Stopped: {}", killed[0]));
         }
         Ok(())
     }
@@ -393,17 +443,55 @@ impl<'a> CommandExecutor<'a> {
     }
 
     fn execute_hide(&mut self, process: String) {
-        match visibility::hide_process(self.app, self.manager, self.config, &process) {
-            Ok(()) => self.app.display.set_status_success(format!("Hidden: {}", process)),
-            Err(msg) => self.app.display.set_status_error(msg),
+        let resolved = self.create_resolver().resolve(&process);
+        let is_group = resolved.len() > 1;
+
+        let mut hidden = Vec::new();
+        let mut errors = Vec::new();
+
+        for process_name in resolved {
+            match visibility::hide_process(self.app, self.manager, self.config, &process_name) {
+                Ok(()) => hidden.push(process_name),
+                Err(msg) => errors.push(msg),
+            }
+        }
+
+        if !errors.is_empty() {
+            self.app.display.set_status_error(errors.join("; "));
+        } else if is_group {
+            self.app.display.set_status_success(format!("Hidden: {}", hidden.join(", ")));
+        } else if !hidden.is_empty() {
+            self.app.display.set_status_success(format!("Hidden: {}", hidden[0]));
         }
     }
 
     fn execute_show(&mut self, process: String) {
-        match visibility::show_process(self.app, self.config, &process) {
-            Ok(true) => self.app.display.set_status_success(format!("Shown: {}", process)),
-            Ok(false) => self.app.display.set_status_info(format!("Process was not hidden: {}", process)),
-            Err(()) => {}
+        let resolved = self.create_resolver().resolve(&process);
+        let is_group = resolved.len() > 1;
+
+        let mut shown = Vec::new();
+        let mut not_hidden = Vec::new();
+
+        for process_name in resolved {
+            match visibility::show_process(self.app, self.config, &process_name) {
+                Ok(true) => shown.push(process_name),
+                Ok(false) => not_hidden.push(process_name),
+                Err(()) => {}
+            }
+        }
+
+        if !shown.is_empty() {
+            if is_group {
+                self.app.display.set_status_success(format!("Shown: {}", shown.join(", ")));
+            } else {
+                self.app.display.set_status_success(format!("Shown: {}", shown[0]));
+            }
+        } else if !not_hidden.is_empty() {
+            if is_group {
+                self.app.display.set_status_info(format!("Processes were not hidden: {}", not_hidden.join(", ")));
+            } else {
+                self.app.display.set_status_info(format!("Process was not hidden: {}", not_hidden[0]));
+            }
         }
     }
 
@@ -418,8 +506,17 @@ impl<'a> CommandExecutor<'a> {
     }
 
     fn execute_only(&mut self, process: String) {
-        match visibility::only_process(self.app, self.manager, self.config, &process) {
-            Ok(()) => self.app.display.set_status_success(format!("Showing only: {}", process)),
+        let resolved = self.create_resolver().resolve(&process);
+        let is_group = resolved.len() > 1;
+
+        match visibility::only_processes(self.app, self.manager, self.config, &resolved) {
+            Ok(()) => {
+                if is_group {
+                    self.app.display.set_status_success(format!("Showing only: {}", resolved.join(", ")));
+                } else {
+                    self.app.display.set_status_success(format!("Showing only: {}", process));
+                }
+            }
             Err(msg) => self.app.display.set_status_error(msg),
         }
     }
