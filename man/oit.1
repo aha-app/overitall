@@ -142,13 +142,13 @@ Commands are entered by pressing \fB:\fR followed by the command.
 .SS Process Management
 .TP
 .B :s \fIname\fR
-Start a process.
+Start a process or group.
 .TP
 .B :r \fI[name]\fR
-Restart a process (or all processes if no name given).
+Restart a process or group (or all processes if no name given).
 .TP
 .B :k \fIname\fR
-Kill (stop) a process.
+Kill (stop) a process or group.
 .TP
 .B :q, :quit, :exit
 Quit the application.
@@ -168,10 +168,10 @@ List active filters.
 .SS Process Visibility
 .TP
 .B :hide \fIname\fR
-Hide logs from a specific process.
+Hide logs from a process or group.
 .TP
 .B :show \fIname\fR
-Show logs from a specific process.
+Show logs from a process or group.
 .TP
 .B :hide all
 Hide all process logs.
@@ -180,7 +180,7 @@ Hide all process logs.
 Show all process logs.
 .TP
 .B :only \fIname\fR
-Show only one process, hide all others.
+Show only one process or group, hide all others.
 .SS Batch Navigation
 .TP
 .B :nb
@@ -263,19 +263,19 @@ Clear all filters.
 List visibility status for all processes.
 .TP
 .B hide \fIname\fR
-Hide a process from log view.
+Hide a process or group from log view.
 .TP
 .B show \fIname\fR
-Show a hidden process.
+Show a hidden process or group.
 .TP
 .BR restart ", " r " " \fI[name]\fR
-Restart a process or all processes.
+Restart a process, group, or all processes.
 .TP
 .BR kill ", " k " " \fIname\fR
-Kill a running process.
+Kill a running process or group.
 .TP
 .BR start ", " s " " \fIname\fR
-Start a stopped process.
+Start a stopped process or group.
 .TP
 .B errors \fR[\fB--limit\fR \fIN\fR] [\fB--level\fR error|warning] [\fB--process\fR \fIname\fR]
 Get recent error/warning log lines.
@@ -353,6 +353,12 @@ Array of process names to skip entirely.
 Array of process names to auto-start. If empty or omitted, all processes
 start automatically. Processes not in this list remain stopped but visible;
 use \fB:s\fR to start them manually. CLI arguments override this setting.
+.TP
+.B [groups]
+Named groups of processes for batch operations. Define as a TOML table with
+group names as keys and arrays of process names as values. Group names must
+not conflict with process names. Example: \fB[groups]\fR then \fBrails = ["puma", "workers"]\fR.
+Use group names with :s, :r, :k, :hide, :show, :only commands.
 .TP
 .B max_log_buffer_mb
 Maximum memory for log buffer in megabytes (default: 50).

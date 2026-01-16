@@ -344,6 +344,29 @@ oit                # Uses start_processes from config
 
 Processes that don't auto-start are still available in the TUI - use `:s <name>` to start them manually. This differs from `ignored_processes`, which completely excludes processes from the TUI.
 
+### Process Groups
+
+Define named groups of processes for batch operations:
+
+```toml
+[groups]
+rails = ["puma", "workers"]
+backend = ["api", "scheduler"]
+```
+
+Use group names with any process command:
+
+```
+:r rails         # Restart all processes in the rails group
+:k backend       # Kill all processes in the backend group
+:s rails         # Start all processes in the rails group
+:hide rails      # Hide logs from all processes in the rails group
+:show rails      # Show logs from all processes in the rails group
+:only backend    # Show only backend processes, hide all others
+```
+
+Group names must not conflict with process names or log file names.
+
 ### Custom Process Status Labels
 
 You can configure custom status labels that change based on log patterns. This is useful for showing meaningful status like "Starting", "Ready", "Migrating" instead of just "Running".

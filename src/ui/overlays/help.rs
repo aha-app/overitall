@@ -66,16 +66,16 @@ pub fn draw_help_overlay(f: &mut Frame, scroll_offset: u16) {
             Span::raw("       Enter command mode"),
         ]),
         Line::from(vec![
-            Span::styled("  :s <proc>", Style::default().fg(Color::Yellow)),
-            Span::raw(" Start process"),
+            Span::styled("  :s <proc|group>", Style::default().fg(Color::Yellow)),
+            Span::raw(" Start process or group"),
         ]),
         Line::from(vec![
-            Span::styled("  :r [proc]", Style::default().fg(Color::Yellow)),
-            Span::raw(" Restart process (or all if no arg)"),
+            Span::styled("  :r [proc|group]", Style::default().fg(Color::Yellow)),
+            Span::raw(" Restart process/group (or all if no arg)"),
         ]),
         Line::from(vec![
-            Span::styled("  :k <proc>", Style::default().fg(Color::Yellow)),
-            Span::raw(" Kill process"),
+            Span::styled("  :k <proc|group>", Style::default().fg(Color::Yellow)),
+            Span::raw(" Kill process or group"),
         ]),
         Line::from(vec![
             Span::styled("  :q/:quit/:exit", Style::default().fg(Color::Yellow)),
@@ -190,12 +190,12 @@ pub fn draw_help_overlay(f: &mut Frame, scroll_offset: u16) {
             Span::styled("Process Visibility:", Style::default().add_modifier(Modifier::BOLD)),
         ]),
         Line::from(vec![
-            Span::styled("  :hide <proc>", Style::default().fg(Color::Yellow)),
-            Span::raw(" Hide logs from a specific process"),
+            Span::styled("  :hide <proc|group>", Style::default().fg(Color::Yellow)),
+            Span::raw(" Hide logs from process or group"),
         ]),
         Line::from(vec![
-            Span::styled("  :show <proc>", Style::default().fg(Color::Yellow)),
-            Span::raw(" Show logs from a specific process"),
+            Span::styled("  :show <proc|group>", Style::default().fg(Color::Yellow)),
+            Span::raw(" Show logs from process or group"),
         ]),
         Line::from(vec![
             Span::styled("  :hide all", Style::default().fg(Color::Yellow)),
@@ -206,8 +206,8 @@ pub fn draw_help_overlay(f: &mut Frame, scroll_offset: u16) {
             Span::raw("    Show all process logs"),
         ]),
         Line::from(vec![
-            Span::styled("  :only <proc>", Style::default().fg(Color::Yellow)),
-            Span::raw(" Show only one process, hide all others"),
+            Span::styled("  :only <proc|group>", Style::default().fg(Color::Yellow)),
+            Span::raw(" Show only process or group"),
         ]),
         Line::from(""),
         Line::from(vec![
