@@ -1,8 +1,16 @@
 procfile = "example/Procfile"
 batch_window_ms = 5000
 max_log_buffer_mb = 50
-hidden_processes = []
-start_processes = ["broken", "web", "worker"]
+hidden_processes = [
+    "broken",
+    "shared",
+]
+ignored_processes = []
+start_processes = [
+    "broken",
+    "web",
+    "worker",
+]
 compact_mode = false
 process_coloring = true
 
@@ -17,6 +25,14 @@ pattern = "GET|POST|PUT|DELETE"
 label = "Ready"
 color = "green"
 
+[processes.monitor.status]
+default = "Starting"
+
+[[processes.monitor.status.transitions]]
+pattern = "CPU:"
+label = "Active"
+color = "blue"
+
 [processes.worker]
 log_file = "worker.log"
 
@@ -28,14 +44,6 @@ pattern = "Processing"
 label = "Processing"
 color = "cyan"
 
-[processes.monitor.status]
-default = "Starting"
-
-[[processes.monitor.status.transitions]]
-pattern = "CPU:"
-label = "Active"
-color = "blue"
-
 [[log_files]]
 name = "shared"
 path = "shared.log"
@@ -45,3 +53,14 @@ include = []
 exclude = []
 
 [colors]
+
+[groups]
+app = [
+    "web",
+    "worker",
+]
+ruby = [
+    "web",
+    "worker",
+    "monitor",
+]
