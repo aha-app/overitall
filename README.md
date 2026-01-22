@@ -28,7 +28,20 @@ Overitall (`oit`) is a TUI that helps you manage multiple processes and their lo
 
 ## Installation
 
-### From GitHub Releases (Recommended)
+### Homebrew (Recommended)
+
+```bash
+brew install aha-app/overitall/oit
+```
+
+Or tap the repository first:
+
+```bash
+brew tap aha-app/overitall
+brew install oit
+```
+
+### From GitHub Releases
 
 Download the latest release for macOS:
 
