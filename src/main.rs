@@ -166,7 +166,12 @@ async fn main() -> anyhow::Result<()> {
         // Get status config if available
         let status_config = config.processes.get(name)
             .and_then(|pc| pc.status.as_ref());
-        manager.add_process(name.clone(), command.clone(), Some(procfile_dir.clone()), status_config);
+
+        // Get stdin config if available
+        let stdin_config = config.processes.get(name)
+            .and_then(|pc| pc.stdin.as_deref());
+
+        manager.add_process(name.clone(), command.clone(), Some(procfile_dir.clone()), status_config, stdin_config);
 
         // If this process has a log file configured, add it
         if let Some(proc_config) = config.processes.get(name) {

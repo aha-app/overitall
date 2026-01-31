@@ -26,8 +26,8 @@ pub fn create_test_log_line(process: &str, message: &str) -> LogLine {
 pub fn create_manager_with_logs() -> ProcessManager {
     let mut manager = ProcessManager::new();
 
-    manager.add_process("web".to_string(), "ruby web.rb".to_string(), None, None);
-    manager.add_process("worker".to_string(), "ruby worker.rb".to_string(), None, None);
+    manager.add_process("web".to_string(), "ruby web.rb".to_string(), None, None, None);
+    manager.add_process("worker".to_string(), "ruby worker.rb".to_string(), None, None, None);
 
     manager.add_test_log(create_test_log_line("web", "Starting web server on port 3000"));
     manager.add_test_log(create_test_log_line("web", "GET /api/users 200 OK"));
@@ -68,8 +68,8 @@ pub fn render_app_to_string(app: &mut App, manager: &ProcessManager, width: u16,
 pub fn create_manager_with_batched_logs() -> ProcessManager {
     let mut manager = ProcessManager::new();
 
-    manager.add_process("web".to_string(), "ruby web.rb".to_string(), None, None);
-    manager.add_process("worker".to_string(), "ruby worker.rb".to_string(), None, None);
+    manager.add_process("web".to_string(), "ruby web.rb".to_string(), None, None, None);
+    manager.add_process("worker".to_string(), "ruby worker.rb".to_string(), None, None, None);
 
     // Batch 1: Three logs arriving within 100ms (at 12:00:00.000)
     let batch1_time = Local.with_ymd_and_hms(2024, 12, 10, 12, 0, 0).unwrap();
@@ -104,7 +104,7 @@ pub fn create_manager_with_batched_logs() -> ProcessManager {
 /// Helper to create a manager with exactly N logs that arrive together (same batch)
 pub fn create_manager_with_n_logs_same_batch(n: usize) -> ProcessManager {
     let mut manager = ProcessManager::new();
-    manager.add_process("web".to_string(), "ruby web.rb".to_string(), None, None);
+    manager.add_process("web".to_string(), "ruby web.rb".to_string(), None, None, None);
 
     let base_time = Local.with_ymd_and_hms(2024, 12, 10, 12, 0, 0).unwrap();
 
@@ -124,7 +124,7 @@ pub fn create_manager_with_n_logs_same_batch(n: usize) -> ProcessManager {
 /// Helper to create a manager with N logs that arrive in separate batches
 pub fn create_manager_with_n_logs_separate_batches(n: usize) -> ProcessManager {
     let mut manager = ProcessManager::new();
-    manager.add_process("web".to_string(), "ruby web.rb".to_string(), None, None);
+    manager.add_process("web".to_string(), "ruby web.rb".to_string(), None, None, None);
 
     let base_time = Local.with_ymd_and_hms(2024, 12, 10, 12, 0, 0).unwrap();
 
@@ -158,8 +158,8 @@ pub fn create_manager_with_custom_status() -> ProcessManager {
     };
 
     let mut manager = ProcessManager::new();
-    manager.add_process("web".to_string(), "echo hi".to_string(), None, Some(&status_config));
-    manager.add_process("worker".to_string(), "echo hi".to_string(), None, None);
+    manager.add_process("web".to_string(), "echo hi".to_string(), None, Some(&status_config), None);
+    manager.add_process("worker".to_string(), "echo hi".to_string(), None, None, None);
 
     // Simulate process start to apply default custom status
     manager.reset_process_status("web");
@@ -171,8 +171,8 @@ pub fn create_manager_with_custom_status() -> ProcessManager {
 pub fn create_manager_with_long_logs() -> ProcessManager {
     let mut manager = ProcessManager::new();
 
-    manager.add_process("web".to_string(), "ruby web.rb".to_string(), None, None);
-    manager.add_process("worker".to_string(), "ruby worker.rb".to_string(), None, None);
+    manager.add_process("web".to_string(), "ruby web.rb".to_string(), None, None, None);
+    manager.add_process("worker".to_string(), "ruby worker.rb".to_string(), None, None, None);
 
     manager.add_test_log(create_test_log_line("web", "Short log message"));
     manager.add_test_log(create_test_log_line("web", "This is a much longer log message that will definitely exceed the terminal width and need to be either truncated or wrapped depending on the display mode setting"));
@@ -192,10 +192,10 @@ pub fn create_manager_with_mixed_states() -> ProcessManager {
     let mut manager = ProcessManager::new();
 
     // Running process (not noteworthy)
-    manager.add_process("web".to_string(), "echo hi".to_string(), None, None);
+    manager.add_process("web".to_string(), "echo hi".to_string(), None, None, None);
 
     // Another running process (not noteworthy)
-    manager.add_process("api".to_string(), "echo hi".to_string(), None, None);
+    manager.add_process("api".to_string(), "echo hi".to_string(), None, None, None);
 
     // Running process with custom status (noteworthy)
     let db_config = StatusConfig {
@@ -209,15 +209,15 @@ pub fn create_manager_with_mixed_states() -> ProcessManager {
             },
         ],
     };
-    manager.add_process("db".to_string(), "echo hi".to_string(), None, Some(&db_config));
+    manager.add_process("db".to_string(), "echo hi".to_string(), None, Some(&db_config), None);
     manager.reset_process_status("db"); // Apply default custom status
 
     // Stopped process (noteworthy)
-    manager.add_process("worker".to_string(), "echo hi".to_string(), None, None);
+    manager.add_process("worker".to_string(), "echo hi".to_string(), None, None, None);
     manager.set_process_status_for_testing("worker", ProcessStatus::Stopped);
 
     // Failed process (noteworthy)
-    manager.add_process("mailer".to_string(), "echo hi".to_string(), None, None);
+    manager.add_process("mailer".to_string(), "echo hi".to_string(), None, None, None);
     manager.set_process_status_for_testing("mailer", ProcessStatus::Failed("Exit code 1".to_string()));
 
     manager
@@ -242,7 +242,7 @@ pub fn create_manager_with_many_processes() -> ProcessManager {
             },
         ],
     };
-    manager.add_process("web".to_string(), "echo hi".to_string(), None, Some(&web_config));
+    manager.add_process("web".to_string(), "echo hi".to_string(), None, Some(&web_config), None);
     manager.reset_process_status("web"); // Apply default custom status
 
     // Process with longer custom status
@@ -251,20 +251,20 @@ pub fn create_manager_with_many_processes() -> ProcessManager {
         color: None,
         transitions: vec![],
     };
-    manager.add_process("api".to_string(), "echo hi".to_string(), None, Some(&api_config));
+    manager.add_process("api".to_string(), "echo hi".to_string(), None, Some(&api_config), None);
     manager.reset_process_status("api"); // Apply default custom status
 
     // Regular processes (no custom status)
-    manager.add_process("worker".to_string(), "echo hi".to_string(), None, None);
-    manager.add_process("scheduler".to_string(), "echo hi".to_string(), None, None);
-    manager.add_process("mailer".to_string(), "echo hi".to_string(), None, None);
-    manager.add_process("cache".to_string(), "echo hi".to_string(), None, None);
-    manager.add_process("db".to_string(), "echo hi".to_string(), None, None);
-    manager.add_process("redis".to_string(), "echo hi".to_string(), None, None);
-    manager.add_process("nginx".to_string(), "echo hi".to_string(), None, None);
-    manager.add_process("postgres".to_string(), "echo hi".to_string(), None, None);
-    manager.add_process("elasticsearch".to_string(), "echo hi".to_string(), None, None);
-    manager.add_process("sidekiq".to_string(), "echo hi".to_string(), None, None);
+    manager.add_process("worker".to_string(), "echo hi".to_string(), None, None, None);
+    manager.add_process("scheduler".to_string(), "echo hi".to_string(), None, None, None);
+    manager.add_process("mailer".to_string(), "echo hi".to_string(), None, None, None);
+    manager.add_process("cache".to_string(), "echo hi".to_string(), None, None, None);
+    manager.add_process("db".to_string(), "echo hi".to_string(), None, None, None);
+    manager.add_process("redis".to_string(), "echo hi".to_string(), None, None, None);
+    manager.add_process("nginx".to_string(), "echo hi".to_string(), None, None, None);
+    manager.add_process("postgres".to_string(), "echo hi".to_string(), None, None, None);
+    manager.add_process("elasticsearch".to_string(), "echo hi".to_string(), None, None, None);
+    manager.add_process("sidekiq".to_string(), "echo hi".to_string(), None, None, None);
 
     manager
 }

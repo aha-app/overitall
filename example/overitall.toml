@@ -16,6 +16,8 @@ process_coloring = true
 
 [processes.web]
 log_file = "web.log"
+# stdin = "close"  # Default - close stdin (most processes)
+# stdin = "open"   # Keep stdin open (for watchers like Tailwind, Vite)
 
 [processes.web.status]
 default = "Starting"

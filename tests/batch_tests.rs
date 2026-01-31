@@ -45,7 +45,7 @@ fn test_snapshot_batch_navigation_second_batch() {
 #[test]
 fn test_snapshot_single_batch_no_separators() {
     let mut manager = overitall::process::ProcessManager::new();
-    manager.add_process("web".to_string(), "ruby web.rb".to_string(), None, None);
+    manager.add_process("web".to_string(), "ruby web.rb".to_string(), None, None, None);
 
     // Add logs all in one batch (within 100ms)
     let batch_time = Local.with_ymd_and_hms(2024, 12, 10, 12, 0, 0).unwrap();

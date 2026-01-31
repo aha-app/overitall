@@ -45,11 +45,13 @@ pub struct ProcessHandle {
     stdout_task: Option<JoinHandle<()>>,
     stderr_task: Option<JoinHandle<()>>,
     status_matcher: Option<StatusMatcher>,
+    stdin_mode: String,
+    stdin_handle: Option<tokio::process::ChildStdin>,
 }
 
 impl ProcessHandle {
     /// Create a new process handle (not yet started)
-    pub fn new(name: String, command: String, working_dir: Option<PathBuf>, status_config: Option<&StatusConfig>) -> Self {
+    pub fn new(name: String, command: String, working_dir: Option<PathBuf>, status_config: Option<&StatusConfig>, stdin_config: Option<&str>) -> Self {
         let status_matcher = status_config.and_then(|c| StatusMatcher::new(c).ok());
         Self {
             name,
@@ -61,6 +63,8 @@ impl ProcessHandle {
             stdout_task: None,
             stderr_task: None,
             status_matcher,
+            stdin_mode: stdin_config.unwrap_or("close").to_string(),
+            stdin_handle: None,
         }
     }
 
@@ -99,8 +103,8 @@ impl ProcessHandle {
             cmd.current_dir(working_dir);
         }
 
-        // Spawn with piped stdout/stderr and null stdin
-        // IMPORTANT: Set stdin to null so child processes don't inherit parent's stdin
+        // Spawn with piped stdout/stderr and configurable stdin
+        // IMPORTANT: Default to null stdin so child processes don't inherit parent's stdin
         // This prevents them from interfering with crossterm's raw mode terminal input
 
         // Create a new process group so we can kill the entire process tree
@@ -108,8 +112,13 @@ impl ProcessHandle {
         // pnpm and the web server) are also killed, preventing orphaned processes.
         cmd.process_group(0); // Create new process group with pgid = pid
 
+        let stdin_mode = match self.stdin_mode.as_str() {
+            "open" => Stdio::piped(),
+            _ => Stdio::null(),
+        };
+
         let mut child = cmd
-            .stdin(Stdio::null())
+            .stdin(stdin_mode)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true)
@@ -127,6 +136,13 @@ impl ProcessHandle {
         // Store the process group ID
         // With process_group(0), the child's PID becomes the PGID
         self.pgid = child.id().map(|pid| pid as i32);
+
+        // Store stdin handle if open
+        self.stdin_handle = if self.stdin_mode == "open" {
+            child.stdin.take()
+        } else {
+            None
+        };
 
         // Capture stdout
         let stdout = child.stdout.take().unwrap();
@@ -195,6 +211,9 @@ impl ProcessHandle {
             task.abort();
         }
 
+        // Drop stdin handle if present
+        self.stdin_handle = None;
+
         // Don't set to Stopped immediately - let check_status do that
         // This allows the UI to show "Terminating" status
         Ok(())
@@ -208,6 +227,7 @@ impl ProcessHandle {
                     // Process has exited
                     self.status = ProcessStatus::Stopped;
                     self.child = None;
+                    self.stdin_handle = None;
                     true
                 }
                 Ok(None) => {
@@ -218,6 +238,7 @@ impl ProcessHandle {
                     // Error checking status, assume terminated
                     self.status = ProcessStatus::Stopped;
                     self.child = None;
+                    self.stdin_handle = None;
                     true
                 }
             }
@@ -242,6 +263,7 @@ impl ProcessHandle {
                         self.status = ProcessStatus::Failed(msg);
                     }
                     self.child = None;
+                    self.stdin_handle = None;
                 }
                 Ok(None) => {
                     // Still running
@@ -249,6 +271,7 @@ impl ProcessHandle {
                 Err(e) => {
                     self.status = ProcessStatus::Failed(e.to_string());
                     self.child = None;
+                    self.stdin_handle = None;
                 }
             }
         }
@@ -277,6 +300,7 @@ impl ProcessHandle {
         self.pgid = result.pgid;
         self.stdout_task = Some(result.stdout_task);
         self.stderr_task = Some(result.stderr_task);
+        self.stdin_handle = result.stdin_handle;
         self.status = ProcessStatus::Running;
     }
 }
@@ -288,6 +312,7 @@ struct RestartData {
     working_dir: Option<PathBuf>,
     old_pgid: Option<i32>,
     log_tx: mpsc::UnboundedSender<LogLine>,
+    stdin_mode: String,
 }
 
 /// Successful restart result containing new process handles
@@ -296,6 +321,7 @@ pub struct RestartSuccess {
     pub pgid: Option<i32>,
     pub stdout_task: JoinHandle<()>,
     pub stderr_task: JoinHandle<()>,
+    pub stdin_handle: Option<tokio::process::ChildStdin>,
 }
 
 /// Result of a background restart operation
@@ -335,8 +361,13 @@ async fn perform_restart(data: RestartData) -> RestartResult {
 
         cmd.process_group(0);
 
+        let stdin_mode = match data.stdin_mode.as_str() {
+            "open" => Stdio::piped(),
+            _ => Stdio::null(),
+        };
+
         let mut child = cmd
-            .stdin(Stdio::null())
+            .stdin(stdin_mode)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true)
@@ -354,6 +385,12 @@ async fn perform_restart(data: RestartData) -> RestartResult {
             })?;
 
         let pgid = child.id().map(|pid| pid as i32);
+
+        let stdin_handle = if data.stdin_mode == "open" {
+            child.stdin.take()
+        } else {
+            None
+        };
 
         // Capture stdout
         let stdout = child.stdout.take().unwrap();
@@ -384,6 +421,7 @@ async fn perform_restart(data: RestartData) -> RestartResult {
             pgid,
             stdout_task,
             stderr_task,
+            stdin_handle,
         })
     }
     .await;
@@ -432,8 +470,8 @@ impl ProcessManager {
     }
 
     /// Add a process definition (doesn't start it)
-    pub fn add_process(&mut self, name: String, command: String, working_dir: Option<PathBuf>, status_config: Option<&StatusConfig>) {
-        self.processes.insert(name.clone(), ProcessHandle::new(name, command, working_dir, status_config));
+    pub fn add_process(&mut self, name: String, command: String, working_dir: Option<PathBuf>, status_config: Option<&StatusConfig>, stdin_config: Option<&str>) {
+        self.processes.insert(name.clone(), ProcessHandle::new(name, command, working_dir, status_config, stdin_config));
     }
 
     pub async fn start_process(&mut self, name: &str) -> Result<()> {
@@ -538,6 +576,7 @@ impl ProcessManager {
                     working_dir: process.working_dir.clone(),
                     old_pgid: process.pgid.take(),
                     log_tx: self.log_tx.clone(),
+                    stdin_mode: process.stdin_mode.clone(),
                 };
 
                 // Abort old output capture tasks
@@ -548,8 +587,9 @@ impl ProcessManager {
                     task.abort();
                 }
 
-                // Clear child handle - we'll set a new one when restart completes
+                // Clear child handle and stdin handle - we'll set new ones when restart completes
                 process.child = None;
+                process.stdin_handle = None;
                 process.reset_status();
 
                 // Track that we've spawned this restart
@@ -832,7 +872,7 @@ mod tests {
     #[tokio::test]
     async fn test_process_start_stop() {
         let mut manager = ProcessManager::new();
-        manager.add_process("test".to_string(), "echo hello".to_string(), None, None);
+        manager.add_process("test".to_string(), "echo hello".to_string(), None, None, None);
 
         manager.start_process("test").await.unwrap();
         assert_eq!(manager.get_status("test"), Some(ProcessStatus::Running));
@@ -853,8 +893,8 @@ mod tests {
     #[tokio::test]
     async fn test_set_all_terminating() {
         let mut manager = ProcessManager::new();
-        manager.add_process("proc1".to_string(), "sleep 10".to_string(), None, None);
-        manager.add_process("proc2".to_string(), "sleep 10".to_string(), None, None);
+        manager.add_process("proc1".to_string(), "sleep 10".to_string(), None, None, None);
+        manager.add_process("proc2".to_string(), "sleep 10".to_string(), None, None, None);
 
         let failures = manager.start_all().await;
         assert!(failures.is_empty(), "Expected no failures, got {:?}", failures);
@@ -878,9 +918,9 @@ mod tests {
     #[tokio::test]
     async fn test_kill_all_multiple_processes() {
         let mut manager = ProcessManager::new();
-        manager.add_process("proc1".to_string(), "sleep 10".to_string(), None, None);
-        manager.add_process("proc2".to_string(), "sleep 10".to_string(), None, None);
-        manager.add_process("proc3".to_string(), "sleep 10".to_string(), None, None);
+        manager.add_process("proc1".to_string(), "sleep 10".to_string(), None, None, None);
+        manager.add_process("proc2".to_string(), "sleep 10".to_string(), None, None, None);
+        manager.add_process("proc3".to_string(), "sleep 10".to_string(), None, None, None);
 
         let failures = manager.start_all().await;
         assert!(failures.is_empty(), "Expected no failures, got {:?}", failures);
@@ -895,7 +935,7 @@ mod tests {
     #[tokio::test]
     async fn test_shutdown_flow_sets_status_before_killing() {
         let mut manager = ProcessManager::new();
-        manager.add_process("test".to_string(), "sleep 10".to_string(), None, None);
+        manager.add_process("test".to_string(), "sleep 10".to_string(), None, None, None);
 
         manager.start_process("test").await.unwrap();
         assert_eq!(manager.get_status("test"), Some(ProcessStatus::Running));
@@ -919,7 +959,7 @@ mod tests {
     #[tokio::test]
     async fn test_send_kill_signals_returns_quickly() {
         let mut manager = ProcessManager::new();
-        manager.add_process("slow".to_string(), "sleep 10".to_string(), None, None);
+        manager.add_process("slow".to_string(), "sleep 10".to_string(), None, None, None);
 
         let failures = manager.start_all().await;
         assert!(failures.is_empty(), "Expected no failures, got {:?}", failures);
@@ -945,9 +985,9 @@ mod tests {
         // This test verifies that all processes are started regardless of any
         // individual failures.
         let mut manager = ProcessManager::new();
-        manager.add_process("proc1".to_string(), "sleep 10".to_string(), None, None);
-        manager.add_process("proc2".to_string(), "sleep 10".to_string(), None, None);
-        manager.add_process("proc3".to_string(), "sleep 10".to_string(), None, None);
+        manager.add_process("proc1".to_string(), "sleep 10".to_string(), None, None, None);
+        manager.add_process("proc2".to_string(), "sleep 10".to_string(), None, None, None);
+        manager.add_process("proc3".to_string(), "sleep 10".to_string(), None, None, None);
 
         let failures = manager.start_all().await;
 
@@ -966,7 +1006,7 @@ mod tests {
     async fn test_check_all_status_detects_failed_processes() {
         let mut manager = ProcessManager::new();
         // Use a command that exits immediately with an error
-        manager.add_process("failing".to_string(), "exit 1".to_string(), None, None);
+        manager.add_process("failing".to_string(), "exit 1".to_string(), None, None, None);
 
         let failures = manager.start_all().await;
         assert!(failures.is_empty()); // spawn succeeds, command fails later
@@ -989,7 +1029,7 @@ mod tests {
     #[tokio::test]
     async fn test_set_restarting() {
         let mut manager = ProcessManager::new();
-        manager.add_process("test".to_string(), "sleep 10".to_string(), None, None);
+        manager.add_process("test".to_string(), "sleep 10".to_string(), None, None, None);
 
         // Test with non-existent process
         assert!(!manager.set_restarting("nonexistent"));
@@ -1005,9 +1045,9 @@ mod tests {
     #[tokio::test]
     async fn test_set_all_restarting_only_affects_running() {
         let mut manager = ProcessManager::new();
-        manager.add_process("proc1".to_string(), "sleep 10".to_string(), None, None);
-        manager.add_process("proc2".to_string(), "sleep 10".to_string(), None, None);
-        manager.add_process("proc3".to_string(), "sleep 10".to_string(), None, None);
+        manager.add_process("proc1".to_string(), "sleep 10".to_string(), None, None, None);
+        manager.add_process("proc2".to_string(), "sleep 10".to_string(), None, None, None);
+        manager.add_process("proc3".to_string(), "sleep 10".to_string(), None, None, None);
 
         // Start only proc1 and proc2
         manager.start_process("proc1").await.unwrap();
@@ -1037,9 +1077,9 @@ mod tests {
     #[tokio::test]
     async fn test_get_restarting_processes() {
         let mut manager = ProcessManager::new();
-        manager.add_process("proc1".to_string(), "sleep 10".to_string(), None, None);
-        manager.add_process("proc2".to_string(), "sleep 10".to_string(), None, None);
-        manager.add_process("proc3".to_string(), "sleep 10".to_string(), None, None);
+        manager.add_process("proc1".to_string(), "sleep 10".to_string(), None, None, None);
+        manager.add_process("proc2".to_string(), "sleep 10".to_string(), None, None, None);
+        manager.add_process("proc3".to_string(), "sleep 10".to_string(), None, None, None);
 
         // No processes restarting initially
         assert!(manager.get_restarting_processes().is_empty());
@@ -1058,7 +1098,7 @@ mod tests {
     #[tokio::test]
     async fn test_has_pending_restarts() {
         let mut manager = ProcessManager::new();
-        manager.add_process("test".to_string(), "sleep 10".to_string(), None, None);
+        manager.add_process("test".to_string(), "sleep 10".to_string(), None, None, None);
 
         assert!(!manager.has_pending_restarts());
 
@@ -1069,7 +1109,7 @@ mod tests {
     #[tokio::test]
     async fn test_spawn_and_poll_restarts() {
         let mut manager = ProcessManager::new();
-        manager.add_process("test".to_string(), "echo hello".to_string(), None, None);
+        manager.add_process("test".to_string(), "echo hello".to_string(), None, None, None);
 
         // Start the process
         manager.start_process("test").await.unwrap();
@@ -1108,6 +1148,7 @@ mod tests {
             "echo hello".to_string(),
             None,
             None,
+            None,
         );
         assert!(handle.get_custom_status().is_none());
     }
@@ -1132,6 +1173,7 @@ mod tests {
             "echo hello".to_string(),
             None,
             Some(&config),
+            None,
         );
 
         // Default is not applied until reset_status() is called (which happens in start())
@@ -1158,6 +1200,7 @@ mod tests {
             "echo hello".to_string(),
             None,
             Some(&config),
+            None,
         );
 
         handle.reset_status(); // Simulates what happens in start()
@@ -1191,6 +1234,7 @@ mod tests {
             "echo hello".to_string(),
             None,
             Some(&config),
+            None,
         );
 
         handle.reset_status(); // Simulates process start
@@ -1225,6 +1269,7 @@ mod tests {
             "echo hello".to_string(),
             None,
             Some(&config),
+            None,
         );
 
         handle.reset_status(); // Simulates process start
@@ -1255,6 +1300,7 @@ mod tests {
             "echo hello".to_string(),
             None,
             Some(&config),
+            None,
         );
 
         handle.check_log_line("Ready");
@@ -1271,6 +1317,7 @@ mod tests {
             "echo hello".to_string(),
             None,
             None,
+            None,
         );
 
         let changed = handle.check_log_line("Some log message");
@@ -1282,6 +1329,7 @@ mod tests {
         let mut handle = ProcessHandle::new(
             "test".to_string(),
             "echo hello".to_string(),
+            None,
             None,
             None,
         );
@@ -1310,7 +1358,7 @@ mod tests {
         };
 
         let mut manager = ProcessManager::new();
-        manager.add_process("web".to_string(), "echo hi".to_string(), None, Some(&config));
+        manager.add_process("web".to_string(), "echo hi".to_string(), None, Some(&config), None);
 
         // Simulate process start (applies default status)
         let handle = manager.processes.get_mut("web").unwrap();
@@ -1327,7 +1375,7 @@ mod tests {
 
         // Re-create manager with proper channel setup to test process flow
         let mut manager = ProcessManager::new();
-        manager.add_process("web".to_string(), "echo hi".to_string(), None, Some(&config));
+        manager.add_process("web".to_string(), "echo hi".to_string(), None, Some(&config), None);
 
         // Simulate process start and test check_log_line
         let handle = manager.processes.get_mut("web").unwrap();
@@ -1343,7 +1391,7 @@ mod tests {
     #[test]
     fn test_process_logs_ignores_unknown_process() {
         let mut manager = ProcessManager::new();
-        manager.add_process("web".to_string(), "echo hi".to_string(), None, None);
+        manager.add_process("web".to_string(), "echo hi".to_string(), None, None, None);
 
         // Add a log from an unknown process directly to buffer
         // This simulates what happens when process_logs encounters a log from unknown process
@@ -1362,7 +1410,7 @@ mod tests {
         use std::path::PathBuf;
 
         let mut manager = ProcessManager::new();
-        manager.add_process("web".to_string(), "echo hi".to_string(), None, None);
+        manager.add_process("web".to_string(), "echo hi".to_string(), None, None, None);
 
         // Add a file log for a process that doesn't exist in our manager
         manager.log_buffer.push(LogLine::new(
@@ -1400,7 +1448,7 @@ mod tests {
         };
 
         let mut manager = ProcessManager::new();
-        manager.add_process("web".to_string(), "echo hi".to_string(), None, Some(&config));
+        manager.add_process("web".to_string(), "echo hi".to_string(), None, Some(&config), None);
 
         let handle = manager.processes.get_mut("web").unwrap();
         handle.reset_status(); // Simulates process start
@@ -1430,7 +1478,7 @@ mod tests {
     #[test]
     fn test_process_name_not_confused_with_log_file() {
         let mut manager = ProcessManager::new();
-        manager.add_process("web".to_string(), "echo hi".to_string(), None, None);
+        manager.add_process("web".to_string(), "echo hi".to_string(), None, None, None);
 
         // has_process should return true for process
         assert!(manager.has_process("web"));
@@ -1441,9 +1489,9 @@ mod tests {
     #[tokio::test]
     async fn test_start_specific() {
         let mut manager = ProcessManager::new();
-        manager.add_process("proc1".to_string(), "sleep 10".to_string(), None, None);
-        manager.add_process("proc2".to_string(), "sleep 10".to_string(), None, None);
-        manager.add_process("proc3".to_string(), "sleep 10".to_string(), None, None);
+        manager.add_process("proc1".to_string(), "sleep 10".to_string(), None, None, None);
+        manager.add_process("proc2".to_string(), "sleep 10".to_string(), None, None, None);
+        manager.add_process("proc3".to_string(), "sleep 10".to_string(), None, None, None);
 
         // Start only proc1 and proc3
         let to_start = vec!["proc1".to_string(), "proc3".to_string()];
@@ -1461,7 +1509,7 @@ mod tests {
     #[tokio::test]
     async fn test_start_specific_with_unknown_process() {
         let mut manager = ProcessManager::new();
-        manager.add_process("proc1".to_string(), "sleep 10".to_string(), None, None);
+        manager.add_process("proc1".to_string(), "sleep 10".to_string(), None, None, None);
 
         // Try to start a process that doesn't exist
         let to_start = vec!["proc1".to_string(), "nonexistent".to_string()];

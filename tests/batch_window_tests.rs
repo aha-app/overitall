@@ -32,7 +32,7 @@ fn test_batch_window_set_value() {
 #[test]
 fn test_batch_window_affects_batch_detection() {
     let mut manager = ProcessManager::new();
-    manager.add_process("web".to_string(), "ruby web.rb".to_string(), None, None);
+    manager.add_process("web".to_string(), "ruby web.rb".to_string(), None, None, None);
 
     // Create logs with 200ms gap between them
     let base_time = Local.with_ymd_and_hms(2024, 12, 10, 12, 0, 0).unwrap();
@@ -111,7 +111,7 @@ fn test_batch_window_prevents_chaining() {
     // Regression test for the "chaining" bug where logs slowly drift apart
     // over time but each consecutive pair is within the window
     let mut manager = ProcessManager::new();
-    manager.add_process("web".to_string(), "ruby web.rb".to_string(), None, None);
+    manager.add_process("web".to_string(), "ruby web.rb".to_string(), None, None, None);
 
     let base_time = Local.with_ymd_and_hms(2024, 12, 10, 12, 0, 0).unwrap();
 

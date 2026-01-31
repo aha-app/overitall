@@ -28,8 +28,8 @@ fn create_test_app() -> App {
 fn create_manager_with_batched_logs() -> ProcessManager {
     let mut manager = ProcessManager::new();
 
-    manager.add_process("web".to_string(), "ruby web.rb".to_string(), None, None);
-    manager.add_process("worker".to_string(), "ruby worker.rb".to_string(), None, None);
+    manager.add_process("web".to_string(), "ruby web.rb".to_string(), None, None, None);
+    manager.add_process("worker".to_string(), "ruby worker.rb".to_string(), None, None, None);
 
     // Batch 1: Three logs arriving within 100ms (at 12:00:00.000)
     let batch1_time = Local.with_ymd_and_hms(2024, 12, 10, 12, 0, 0).unwrap();
@@ -656,7 +656,7 @@ fn test_manual_trace_time_window_filtering() {
 
     let mut app = create_test_app();
     let mut manager = ProcessManager::new();
-    manager.add_process("test".to_string(), "echo test".to_string(), None, None);
+    manager.add_process("test".to_string(), "echo test".to_string(), None, None, None);
 
     // Add a log with a specific arrival time (in the past)
     let old_time = Local::now() - Duration::hours(1);

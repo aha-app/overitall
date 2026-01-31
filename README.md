@@ -303,6 +303,7 @@ hidden_processes = ["worker"]
 
 - `procfile` - Path to your Procfile (required)
 - `processes.<name>.log_file` - Path to the log file for a specific process (optional)
+- `processes.<name>.stdin` - Stdin mode for the process: `"close"` (default) or `"open"` (see below)
 - `processes.<name>.status` - Custom status configuration (see below)
 - `log_files` - Array of standalone log files to tail (see below)
 - `filters.include` - Array of regex patterns to include
@@ -379,6 +380,26 @@ Use group names with any process command:
 ```
 
 Group names must not conflict with process names or log file names.
+
+### Process Stdin Configuration
+
+By default, all processes have stdin closed (`stdin = "close"`). Some processes, like Tailwind CSS in watch mode, exit when their stdin is closed. For these processes, you can keep stdin open:
+
+```toml
+[processes.tailwind]
+stdin = "open"  # Keep stdin open to prevent process from exiting
+```
+
+**Options:**
+- `"close"` (default) - Close stdin, process receives EOF immediately
+- `"open"` - Keep stdin open with a new pipe
+
+**When to use `"open"`:**
+- File watchers that exit when stdin closes (Tailwind, Vite, etc.)
+- Processes that check stdin status at startup
+- Any process that expects stdin to remain open
+
+The open mode creates a new pipe per process (does not share the parent's stdin). Most processes don't need this and should use the default `"close"` mode.
 
 ### Custom Process Status Labels
 

@@ -43,7 +43,7 @@ fn test_custom_status_after_transition() {
     };
 
     let mut manager = overitall::process::ProcessManager::new();
-    manager.add_process("web".to_string(), "echo hi".to_string(), None, Some(&status_config));
+    manager.add_process("web".to_string(), "echo hi".to_string(), None, Some(&status_config), None);
     manager.reset_process_status("web"); // Apply default custom status
 
     // Trigger transition by checking a log line
@@ -103,8 +103,8 @@ fn test_custom_status_with_multiple_processes() {
     };
 
     let mut manager = overitall::process::ProcessManager::new();
-    manager.add_process("web".to_string(), "echo hi".to_string(), None, Some(&web_config));
-    manager.add_process("worker".to_string(), "echo hi".to_string(), None, Some(&worker_config));
+    manager.add_process("web".to_string(), "echo hi".to_string(), None, Some(&web_config), None);
+    manager.add_process("worker".to_string(), "echo hi".to_string(), None, Some(&worker_config), None);
     manager.reset_process_status("web"); // Apply default custom status
     manager.reset_process_status("worker"); // Apply default custom status
 
