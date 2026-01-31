@@ -2,7 +2,7 @@
   "name": "vscode-overitall",
   "displayName": "Overitall",
   "description": "Process management and log viewing for Overitall",
-  "version": "0.1.64",
+  "version": "0.1.67",
   "publisher": "aha-app",
   "repository": {
     "type": "git",

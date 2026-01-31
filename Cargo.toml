@@ -1,6 +1,6 @@
 [package]
 name = "overitall"
-version = "0.1.64"
+version = "0.1.67"
 edition = "2024"
 license = "MIT"
 default-run = "oit"

@@ -1,26 +1,26 @@
 class Oit < Formula
   desc "TUI combining process management and log viewing"
   homepage "https://github.com/aha-app/overitall"
-  version "0.1.64"
+  version "0.1.67"
   license "MIT"
 
   on_macos do
     if Hardware::CPU.arm?
       url "https://github.com/aha-app/overitall/releases/download/v#{version}/oit-macos-arm64.tar.gz"
-      sha256 "680cd9425e03fe1e3cbd8bc5d59050d9c813314e87dc93a17553628fa1da3513" # macos-arm64
+      sha256 "8b434a4a73116482d78db096eb70a61eead415a9cfdc55bc4952f2409813fea7" # macos-arm64
     else
       url "https://github.com/aha-app/overitall/releases/download/v#{version}/oit-macos-x86_64.tar.gz"
-      sha256 "ffb24e448e3db0c95132d2a7a7da379932aad26a1ca45e23be5432a5fae2d6a9" # macos-x86_64
+      sha256 "af0e78e07fd11cd6a4d1de041ed8190e880c6e2fd957a405d2062848f90b98be" # macos-x86_64
     end
   end
 
   on_linux do
     if Hardware::CPU.arm?
       url "https://github.com/aha-app/overitall/releases/download/v#{version}/oit-linux-arm64.tar.gz"
-      sha256 "69b7e5e0393e5418a5242a9ec78769e24bc25430f5ea4d6753fc80acbf9f3992" # linux-arm64
+      sha256 "85eb16b01298cd7bad1b4abedfa708fc791b40132ac35d7d6a42ecbeee4046c4" # linux-arm64
     else
       url "https://github.com/aha-app/overitall/releases/download/v#{version}/oit-linux-x86_64.tar.gz"
-      sha256 "bd7c253e41add41135158a8df32ad9ff62bdade013c2744780738cb707a8b166" # linux-x86_64
+      sha256 "55fda02f11b24785cdc8df520fa1bb7e6e26819d022a340d91251757ec5a4b9b" # linux-x86_64
     end
   end
 
