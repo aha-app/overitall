@@ -76,6 +76,7 @@ cd target/release/dist && tar -czf oit-linux-arm64.tar.gz oit oit.1 && rm oit oi
 
 echo "Building VS Code extension..."
 cd vscode-extension
+npm install
 npm run compile
 npm run package
 VSIX_FILE="vscode-overitall-${NEW_VERSION}.vsix"
