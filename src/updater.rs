@@ -4,7 +4,20 @@ use std::os::unix::fs::PermissionsExt;
 use std::process::Command;
 
 const REPO: &str = "aha-app/overitall";
-const ASSET_NAME: &str = "oit-macos-arm64.tar.gz";
+
+fn asset_name() -> anyhow::Result<String> {
+    let os = match std::env::consts::OS {
+        "macos" => "macos",
+        "linux" => "linux",
+        other => anyhow::bail!("Unsupported OS: {}", other),
+    };
+    let arch = match std::env::consts::ARCH {
+        "aarch64" => "arm64",
+        "x86_64" => "x86_64",
+        other => anyhow::bail!("Unsupported architecture: {}", other),
+    };
+    Ok(format!("oit-{}-{}.tar.gz", os, arch))
+}
 
 /// Get latest release version from GitHub API
 fn get_latest_version() -> anyhow::Result<String> {
@@ -24,16 +37,17 @@ fn get_latest_version() -> anyhow::Result<String> {
 
 /// Download and extract release with direct HTTP
 fn download_and_update(tag: &str) -> anyhow::Result<()> {
+    let asset_name = asset_name()?;
     let temp_dir = tempfile::tempdir()?;
     let temp_path = temp_dir.path();
-    let asset_path = temp_path.join(ASSET_NAME);
+    let asset_path = temp_path.join(&asset_name);
 
     let url = format!(
         "https://github.com/{}/releases/download/{}/{}",
-        REPO, tag, ASSET_NAME
+        REPO, tag, asset_name
     );
 
-    println!("Downloading {}...", ASSET_NAME);
+    println!("Downloading {}...", asset_name);
 
     let response = ureq::get(&url)
         .set("User-Agent", "oit-updater")
