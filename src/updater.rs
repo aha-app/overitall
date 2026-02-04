@@ -5,18 +5,24 @@ use std::process::Command;
 
 const REPO: &str = "aha-app/overitall";
 
-fn asset_name() -> anyhow::Result<String> {
-    let os = match std::env::consts::OS {
+/// Construct asset name for given OS and architecture
+fn asset_name_for_platform(os: &str, arch: &str) -> anyhow::Result<String> {
+    let os_name = match os {
         "macos" => "macos",
         "linux" => "linux",
         other => anyhow::bail!("Unsupported OS: {}", other),
     };
-    let arch = match std::env::consts::ARCH {
+    let arch_name = match arch {
         "aarch64" => "arm64",
         "x86_64" => "x86_64",
         other => anyhow::bail!("Unsupported architecture: {}", other),
     };
-    Ok(format!("oit-{}-{}.tar.gz", os, arch))
+    Ok(format!("oit-{}-{}.tar.gz", os_name, arch_name))
+}
+
+/// Get the asset name for the current platform
+fn asset_name() -> anyhow::Result<String> {
+    asset_name_for_platform(std::env::consts::OS, std::env::consts::ARCH)
 }
 
 /// Get latest release version from GitHub API
@@ -127,4 +133,71 @@ pub fn check_and_update(current_version: &str) -> anyhow::Result<()> {
     );
 
     anyhow::bail!("Failed to restart: {}", err);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_asset_name_for_macos_arm64() {
+        let result = asset_name_for_platform("macos", "aarch64");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "oit-macos-arm64.tar.gz");
+    }
+
+    #[test]
+    fn test_asset_name_for_macos_x86_64() {
+        let result = asset_name_for_platform("macos", "x86_64");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "oit-macos-x86_64.tar.gz");
+    }
+
+    #[test]
+    fn test_asset_name_for_linux_arm64() {
+        let result = asset_name_for_platform("linux", "aarch64");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "oit-linux-arm64.tar.gz");
+    }
+
+    #[test]
+    fn test_asset_name_for_linux_x86_64() {
+        let result = asset_name_for_platform("linux", "x86_64");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "oit-linux-x86_64.tar.gz");
+    }
+
+    #[test]
+    fn test_asset_name_for_unsupported_os() {
+        let result = asset_name_for_platform("windows", "x86_64");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Unsupported OS: windows"));
+    }
+
+    #[test]
+    fn test_asset_name_for_unsupported_arch() {
+        let result = asset_name_for_platform("linux", "i686");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Unsupported architecture: i686"));
+    }
+
+    #[test]
+    fn test_asset_name_for_current_platform() {
+        // Test that the function works for the current platform
+        let result = asset_name();
+        assert!(result.is_ok(), "asset_name() should work on the current platform");
+
+        let asset = result.unwrap();
+        assert!(asset.starts_with("oit-"), "Asset name should start with 'oit-'");
+        assert!(asset.ends_with(".tar.gz"), "Asset name should end with '.tar.gz'");
+
+        // Verify the format matches expected pattern
+        assert!(
+            asset == "oit-macos-arm64.tar.gz" ||
+            asset == "oit-macos-x86_64.tar.gz" ||
+            asset == "oit-linux-arm64.tar.gz" ||
+            asset == "oit-linux-x86_64.tar.gz",
+            "Asset name '{}' should be one of the supported formats", asset
+        );
+    }
 }
