@@ -187,7 +187,7 @@ All commands are entered by pressing `:` followed by the command.
 #### Process Management
 
 - `:s <name>` - Start a process
-- `:r <name>` - Restart a process (or all processes if no name given)
+- `:r <name>` - Restart a process (or all processes if no name given). Re-reads the Procfile to pick up changes.
 - `:k <name>` - Kill (stop) a process
 - `:q` / `:quit` / `:exit` - Quit the application
 

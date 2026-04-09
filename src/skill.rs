@@ -164,7 +164,7 @@ Show logs from a hidden process (runtime only).
 ## Process Control
 
 ### `oit restart [name]`
-Restart a process, or all processes if no name given.
+Restart a process, or all processes if no name given. Re-reads the Procfile on each restart to pick up command changes, new processes, and removed processes.
 
 ### `oit kill <name>`
 Kill (stop) a specific process.

@@ -155,6 +155,7 @@ async fn main() -> anyhow::Result<()> {
     // Create process manager
     let max_buffer_mb = config.max_log_buffer_mb.unwrap_or(50);
     let mut manager = ProcessManager::new_with_buffer_limit(max_buffer_mb);
+    manager.set_procfile_path(runtime_procfile_path.clone(), procfile_dir.clone());
 
     // Add ALL processes from Procfile (skip only ignored ones)
     for (name, command) in &procfile.processes {
@@ -707,6 +708,17 @@ async fn apply_ipc_action(
             app.filters.hidden_processes.remove(&name);
         }
         IpcAction::RestartProcess { name } => {
+            // Reload Procfile to pick up changes
+            match manager.reload_procfile(config) {
+                Ok(reload) => {
+                    if reload.has_changes() {
+                        app.display.set_status_info(reload.summary());
+                    }
+                }
+                Err(e) => {
+                    app.display.set_status_error(format!("Procfile reload failed: {}", e));
+                }
+            }
             // Non-blocking: set restart flag, main loop handles actual restart
             if manager.set_restarting(&name) {
                 app.display.set_status_info(format!("Restarting: {}", name));
@@ -715,6 +727,17 @@ async fn apply_ipc_action(
             }
         }
         IpcAction::RestartAllProcesses => {
+            // Reload Procfile to pick up changes
+            match manager.reload_procfile(config) {
+                Ok(reload) => {
+                    if reload.has_changes() {
+                        app.display.set_status_info(reload.summary());
+                    }
+                }
+                Err(e) => {
+                    app.display.set_status_error(format!("Procfile reload failed: {}", e));
+                }
+            }
             // Non-blocking: set restart flags for all running processes
             // Stopped processes stay stopped
             let running_count = manager

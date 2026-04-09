@@ -10,8 +10,9 @@ use tokio::task::JoinHandle;
 
 // Re-export log types for compatibility
 pub use crate::log::{LogLine, LogSource};
-use crate::config::StatusConfig;
+use crate::config::{Config, StatusConfig};
 use crate::log::{LogBuffer, FileReader, LogVelocityTracker};
+use crate::procfile::Procfile;
 use crate::status_matcher::StatusMatcher;
 
 /// Status of a managed process
@@ -432,6 +433,39 @@ async fn perform_restart(data: RestartData) -> RestartResult {
     }
 }
 
+/// Result of reloading a Procfile
+#[derive(Debug, Default)]
+pub struct ProcfileReloadResult {
+    pub updated: Vec<String>,
+    pub added: Vec<String>,
+    pub removed: Vec<String>,
+    pub unchanged: Vec<String>,
+}
+
+impl ProcfileReloadResult {
+    pub fn has_changes(&self) -> bool {
+        !self.updated.is_empty() || !self.added.is_empty() || !self.removed.is_empty()
+    }
+
+    pub fn summary(&self) -> String {
+        let mut parts = Vec::new();
+        if !self.updated.is_empty() {
+            parts.push(format!("updated: {}", self.updated.join(", ")));
+        }
+        if !self.added.is_empty() {
+            parts.push(format!("added: {}", self.added.join(", ")));
+        }
+        if !self.removed.is_empty() {
+            parts.push(format!("removed: {}", self.removed.join(", ")));
+        }
+        if parts.is_empty() {
+            "no changes".to_string()
+        } else {
+            format!("Procfile reloaded ({})", parts.join("; "))
+        }
+    }
+}
+
 /// Manages multiple processes
 pub struct ProcessManager {
     processes: HashMap<String, ProcessHandle>,
@@ -444,6 +478,8 @@ pub struct ProcessManager {
     restart_rx: mpsc::UnboundedReceiver<RestartResult>,
     restart_tx: mpsc::UnboundedSender<RestartResult>,
     restarts_in_flight: HashSet<String>,
+    procfile_path: Option<PathBuf>,
+    procfile_dir: Option<PathBuf>,
 }
 
 impl ProcessManager {
@@ -466,12 +502,81 @@ impl ProcessManager {
             restart_rx,
             restart_tx,
             restarts_in_flight: HashSet::new(),
+            procfile_path: None,
+            procfile_dir: None,
         }
+    }
+
+    pub fn set_procfile_path(&mut self, path: PathBuf, dir: PathBuf) {
+        self.procfile_path = Some(path);
+        self.procfile_dir = Some(dir);
     }
 
     /// Add a process definition (doesn't start it)
     pub fn add_process(&mut self, name: String, command: String, working_dir: Option<PathBuf>, status_config: Option<&StatusConfig>, stdin_config: Option<&str>) {
         self.processes.insert(name.clone(), ProcessHandle::new(name, command, working_dir, status_config, stdin_config));
+    }
+
+    /// Reload the Procfile and update process definitions.
+    /// - Updated commands are applied to existing processes (takes effect on next restart)
+    /// - New processes are added (in Stopped state)
+    /// - Removed processes are put into Failed state with a message
+    /// Returns a summary of changes, or an error if the Procfile can't be read.
+    pub fn reload_procfile(&mut self, config: &Config) -> Result<ProcfileReloadResult> {
+        let procfile_path = self.procfile_path.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("No Procfile path configured"))?;
+        let procfile_dir = self.procfile_dir.clone();
+
+        let procfile = Procfile::from_file(procfile_path)?;
+        let mut result = ProcfileReloadResult::default();
+
+        // Check existing processes against new Procfile
+        let existing_names: Vec<String> = self.processes.keys().cloned().collect();
+        for name in &existing_names {
+            if config.ignored_processes.contains(name) {
+                continue;
+            }
+            match procfile.processes.get(name) {
+                Some(new_command) => {
+                    let process = self.processes.get_mut(name).unwrap();
+                    if process.command != *new_command {
+                        process.command = new_command.clone();
+                        result.updated.push(name.clone());
+                    } else {
+                        result.unchanged.push(name.clone());
+                    }
+                }
+                None => {
+                    // Process removed from Procfile
+                    let process = self.processes.get_mut(name).unwrap();
+                    process.status = ProcessStatus::Failed("Removed from Procfile".to_string());
+                    result.removed.push(name.clone());
+                }
+            }
+        }
+
+        // Check for new processes in the Procfile
+        for (name, command) in &procfile.processes {
+            if config.ignored_processes.contains(name) {
+                continue;
+            }
+            if !self.processes.contains_key(name) {
+                let status_config = config.processes.get(name)
+                    .and_then(|pc| pc.status.as_ref());
+                let stdin_config = config.processes.get(name)
+                    .and_then(|pc| pc.stdin.as_deref());
+                self.add_process(
+                    name.clone(),
+                    command.clone(),
+                    procfile_dir.clone(),
+                    status_config,
+                    stdin_config,
+                );
+                result.added.push(name.clone());
+            }
+        }
+
+        Ok(result)
     }
 
     pub async fn start_process(&mut self, name: &str) -> Result<()> {
@@ -1522,5 +1627,163 @@ mod tests {
         assert_eq!(manager.get_status("proc1"), Some(ProcessStatus::Running));
 
         manager.kill_all().await.unwrap();
+    }
+
+    // Procfile reload tests
+
+    fn test_config() -> Config {
+        Config {
+            procfile: PathBuf::from("Procfile"),
+            processes: HashMap::new(),
+            log_files: Vec::new(),
+            filters: crate::config::FilterConfig::default(),
+            batch_window_ms: None,
+            max_log_buffer_mb: None,
+            hidden_processes: Vec::new(),
+            ignored_processes: Vec::new(),
+            start_processes: Vec::new(),
+            disable_auto_update: None,
+            compact_mode: None,
+            colors: HashMap::new(),
+            process_coloring: None,
+            context_copy_seconds: None,
+            groups: HashMap::new(),
+            config_path: None,
+        }
+    }
+
+    fn create_manager_with_procfile(procfile_content: &str) -> (ProcessManager, tempfile::NamedTempFile) {
+        use std::io::Write;
+        let mut tmp = tempfile::NamedTempFile::new().unwrap();
+        write!(tmp, "{}", procfile_content).unwrap();
+        let path = tmp.path().to_path_buf();
+        let dir = path.parent().unwrap().to_path_buf();
+
+        let mut manager = ProcessManager::new();
+        manager.set_procfile_path(path, dir);
+        (manager, tmp)
+    }
+
+    #[test]
+    fn test_reload_procfile_updates_command() {
+        let (mut manager, tmp) = create_manager_with_procfile("web: old_command\nworker: sidekiq\n");
+        let config = test_config();
+
+        manager.add_process("web".to_string(), "old_command".to_string(), None, None, None);
+        manager.add_process("worker".to_string(), "sidekiq".to_string(), None, None, None);
+
+        // Update the procfile
+        std::fs::write(tmp.path(), "web: new_command\nworker: sidekiq\n").unwrap();
+
+        let result = manager.reload_procfile(&config).unwrap();
+        assert_eq!(result.updated, vec!["web"]);
+        assert!(result.unchanged.contains(&"worker".to_string()));
+        assert!(result.added.is_empty());
+        assert!(result.removed.is_empty());
+
+        // Verify the command was updated
+        let process = manager.processes.get("web").unwrap();
+        assert_eq!(process.command, "new_command");
+    }
+
+    #[test]
+    fn test_reload_procfile_detects_new_process() {
+        let (mut manager, tmp) = create_manager_with_procfile("web: rails server\n");
+        let config = test_config();
+
+        manager.add_process("web".to_string(), "rails server".to_string(), None, None, None);
+
+        // Add a new process to procfile
+        std::fs::write(tmp.path(), "web: rails server\nworker: sidekiq\n").unwrap();
+
+        let result = manager.reload_procfile(&config).unwrap();
+        assert_eq!(result.added, vec!["worker"]);
+        assert!(result.unchanged.contains(&"web".to_string()));
+
+        // New process should exist in stopped state
+        assert!(manager.has_process("worker"));
+        assert_eq!(manager.get_status("worker"), Some(ProcessStatus::Stopped));
+    }
+
+    #[test]
+    fn test_reload_procfile_removes_process() {
+        let (mut manager, tmp) = create_manager_with_procfile("web: rails server\nworker: sidekiq\n");
+        let config = test_config();
+
+        manager.add_process("web".to_string(), "rails server".to_string(), None, None, None);
+        manager.add_process("worker".to_string(), "sidekiq".to_string(), None, None, None);
+
+        // Remove worker from procfile
+        std::fs::write(tmp.path(), "web: rails server\n").unwrap();
+
+        let result = manager.reload_procfile(&config).unwrap();
+        assert_eq!(result.removed, vec!["worker"]);
+
+        // Removed process should be in Failed state
+        assert_eq!(
+            manager.get_status("worker"),
+            Some(ProcessStatus::Failed("Removed from Procfile".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_reload_procfile_no_changes() {
+        let (mut manager, _tmp) = create_manager_with_procfile("web: rails server\n");
+        let config = test_config();
+
+        manager.add_process("web".to_string(), "rails server".to_string(), None, None, None);
+
+        let result = manager.reload_procfile(&config).unwrap();
+        assert!(!result.has_changes());
+        assert!(result.unchanged.contains(&"web".to_string()));
+    }
+
+    #[test]
+    fn test_reload_procfile_skips_ignored_processes() {
+        let (mut manager, tmp) = create_manager_with_procfile("web: rails server\nworker: sidekiq\n");
+        let mut config = test_config();
+        config.ignored_processes = vec!["worker".to_string()];
+
+        manager.add_process("web".to_string(), "rails server".to_string(), None, None, None);
+
+        // Add worker to procfile (but it's ignored)
+        std::fs::write(tmp.path(), "web: rails server\nworker: new_sidekiq\n").unwrap();
+
+        let result = manager.reload_procfile(&config).unwrap();
+        // Worker should not appear in added since it's ignored
+        assert!(result.added.is_empty());
+        assert!(!manager.has_process("worker"));
+    }
+
+    #[test]
+    fn test_reload_procfile_error_on_invalid_file() {
+        let mut manager = ProcessManager::new();
+        manager.set_procfile_path(PathBuf::from("/nonexistent/Procfile"), PathBuf::from("/nonexistent"));
+
+        let config = test_config();
+        assert!(manager.reload_procfile(&config).is_err());
+    }
+
+    #[test]
+    fn test_reload_procfile_summary() {
+        let result = ProcfileReloadResult {
+            updated: vec!["web".to_string()],
+            added: vec!["worker".to_string()],
+            removed: vec!["old".to_string()],
+            unchanged: vec![],
+        };
+        let summary = result.summary();
+        assert!(summary.contains("updated: web"));
+        assert!(summary.contains("added: worker"));
+        assert!(summary.contains("removed: old"));
+    }
+
+    #[test]
+    fn test_reload_procfile_no_path_configured() {
+        let mut manager = ProcessManager::new();
+        let config = test_config();
+        let result = manager.reload_procfile(&config);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("No Procfile path configured"));
     }
 }

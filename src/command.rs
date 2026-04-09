@@ -319,6 +319,18 @@ impl<'a> CommandExecutor<'a> {
     }
 
     fn execute_restart(&mut self, name: &str) -> Result<()> {
+        // Reload Procfile to pick up changes
+        match self.manager.reload_procfile(self.config) {
+            Ok(reload) => {
+                if reload.has_changes() {
+                    self.app.display.set_status_info(reload.summary());
+                }
+            }
+            Err(e) => {
+                self.app.display.set_status_error(format!("Procfile reload failed: {}", e));
+            }
+        }
+
         let resolved = self.create_resolver().resolve(name);
         let is_group = resolved.len() > 1;
 
@@ -348,6 +360,18 @@ impl<'a> CommandExecutor<'a> {
     }
 
     fn execute_restart_all(&mut self) -> Result<()> {
+        // Reload Procfile to pick up changes
+        match self.manager.reload_procfile(self.config) {
+            Ok(reload) => {
+                if reload.has_changes() {
+                    self.app.display.set_status_info(reload.summary());
+                }
+            }
+            Err(e) => {
+                self.app.display.set_status_error(format!("Procfile reload failed: {}", e));
+            }
+        }
+
         // Non-blocking: just set the status and let the main loop handle the actual restart
         // Only restarts running processes - stopped processes stay stopped
         use crate::process::ProcessStatus;
