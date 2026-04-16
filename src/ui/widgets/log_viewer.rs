@@ -505,13 +505,13 @@ pub fn draw_log_viewer(
             let bg_color = if is_cursor {
                 Some(Color::Blue)
             } else if is_multi_selected {
-                Some(Color::Rgb(30, 50, 70))
+                Some(app.theme.selection_bg)
             } else {
                 None
             };
 
             let fg_override = if is_cursor {
-                Some(Color::White)
+                Some(app.theme.selection_fg)
             } else {
                 None
             };
@@ -529,13 +529,13 @@ pub fn draw_log_viewer(
             let bg_color = if is_cursor {
                 Some(Color::Blue)
             } else if is_multi_selected {
-                Some(Color::Rgb(30, 50, 70))
+                Some(app.theme.selection_bg)
             } else {
                 None
             };
 
             let fg_override = if is_cursor {
-                Some(Color::White)
+                Some(app.theme.selection_fg)
             } else {
                 None
             };
@@ -557,13 +557,13 @@ pub fn draw_log_viewer(
             let bg_color = if is_cursor {
                 Some(Color::Blue)
             } else if is_multi_selected {
-                Some(Color::Rgb(30, 50, 70))
+                Some(app.theme.selection_bg)
             } else {
                 None
             };
 
             let fg_override = if is_cursor {
-                Some(Color::White)
+                Some(app.theme.selection_fg)
             } else {
                 None
             };

@@ -11,17 +11,20 @@ use crate::ui::types::StatusType;
 
 /// Draw the command input at the bottom of the screen
 pub fn draw_command_input(f: &mut Frame, area: Rect, app: &App) {
+    let muted = app.theme.muted;
+    let accent = app.theme.accent;
+
     let text = if app.input.search_mode {
         // Show search input with a cursor and help text
         Line::from(vec![
             Span::styled("/", Style::default().fg(Color::Cyan)),
             Span::raw(&app.input.input),
             Span::styled("_", Style::default().fg(Color::Cyan)),
-            Span::styled("  (", Style::default().fg(Color::Gray)),
-            Span::styled("Enter", Style::default().fg(Color::Yellow)),
-            Span::styled(" to select | ", Style::default().fg(Color::Gray)),
-            Span::styled("Esc", Style::default().fg(Color::Yellow)),
-            Span::styled(" to cancel)", Style::default().fg(Color::Gray)),
+            Span::styled("  (", Style::default().fg(muted)),
+            Span::styled("Enter", Style::default().fg(accent)),
+            Span::styled(" to select | ", Style::default().fg(muted)),
+            Span::styled("Esc", Style::default().fg(accent)),
+            Span::styled(" to cancel)", Style::default().fg(muted)),
         ])
     } else if app.input.command_mode {
         // Show the input with a cursor
@@ -35,40 +38,34 @@ pub fn draw_command_input(f: &mut Frame, area: Rect, app: &App) {
         let color = match status_type {
             StatusType::Success => Color::Green,
             StatusType::Error => Color::Red,
-            StatusType::Info => Color::Yellow,
+            StatusType::Info => accent,
         };
         Line::from(vec![Span::styled(message, Style::default().fg(color))])
     } else {
         // Show help text
         Line::from(vec![
-            Span::styled("Press ", Style::default().fg(Color::Gray)),
+            Span::styled("Press ", Style::default().fg(muted)),
             Span::styled(
                 ":",
-                Style::default()
-                    .fg(Color::Yellow)
-                    .add_modifier(Modifier::BOLD),
+                Style::default().fg(accent).add_modifier(Modifier::BOLD),
             ),
-            Span::styled(" for commands, ", Style::default().fg(Color::Gray)),
+            Span::styled(" for commands, ", Style::default().fg(muted)),
             Span::styled(
                 "/",
-                Style::default()
-                    .fg(Color::Yellow)
-                    .add_modifier(Modifier::BOLD),
+                Style::default().fg(accent).add_modifier(Modifier::BOLD),
             ),
-            Span::styled(" to search, ", Style::default().fg(Color::Gray)),
+            Span::styled(" to search, ", Style::default().fg(muted)),
             Span::styled(
                 "q",
-                Style::default()
-                    .fg(Color::Yellow)
-                    .add_modifier(Modifier::BOLD),
+                Style::default().fg(accent).add_modifier(Modifier::BOLD),
             ),
-            Span::styled(" to quit", Style::default().fg(Color::Gray)),
+            Span::styled(" to quit", Style::default().fg(muted)),
         ])
     };
 
     let paragraph = Paragraph::new(text)
         .block(Block::default().borders(Borders::NONE))
-        .style(Style::default().bg(Color::Rgb(30, 30, 30)));
+        .style(Style::default().bg(app.theme.footer_bg).fg(app.theme.footer_fg));
 
     f.render_widget(paragraph, area);
 }

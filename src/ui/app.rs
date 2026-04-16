@@ -8,6 +8,7 @@ use super::input_state::InputState;
 use super::navigation_state::NavigationState;
 use super::process_colors::ProcessColors;
 use super::render_cache::RenderCache;
+use super::theme::Theme;
 use super::trace_state::TraceState;
 
 /// Display mode for log lines
@@ -62,6 +63,8 @@ pub struct App {
     pub regions: ClickRegions,
     /// Colors assigned to each process/log file
     pub process_colors: ProcessColors,
+    /// Active theme (controls footer colors and process palette)
+    pub theme: Theme,
     /// Whether the app should quit
     pub should_quit: bool,
     /// Whether we're in the process of shutting down
@@ -70,6 +73,7 @@ pub struct App {
 
 impl App {
     pub fn new() -> Self {
+        let theme = Theme::default();
         Self {
             input: InputState::new(),
             navigation: NavigationState::new(),
@@ -79,20 +83,40 @@ impl App {
             display: DisplayState::new(),
             cache: RenderCache::new(),
             regions: ClickRegions::new(),
-            process_colors: ProcessColors::new(&[], &[], &HashMap::new()),
+            process_colors: ProcessColors::new(
+                &[],
+                &[],
+                &HashMap::new(),
+                theme.process_palette,
+                theme.fallback_process,
+            ),
+            theme,
             should_quit: false,
             shutting_down: false,
         }
     }
 
+    /// Replace the active theme. Re-initialize process colors after calling this
+    /// so the new palette takes effect.
+    pub fn set_theme(&mut self, theme: Theme) {
+        self.theme = theme;
+    }
+
     /// Initialize process colors from config and process/log file names.
+    /// Uses the palette from the active theme.
     pub fn init_process_colors(
         &mut self,
         process_names: &[String],
         log_file_names: &[String],
         config_colors: &HashMap<String, String>,
     ) {
-        self.process_colors = ProcessColors::new(process_names, log_file_names, config_colors);
+        self.process_colors = ProcessColors::new(
+            process_names,
+            log_file_names,
+            config_colors,
+            self.theme.process_palette,
+            self.theme.fallback_process,
+        );
     }
 
     pub fn quit(&mut self) {

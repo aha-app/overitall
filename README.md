@@ -317,6 +317,7 @@ hidden_processes = ["worker"]
 - `disable_auto_update` - Set to `true` to disable auto-update checks (default: false)
 - `compact_mode` - Set to `false` to show full log lines by default (default: true)
 - `process_coloring` - Colorize process names in the log view (default: true)
+- `theme` - UI theme: `"dark"` (default) or `"light"`. Pick `"light"` for terminals with a light background so the footer and process palette stay readable.
 
 ### Standalone Log Files
 

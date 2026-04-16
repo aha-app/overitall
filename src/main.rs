@@ -215,6 +215,9 @@ async fn main() -> anyhow::Result<()> {
     // Create app state
     let mut app = App::new();
 
+    // Initialize theme from config (defaults to dark) before any color setup
+    app.set_theme(ui::Theme::from_config(config.theme.as_deref()));
+
     // Load batch window from config if specified
     if let Some(batch_window_ms) = config.batch_window_ms {
         app.batch.set_batch_window(batch_window_ms);

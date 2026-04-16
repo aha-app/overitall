@@ -88,7 +88,7 @@ pub fn draw_status_bar(
     };
 
     let paragraph = Paragraph::new(line)
-        .style(Style::default().bg(Color::Rgb(40, 40, 40)));
+        .style(Style::default().bg(app.theme.footer_bg).fg(app.theme.footer_fg));
 
     f.render_widget(paragraph, area);
 }
