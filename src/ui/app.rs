@@ -8,6 +8,7 @@ use super::input_state::InputState;
 use super::navigation_state::NavigationState;
 use super::process_colors::ProcessColors;
 use super::render_cache::RenderCache;
+use super::theme::Theme;
 use super::trace_state::TraceState;
 
 /// Display mode for log lines
@@ -62,6 +63,7 @@ pub struct App {
     pub regions: ClickRegions,
     /// Colors assigned to each process/log file
     pub process_colors: ProcessColors,
+    pub theme: Theme,
     /// Whether the app should quit
     pub should_quit: bool,
     /// Whether we're in the process of shutting down
@@ -70,6 +72,7 @@ pub struct App {
 
 impl App {
     pub fn new() -> Self {
+        let theme = Theme::default();
         Self {
             input: InputState::new(),
             navigation: NavigationState::new(),
@@ -79,20 +82,27 @@ impl App {
             display: DisplayState::new(),
             cache: RenderCache::new(),
             regions: ClickRegions::new(),
-            process_colors: ProcessColors::new(&[], &[], &HashMap::new()),
+            process_colors: ProcessColors::new(&[], &[], &HashMap::new(), &theme),
+            theme,
             should_quit: false,
             shutting_down: false,
         }
     }
 
-    /// Initialize process colors from config and process/log file names.
+    /// Replace the active theme. Callers must follow up with `init_process_colors`
+    /// for the new palette to take effect on existing processes.
+    pub fn set_theme(&mut self, theme: Theme) {
+        self.theme = theme;
+    }
+
     pub fn init_process_colors(
         &mut self,
         process_names: &[String],
         log_file_names: &[String],
         config_colors: &HashMap<String, String>,
     ) {
-        self.process_colors = ProcessColors::new(process_names, log_file_names, config_colors);
+        self.process_colors =
+            ProcessColors::new(process_names, log_file_names, config_colors, &self.theme);
     }
 
     pub fn quit(&mut self) {

@@ -453,12 +453,21 @@ pub fn init_config(config_path: &str, procfile_override: Option<&str>) -> anyhow
             process_coloring: Some(true),
             context_copy_seconds: None,
             groups: std::collections::HashMap::new(),
+            theme: None,
             config_path: None,
         };
 
         // Save the config
         config.save(config_path)
             .with_context(|| format!("Failed to write config to '{}'", config_path))?;
+
+        use std::io::Write;
+        let mut file = std::fs::OpenOptions::new()
+            .append(true)
+            .open(config_path)
+            .with_context(|| format!("Failed to open '{}' to append theme hint", config_path))?;
+        writeln!(file, "\n# theme = \"dark\"  # or \"light\" for light terminals")
+            .with_context(|| format!("Failed to append theme hint to '{}'", config_path))?;
 
         // Print success message
         println!("Created {} with {} processes:", config_path, process_names.len());

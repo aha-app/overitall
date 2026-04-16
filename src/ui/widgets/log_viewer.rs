@@ -48,6 +48,9 @@ pub fn draw_log_viewer(
     manager: &ProcessManager,
     app: &mut App,
 ) {
+    let selection_bg = app.theme.selection_bg;
+    let selection_fg = app.theme.selection_fg;
+
     // Use snapshot if available (frozen/batch mode), otherwise use live buffer
     let logs_vec: Vec<&LogLine> = if let Some(ref snapshot) = app.navigation.snapshot {
         snapshot.iter().collect()
@@ -505,13 +508,13 @@ pub fn draw_log_viewer(
             let bg_color = if is_cursor {
                 Some(Color::Blue)
             } else if is_multi_selected {
-                Some(Color::Rgb(30, 50, 70))
+                Some(selection_bg)
             } else {
                 None
             };
 
             let fg_override = if is_cursor {
-                Some(Color::White)
+                Some(selection_fg)
             } else {
                 None
             };
@@ -529,13 +532,13 @@ pub fn draw_log_viewer(
             let bg_color = if is_cursor {
                 Some(Color::Blue)
             } else if is_multi_selected {
-                Some(Color::Rgb(30, 50, 70))
+                Some(selection_bg)
             } else {
                 None
             };
 
             let fg_override = if is_cursor {
-                Some(Color::White)
+                Some(selection_fg)
             } else {
                 None
             };
@@ -557,13 +560,13 @@ pub fn draw_log_viewer(
             let bg_color = if is_cursor {
                 Some(Color::Blue)
             } else if is_multi_selected {
-                Some(Color::Rgb(30, 50, 70))
+                Some(selection_bg)
             } else {
                 None
             };
 
             let fg_override = if is_cursor {
-                Some(Color::White)
+                Some(selection_fg)
             } else {
                 None
             };

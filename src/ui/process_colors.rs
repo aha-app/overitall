@@ -1,85 +1,101 @@
 use ratatui::style::Color;
 use std::collections::HashMap;
 
-/// Default palette of distinct colors for process names.
-/// Chosen for visibility on dark terminals, avoiding red (error-associated).
-const DEFAULT_PALETTE: &[Color] = &[
-    Color::Green,
-    Color::Yellow,
-    Color::Cyan,
-    Color::Blue,
-    Color::Magenta,
-    Color::LightGreen,
-    Color::LightYellow,
-    Color::LightCyan,
-    Color::LightBlue,
-    Color::LightMagenta,
-];
+use super::theme::Theme;
+
+const ANSI_RESET: &str = "\x1b[0m";
+
+struct Assignment {
+    color: Color,
+    ansi_start: String,
+}
 
 pub struct ProcessColors {
-    assignments: HashMap<String, Color>,
+    assignments: HashMap<String, Assignment>,
+    fallback: Color,
 }
 
 impl ProcessColors {
-    /// Create with config overrides and process/log file names.
     pub fn new(
         process_names: &[String],
         log_file_names: &[String],
         config_colors: &HashMap<String, String>,
+        theme: &Theme,
     ) -> Self {
         let mut assignments = HashMap::new();
 
-        // Combine all names in sorted order for deterministic assignment
         let mut all_names: Vec<&String> = process_names.iter().chain(log_file_names.iter()).collect();
         all_names.sort();
         all_names.dedup();
 
+        let palette = theme.process_palette;
+        let fallback = theme.fallback_process;
+        let palette_len = palette.len().max(1);
         for (idx, name) in all_names.iter().enumerate() {
+            let default_color = palette
+                .get(idx % palette_len)
+                .copied()
+                .unwrap_or(fallback);
             let color = if let Some(color_name) = config_colors.get(*name) {
-                parse_color_name(color_name).unwrap_or(DEFAULT_PALETTE[idx % DEFAULT_PALETTE.len()])
+                parse_color_name(color_name).unwrap_or(default_color)
             } else {
-                DEFAULT_PALETTE[idx % DEFAULT_PALETTE.len()]
+                default_color
             };
-            assignments.insert((*name).clone(), color);
+            assignments.insert(
+                (*name).clone(),
+                Assignment {
+                    color,
+                    ansi_start: color_to_ansi_start(color),
+                },
+            );
         }
 
-        Self { assignments }
+        Self {
+            assignments,
+            fallback,
+        }
     }
 
     pub fn get(&self, name: &str) -> Color {
-        self.assignments.get(name).copied().unwrap_or(Color::White)
+        self.assignments
+            .get(name)
+            .map(|a| a.color)
+            .unwrap_or(self.fallback)
     }
 
     /// Get ANSI escape sequence for the process color.
     /// Returns (start_code, reset_code) to wrap text with color.
-    pub fn get_ansi(&self, name: &str) -> (&'static str, &'static str) {
-        let color = self.get(name);
-        color_to_ansi(color)
+    pub fn get_ansi(&self, name: &str) -> (&str, &'static str) {
+        match self.assignments.get(name) {
+            Some(a) => (a.ansi_start.as_str(), ANSI_RESET),
+            None => ("", ANSI_RESET),
+        }
     }
 }
 
-/// Convert ratatui Color to ANSI escape sequences.
-fn color_to_ansi(color: Color) -> (&'static str, &'static str) {
-    let reset = "\x1b[0m";
-    let code = match color {
-        Color::Red => "\x1b[31m",
-        Color::Green => "\x1b[32m",
-        Color::Yellow => "\x1b[33m",
-        Color::Blue => "\x1b[34m",
-        Color::Magenta => "\x1b[35m",
-        Color::Cyan => "\x1b[36m",
-        Color::White => "\x1b[37m",
-        Color::Gray => "\x1b[90m",
-        Color::DarkGray => "\x1b[90m",
-        Color::LightRed => "\x1b[91m",
-        Color::LightGreen => "\x1b[92m",
-        Color::LightYellow => "\x1b[93m",
-        Color::LightBlue => "\x1b[94m",
-        Color::LightMagenta => "\x1b[95m",
-        Color::LightCyan => "\x1b[96m",
-        _ => "", // No color for unsupported types
-    };
-    (code, reset)
+/// Convert ratatui Color to an ANSI start escape sequence.
+fn color_to_ansi_start(color: Color) -> String {
+    match color {
+        Color::Red => "\x1b[31m".to_string(),
+        Color::Green => "\x1b[32m".to_string(),
+        Color::Yellow => "\x1b[33m".to_string(),
+        Color::Blue => "\x1b[34m".to_string(),
+        Color::Magenta => "\x1b[35m".to_string(),
+        Color::Cyan => "\x1b[36m".to_string(),
+        Color::White => "\x1b[37m".to_string(),
+        Color::Gray => "\x1b[90m".to_string(),
+        Color::DarkGray => "\x1b[90m".to_string(),
+        Color::LightRed => "\x1b[91m".to_string(),
+        Color::LightGreen => "\x1b[92m".to_string(),
+        Color::LightYellow => "\x1b[93m".to_string(),
+        Color::LightBlue => "\x1b[94m".to_string(),
+        Color::LightMagenta => "\x1b[95m".to_string(),
+        Color::LightCyan => "\x1b[96m".to_string(),
+        Color::Black => "\x1b[30m".to_string(),
+        Color::Rgb(r, g, b) => format!("\x1b[38;2;{};{};{}m", r, g, b),
+        Color::Indexed(i) => format!("\x1b[38;5;{}m", i),
+        _ => String::new(),
+    }
 }
 
 fn parse_color_name(name: &str) -> Option<Color> {
@@ -113,12 +129,34 @@ mod tests {
         let log_file_names = vec![];
         let config_colors = HashMap::new();
 
-        let colors = ProcessColors::new(&process_names, &log_file_names, &config_colors);
+        let colors = ProcessColors::new(
+            &process_names,
+            &log_file_names,
+            &config_colors,
+            &Theme::dark(),
+        );
 
         // Sorted order: api, web, worker
         assert_eq!(colors.get("api"), Color::Green);
         assert_eq!(colors.get("web"), Color::Yellow);
         assert_eq!(colors.get("worker"), Color::Cyan);
+    }
+
+    #[test]
+    fn test_light_palette_assignment() {
+        let process_names = vec!["api".to_string()];
+        let log_file_names = vec![];
+        let config_colors = HashMap::new();
+
+        let colors = ProcessColors::new(
+            &process_names,
+            &log_file_names,
+            &config_colors,
+            &Theme::light(),
+        );
+
+        // Light palette starts with gruvbox faded blue.
+        assert_eq!(colors.get("api"), Color::Rgb(0x07, 0x66, 0x78));
     }
 
     #[test]
@@ -128,7 +166,12 @@ mod tests {
         let mut config_colors = HashMap::new();
         config_colors.insert("api".to_string(), "magenta".to_string());
 
-        let colors = ProcessColors::new(&process_names, &log_file_names, &config_colors);
+        let colors = ProcessColors::new(
+            &process_names,
+            &log_file_names,
+            &config_colors,
+            &Theme::dark(),
+        );
 
         assert_eq!(colors.get("api"), Color::Magenta);
         assert_eq!(colors.get("web"), Color::Yellow); // default palette, second position
@@ -160,7 +203,12 @@ mod tests {
         let log_file_names = vec![];
         let config_colors = HashMap::new();
 
-        let colors = ProcessColors::new(&process_names, &log_file_names, &config_colors);
+        let colors = ProcessColors::new(
+            &process_names,
+            &log_file_names,
+            &config_colors,
+            &Theme::dark(),
+        );
 
         // After 10 colors, should cycle back to Green
         assert_eq!(colors.get("proc00"), Color::Green);
@@ -168,12 +216,17 @@ mod tests {
     }
 
     #[test]
-    fn test_unknown_process_returns_white() {
+    fn test_unknown_process_returns_fallback() {
         let process_names = vec!["api".to_string()];
         let log_file_names = vec![];
         let config_colors = HashMap::new();
 
-        let colors = ProcessColors::new(&process_names, &log_file_names, &config_colors);
+        let colors = ProcessColors::new(
+            &process_names,
+            &log_file_names,
+            &config_colors,
+            &Theme::dark(),
+        );
 
         assert_eq!(colors.get("unknown"), Color::White);
     }
@@ -184,7 +237,12 @@ mod tests {
         let log_file_names = vec!["rails".to_string()];
         let config_colors = HashMap::new();
 
-        let colors = ProcessColors::new(&process_names, &log_file_names, &config_colors);
+        let colors = ProcessColors::new(
+            &process_names,
+            &log_file_names,
+            &config_colors,
+            &Theme::dark(),
+        );
 
         // Sorted order: api, rails
         assert_eq!(colors.get("api"), Color::Green);
@@ -198,8 +256,18 @@ mod tests {
         let log_file_names = vec!["rails".to_string()];
         let config_colors = HashMap::new();
 
-        let colors1 = ProcessColors::new(&process_names, &log_file_names, &config_colors);
-        let colors2 = ProcessColors::new(&process_names, &log_file_names, &config_colors);
+        let colors1 = ProcessColors::new(
+            &process_names,
+            &log_file_names,
+            &config_colors,
+            &Theme::dark(),
+        );
+        let colors2 = ProcessColors::new(
+            &process_names,
+            &log_file_names,
+            &config_colors,
+            &Theme::dark(),
+        );
 
         assert_eq!(colors1.get("api"), colors2.get("api"));
         assert_eq!(colors1.get("web"), colors2.get("web"));
@@ -213,9 +281,32 @@ mod tests {
         let mut config_colors = HashMap::new();
         config_colors.insert("api".to_string(), "invalidcolor".to_string());
 
-        let colors = ProcessColors::new(&process_names, &log_file_names, &config_colors);
+        let colors = ProcessColors::new(
+            &process_names,
+            &log_file_names,
+            &config_colors,
+            &Theme::dark(),
+        );
 
         // Falls back to first palette color since "invalidcolor" is invalid
         assert_eq!(colors.get("api"), Color::Green);
+    }
+
+    #[test]
+    fn test_rgb_color_emits_truecolor_ansi() {
+        let process_names = vec!["api".to_string()];
+        let log_file_names = vec![];
+        let config_colors = HashMap::new();
+
+        let colors = ProcessColors::new(
+            &process_names,
+            &log_file_names,
+            &config_colors,
+            &Theme::light(),
+        );
+
+        let (start, _reset) = colors.get_ansi("api");
+        // Light palette[0] is gruvbox blue Rgb(0x07,0x66,0x78) → 24-bit ANSI sequence.
+        assert_eq!(start, "\x1b[38;2;7;102;120m");
     }
 }

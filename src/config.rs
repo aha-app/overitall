@@ -33,6 +33,8 @@ pub struct Config {
     pub context_copy_seconds: Option<f64>,
     #[serde(default)]
     pub groups: HashMap<String, Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub theme: Option<String>,
 
     // This field is not serialized, just used at runtime
     #[serde(skip)]
@@ -208,8 +210,44 @@ mod tests {
             process_coloring: None,
             context_copy_seconds: None,
             groups: HashMap::new(),
+            theme: None,
             config_path: None,
         }
+    }
+
+    #[test]
+    fn test_theme_loads_from_config() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(
+            temp_file,
+            r#"
+procfile = "Procfile"
+theme = "light"
+
+[processes]
+"#
+        )
+        .unwrap();
+
+        let config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert_eq!(config.theme.as_deref(), Some("light"));
+    }
+
+    #[test]
+    fn test_theme_defaults_to_none_when_missing() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(
+            temp_file,
+            r#"
+procfile = "Procfile"
+
+[processes]
+"#
+        )
+        .unwrap();
+
+        let config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert_eq!(config.theme, None);
     }
 
     #[test]

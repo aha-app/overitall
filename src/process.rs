@@ -1648,6 +1648,7 @@ mod tests {
             process_coloring: None,
             context_copy_seconds: None,
             groups: HashMap::new(),
+            theme: None,
             config_path: None,
         }
     }
