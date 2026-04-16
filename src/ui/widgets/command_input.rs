@@ -13,12 +13,14 @@ use crate::ui::types::StatusType;
 pub fn draw_command_input(f: &mut Frame, area: Rect, app: &App) {
     let muted = app.theme.muted;
     let accent = app.theme.accent;
+    let footer_fg = app.theme.footer_fg;
+    let prompt = app.theme.success;
 
     let text = if app.input.search_mode {
         // Show search input with a cursor and help text
         Line::from(vec![
             Span::styled("/", Style::default().fg(Color::Cyan)),
-            Span::raw(&app.input.input),
+            Span::styled(app.input.input.as_str(), Style::default().fg(footer_fg)),
             Span::styled("_", Style::default().fg(Color::Cyan)),
             Span::styled("  (", Style::default().fg(muted)),
             Span::styled("Enter", Style::default().fg(accent)),
@@ -29,16 +31,16 @@ pub fn draw_command_input(f: &mut Frame, area: Rect, app: &App) {
     } else if app.input.command_mode {
         // Show the input with a cursor
         Line::from(vec![
-            Span::styled(":", Style::default().fg(Color::Green)),
-            Span::raw(&app.input.input),
-            Span::styled("_", Style::default().fg(Color::Green)),
+            Span::styled(":", Style::default().fg(prompt)),
+            Span::styled(app.input.input.as_str(), Style::default().fg(footer_fg)),
+            Span::styled("_", Style::default().fg(prompt)),
         ])
     } else if let Some((message, status_type)) = &app.display.status_message {
         // Show color-coded status message
         let color = match status_type {
-            StatusType::Success => Color::Green,
-            StatusType::Error => Color::Red,
-            StatusType::Info => accent,
+            StatusType::Success => app.theme.success,
+            StatusType::Error => app.theme.error,
+            StatusType::Info => app.theme.info,
         };
         Line::from(vec![Span::styled(message, Style::default().fg(color))])
     } else {
@@ -65,7 +67,7 @@ pub fn draw_command_input(f: &mut Frame, area: Rect, app: &App) {
 
     let paragraph = Paragraph::new(text)
         .block(Block::default().borders(Borders::NONE))
-        .style(Style::default().bg(app.theme.footer_bg).fg(app.theme.footer_fg));
+        .style(Style::default().bg(app.theme.footer_bg).fg(footer_fg));
 
     f.render_widget(paragraph, area);
 }

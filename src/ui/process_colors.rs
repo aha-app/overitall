@@ -167,7 +167,8 @@ mod tests {
             light.fallback_process,
         );
 
-        assert_eq!(colors.get("api"), Color::Blue);
+        // Light palette starts with gruvbox faded blue.
+        assert_eq!(colors.get("api"), Color::Rgb(0x07, 0x66, 0x78));
     }
 
     #[test]
@@ -326,7 +327,7 @@ mod tests {
         );
 
         let (start, _reset) = colors.get_ansi("api");
-        // Light palette[0] is Color::Blue → standard ANSI 34
-        assert_eq!(start, "\x1b[34m");
+        // Light palette[0] is gruvbox blue Rgb(0x07,0x66,0x78) → 24-bit ANSI sequence.
+        assert_eq!(start, "\x1b[38;2;7;102;120m");
     }
 }

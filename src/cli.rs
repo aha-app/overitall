@@ -461,6 +461,20 @@ pub fn init_config(config_path: &str, procfile_override: Option<&str>) -> anyhow
         config.save(config_path)
             .with_context(|| format!("Failed to write config to '{}'", config_path))?;
 
+        // Append a single commented hint advertising the optional theme setting,
+        // matching the `cargo init`-style convention of seeding helpful defaults.
+        let theme_hint = "\n# theme = \"dark\"  # or \"light\" for light terminals\n";
+        let mut existing = std::fs::read_to_string(config_path)
+            .with_context(|| format!("Failed to read back config at '{}'", config_path))?;
+        if !existing.contains("theme =") {
+            if !existing.ends_with('\n') {
+                existing.push('\n');
+            }
+            existing.push_str(theme_hint);
+            std::fs::write(config_path, existing)
+                .with_context(|| format!("Failed to append theme hint to '{}'", config_path))?;
+        }
+
         // Print success message
         println!("Created {} with {} processes:", config_path, process_names.len());
         for name in &process_names {

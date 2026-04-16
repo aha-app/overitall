@@ -20,17 +20,16 @@ const DARK_PROCESS_PALETTE: &[Color] = &[
     Color::LightMagenta,
 ];
 
+// Gruvbox-light "faded" accents — chosen for legibility on warm cream backgrounds.
 const LIGHT_PROCESS_PALETTE: &[Color] = &[
-    Color::Blue,
-    Color::Magenta,
-    Color::Rgb(0, 120, 0),
-    Color::Rgb(120, 80, 0),
-    Color::Rgb(0, 100, 140),
-    Color::Rgb(140, 0, 140),
-    Color::Rgb(0, 100, 100),
-    Color::Rgb(160, 0, 80),
-    Color::Rgb(80, 80, 140),
-    Color::Rgb(100, 60, 100),
+    Color::Rgb(0x07, 0x66, 0x78),  // blue
+    Color::Rgb(0x8f, 0x3f, 0x71),  // purple
+    Color::Rgb(0x79, 0x74, 0x0e),  // green
+    Color::Rgb(0xaf, 0x3a, 0x03),  // orange
+    Color::Rgb(0x42, 0x7b, 0x58),  // aqua
+    Color::Rgb(0xb5, 0x76, 0x14),  // yellow
+    Color::Rgb(0x9d, 0x00, 0x06),  // red
+    Color::Rgb(0x66, 0x5c, 0x54),  // brown / fg3
 ];
 
 #[derive(Debug, Clone, Copy)]
@@ -40,6 +39,9 @@ pub struct Theme {
     pub footer_fg: Color,
     pub muted: Color,
     pub accent: Color,
+    pub success: Color,
+    pub error: Color,
+    pub info: Color,
     pub selection_bg: Color,
     pub selection_fg: Color,
     pub process_palette: &'static [Color],
@@ -54,6 +56,9 @@ impl Theme {
             footer_fg: Color::Reset,
             muted: Color::Gray,
             accent: Color::Yellow,
+            success: Color::Green,
+            error: Color::Red,
+            info: Color::Yellow,
             selection_bg: Color::Rgb(30, 50, 70),
             selection_fg: Color::White,
             process_palette: DARK_PROCESS_PALETTE,
@@ -61,17 +66,22 @@ impl Theme {
         }
     }
 
+    /// Gruvbox-light inspired palette. Footer uses bg2 / fg1 for clear contrast
+    /// against typical cream terminal backgrounds (gruvbox bg0 ≈ #fbf1c7).
     pub fn light() -> Self {
         Self {
             mode: ThemeMode::Light,
-            footer_bg: Color::Rgb(220, 220, 220),
-            footer_fg: Color::Black,
-            muted: Color::DarkGray,
-            accent: Color::Rgb(140, 90, 0),
-            selection_bg: Color::Rgb(180, 200, 220),
-            selection_fg: Color::Black,
+            footer_bg: Color::Rgb(0xd5, 0xc4, 0xa1),       // bg2
+            footer_fg: Color::Rgb(0x3c, 0x38, 0x36),       // fg1
+            muted: Color::Rgb(0x7c, 0x6f, 0x64),           // fg4
+            accent: Color::Rgb(0xb5, 0x76, 0x14),          // faded yellow
+            success: Color::Rgb(0x79, 0x74, 0x0e),         // faded green
+            error: Color::Rgb(0x9d, 0x00, 0x06),           // faded red
+            info: Color::Rgb(0xb5, 0x76, 0x14),            // faded yellow
+            selection_bg: Color::Rgb(0xbd, 0xae, 0x93),    // bg3
+            selection_fg: Color::Rgb(0x28, 0x28, 0x28),    // fg0
             process_palette: LIGHT_PROCESS_PALETTE,
-            fallback_process: Color::Black,
+            fallback_process: Color::Rgb(0x3c, 0x38, 0x36),
         }
     }
 
@@ -115,7 +125,17 @@ mod tests {
     }
 
     #[test]
-    fn light_theme_uses_dark_first_palette_color() {
-        assert_eq!(Theme::light().process_palette[0], Color::Blue);
+    fn light_palette_first_color_is_gruvbox_blue() {
+        assert_eq!(
+            Theme::light().process_palette[0],
+            Color::Rgb(0x07, 0x66, 0x78)
+        );
+    }
+
+    #[test]
+    fn light_theme_status_colors_are_faded() {
+        let t = Theme::light();
+        assert_eq!(t.success, Color::Rgb(0x79, 0x74, 0x0e));
+        assert_eq!(t.error, Color::Rgb(0x9d, 0x00, 0x06));
     }
 }

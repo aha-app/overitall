@@ -42,6 +42,7 @@ pub fn draw_status_bar(
     }
 
     let status_text = status_parts.join(" | ");
+    let footer_fg = app.theme.footer_fg;
 
     // Mode/scroll indicator - show mode when in a special view, otherwise show tail/scroll state
     let mode_indicator = if app.trace.trace_filter_mode {
@@ -60,13 +61,13 @@ pub fn draw_status_bar(
         // Normal mode, following new logs
         Span::styled(
             "[TAIL]",
-            Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+            Style::default().fg(app.theme.success).add_modifier(Modifier::BOLD)
         )
     } else {
         // Normal mode, viewing history
         Span::styled(
             "[SCROLL]",
-            Style::default().fg(Color::Yellow)
+            Style::default().fg(app.theme.accent)
         )
     };
 
@@ -79,16 +80,23 @@ pub fn draw_status_bar(
 
         let rec_span = Span::styled(
             format!("● REC {}s ", elapsed_secs),
-            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
+            Style::default().fg(app.theme.error).add_modifier(Modifier::BOLD)
         );
-        let status_span = Span::raw(format!("{} ", status_text));
+        let status_span = Span::styled(
+            format!("{} ", status_text),
+            Style::default().fg(footer_fg),
+        );
         Line::from(vec![rec_span, status_span, mode_indicator])
     } else {
-        Line::from(vec![Span::raw(format!("{} ", status_text)), mode_indicator])
+        let status_span = Span::styled(
+            format!("{} ", status_text),
+            Style::default().fg(footer_fg),
+        );
+        Line::from(vec![status_span, mode_indicator])
     };
 
     let paragraph = Paragraph::new(line)
-        .style(Style::default().bg(app.theme.footer_bg).fg(app.theme.footer_fg));
+        .style(Style::default().bg(app.theme.footer_bg).fg(footer_fg));
 
     f.render_widget(paragraph, area);
 }
