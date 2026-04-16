@@ -1,12 +1,5 @@
 use ratatui::style::Color;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum ThemeMode {
-    #[default]
-    Dark,
-    Light,
-}
-
 const DARK_PROCESS_PALETTE: &[Color] = &[
     Color::Green,
     Color::Yellow,
@@ -34,7 +27,6 @@ const LIGHT_PROCESS_PALETTE: &[Color] = &[
 
 #[derive(Debug, Clone, Copy)]
 pub struct Theme {
-    pub mode: ThemeMode,
     pub footer_bg: Color,
     pub footer_fg: Color,
     pub muted: Color,
@@ -51,7 +43,6 @@ pub struct Theme {
 impl Theme {
     pub fn dark() -> Self {
         Self {
-            mode: ThemeMode::Dark,
             footer_bg: Color::Rgb(40, 40, 40),
             footer_fg: Color::Reset,
             muted: Color::Gray,
@@ -66,11 +57,10 @@ impl Theme {
         }
     }
 
-    /// Gruvbox-light inspired palette. Footer uses bg2 / fg1 for clear contrast
-    /// against typical cream terminal backgrounds (gruvbox bg0 ≈ #fbf1c7).
+    // Footer uses bg2 / fg1 for clear contrast against typical cream
+    // terminal backgrounds (gruvbox bg0 ≈ #fbf1c7).
     pub fn light() -> Self {
         Self {
-            mode: ThemeMode::Light,
             footer_bg: Color::Rgb(0xd5, 0xc4, 0xa1),       // bg2
             footer_fg: Color::Rgb(0x3c, 0x38, 0x36),       // fg1
             muted: Color::Rgb(0x7c, 0x6f, 0x64),           // fg4
@@ -105,23 +95,35 @@ mod tests {
 
     #[test]
     fn from_config_defaults_to_dark() {
-        assert_eq!(Theme::from_config(None).mode, ThemeMode::Dark);
+        assert_eq!(Theme::from_config(None).footer_bg, Theme::dark().footer_bg);
     }
 
     #[test]
     fn from_config_parses_light() {
-        assert_eq!(Theme::from_config(Some("light")).mode, ThemeMode::Light);
+        assert_eq!(
+            Theme::from_config(Some("light")).footer_bg,
+            Theme::light().footer_bg
+        );
     }
 
     #[test]
     fn from_config_is_case_insensitive() {
-        assert_eq!(Theme::from_config(Some("LIGHT")).mode, ThemeMode::Light);
-        assert_eq!(Theme::from_config(Some("Dark")).mode, ThemeMode::Dark);
+        assert_eq!(
+            Theme::from_config(Some("LIGHT")).footer_bg,
+            Theme::light().footer_bg
+        );
+        assert_eq!(
+            Theme::from_config(Some("Dark")).footer_bg,
+            Theme::dark().footer_bg
+        );
     }
 
     #[test]
     fn from_config_unknown_falls_back_to_dark() {
-        assert_eq!(Theme::from_config(Some("solarized")).mode, ThemeMode::Dark);
+        assert_eq!(
+            Theme::from_config(Some("solarized")).footer_bg,
+            Theme::dark().footer_bg
+        );
     }
 
     #[test]

@@ -1,6 +1,8 @@
 use ratatui::style::Color;
 use std::collections::HashMap;
 
+use super::theme::Theme;
+
 const ANSI_RESET: &str = "\x1b[0m";
 
 struct Assignment {
@@ -14,22 +16,20 @@ pub struct ProcessColors {
 }
 
 impl ProcessColors {
-    /// Create with config overrides, process/log file names, a palette, and a fallback color.
-    /// The palette comes from the active `Theme` (see `ui::theme`).
     pub fn new(
         process_names: &[String],
         log_file_names: &[String],
         config_colors: &HashMap<String, String>,
-        palette: &[Color],
-        fallback: Color,
+        theme: &Theme,
     ) -> Self {
         let mut assignments = HashMap::new();
 
-        // Combine all names in sorted order for deterministic assignment
         let mut all_names: Vec<&String> = process_names.iter().chain(log_file_names.iter()).collect();
         all_names.sort();
         all_names.dedup();
 
+        let palette = theme.process_palette;
+        let fallback = theme.fallback_process;
         let palette_len = palette.len().max(1);
         for (idx, name) in all_names.iter().enumerate() {
             let default_color = palette
@@ -122,15 +122,6 @@ fn parse_color_name(name: &str) -> Option<Color> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ui::theme::Theme;
-
-    fn dark_palette() -> &'static [Color] {
-        Theme::dark().process_palette
-    }
-
-    fn dark_fallback() -> Color {
-        Theme::dark().fallback_process
-    }
 
     #[test]
     fn test_default_palette_assignment() {
@@ -142,8 +133,7 @@ mod tests {
             &process_names,
             &log_file_names,
             &config_colors,
-            dark_palette(),
-            dark_fallback(),
+            &Theme::dark(),
         );
 
         // Sorted order: api, web, worker
@@ -157,14 +147,12 @@ mod tests {
         let process_names = vec!["api".to_string()];
         let log_file_names = vec![];
         let config_colors = HashMap::new();
-        let light = Theme::light();
 
         let colors = ProcessColors::new(
             &process_names,
             &log_file_names,
             &config_colors,
-            light.process_palette,
-            light.fallback_process,
+            &Theme::light(),
         );
 
         // Light palette starts with gruvbox faded blue.
@@ -182,8 +170,7 @@ mod tests {
             &process_names,
             &log_file_names,
             &config_colors,
-            dark_palette(),
-            dark_fallback(),
+            &Theme::dark(),
         );
 
         assert_eq!(colors.get("api"), Color::Magenta);
@@ -220,8 +207,7 @@ mod tests {
             &process_names,
             &log_file_names,
             &config_colors,
-            dark_palette(),
-            dark_fallback(),
+            &Theme::dark(),
         );
 
         // After 10 colors, should cycle back to Green
@@ -239,8 +225,7 @@ mod tests {
             &process_names,
             &log_file_names,
             &config_colors,
-            dark_palette(),
-            dark_fallback(),
+            &Theme::dark(),
         );
 
         assert_eq!(colors.get("unknown"), Color::White);
@@ -256,8 +241,7 @@ mod tests {
             &process_names,
             &log_file_names,
             &config_colors,
-            dark_palette(),
-            dark_fallback(),
+            &Theme::dark(),
         );
 
         // Sorted order: api, rails
@@ -276,15 +260,13 @@ mod tests {
             &process_names,
             &log_file_names,
             &config_colors,
-            dark_palette(),
-            dark_fallback(),
+            &Theme::dark(),
         );
         let colors2 = ProcessColors::new(
             &process_names,
             &log_file_names,
             &config_colors,
-            dark_palette(),
-            dark_fallback(),
+            &Theme::dark(),
         );
 
         assert_eq!(colors1.get("api"), colors2.get("api"));
@@ -303,8 +285,7 @@ mod tests {
             &process_names,
             &log_file_names,
             &config_colors,
-            dark_palette(),
-            dark_fallback(),
+            &Theme::dark(),
         );
 
         // Falls back to first palette color since "invalidcolor" is invalid
@@ -316,14 +297,12 @@ mod tests {
         let process_names = vec!["api".to_string()];
         let log_file_names = vec![];
         let config_colors = HashMap::new();
-        let light = Theme::light();
 
         let colors = ProcessColors::new(
             &process_names,
             &log_file_names,
             &config_colors,
-            light.process_palette,
-            light.fallback_process,
+            &Theme::light(),
         );
 
         let (start, _reset) = colors.get_ansi("api");

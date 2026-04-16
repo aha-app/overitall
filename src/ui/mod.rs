@@ -26,4 +26,4 @@ pub use batch::detect_batches_from_logs;
 pub use batch_cache::{BatchCache, BatchCacheKey};
 pub use draw::draw;
 pub use filter::{apply_filters, Filter, FilterType};
-pub use theme::{Theme, ThemeMode};
+pub use theme::Theme;
