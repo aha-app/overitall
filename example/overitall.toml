@@ -13,6 +13,7 @@ start_processes = [
 ]
 compact_mode = false
 process_coloring = true
+theme = "dark" # "light"
 
 [processes.web]
 log_file = "web.log"
