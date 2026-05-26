@@ -25,10 +25,11 @@ use ui::{App, DisplayMode, FilterType};
 
 use std::io::Write;
 use std::panic;
+use std::time::Duration;
 
 use clap::Parser;
 use crossterm::{
-    event::{DisableMouseCapture, EnableMouseCapture, Event, EventStream, KeyCode, KeyEventKind},
+    event::{Event, EventStream, KeyCode, KeyEventKind},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -37,6 +38,15 @@ use ratatui::{backend::CrosstermBackend, style::Color, Terminal};
 use tokio::signal::unix::{signal, SignalKind};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
+const ENABLE_BASIC_MOUSE_CAPTURE: &str = concat!("\x1B[?1000h", "\x1B[?1006h");
+const DISABLE_MOUSE_CAPTURE: &str = concat!(
+    "\x1B[?1006l",
+    "\x1B[?1015l",
+    "\x1B[?1003l",
+    "\x1B[?1002l",
+    "\x1B[?1000l",
+);
+const DRAIN_TERMINAL_EVENT_LIMIT: usize = 1024;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -201,14 +211,16 @@ async fn main() -> anyhow::Result<()> {
     // Install panic hook to restore terminal on panic
     let original_hook = panic::take_hook();
     panic::set_hook(Box::new(move |panic_info| {
-        let _ = restore_terminal();
+        let _ = restore_terminal_without_event_drain();
         original_hook(panic_info);
     }));
 
     // Setup terminal
     enable_raw_mode()?;
     let mut stdout = std::io::stdout();
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+    execute!(stdout, EnterAlternateScreen)?;
+    disable_mouse_capture(&mut stdout)?;
+    enable_mouse_capture(&mut stdout)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
@@ -771,10 +783,94 @@ async fn apply_ipc_action(
 }
 
 fn restore_terminal() -> std::io::Result<()> {
+    restore_terminal_inner(true)
+}
+
+fn restore_terminal_without_event_drain() -> std::io::Result<()> {
+    restore_terminal_inner(false)
+}
+
+fn restore_terminal_inner(drain_events: bool) -> std::io::Result<()> {
     let mut stdout = std::io::stdout();
-    disable_raw_mode()?;
-    execute!(stdout, DisableMouseCapture, LeaveAlternateScreen)?;
-    stdout.flush()?;
+    let mut first_error = None;
+
+    if let Err(error) = disable_mouse_capture(&mut stdout) {
+        first_error.get_or_insert(error);
+    }
+
+    if drain_events {
+        if let Err(error) = drain_pending_terminal_events() {
+            first_error.get_or_insert(error);
+        }
+    }
+
+    if let Err(error) = disable_raw_mode() {
+        first_error.get_or_insert(error);
+    }
+
+    if let Err(error) = execute!(stdout, LeaveAlternateScreen) {
+        first_error.get_or_insert(error);
+    }
+
+    if let Err(error) = stdout.flush() {
+        first_error.get_or_insert(error);
+    }
+
+    if let Some(error) = first_error {
+        Err(error)
+    } else {
+        Ok(())
+    }
+}
+
+fn enable_mouse_capture<W: Write>(writer: &mut W) -> std::io::Result<()> {
+    writer.write_all(ENABLE_BASIC_MOUSE_CAPTURE.as_bytes())?;
+    writer.flush()
+}
+
+fn disable_mouse_capture<W: Write>(writer: &mut W) -> std::io::Result<()> {
+    writer.write_all(DISABLE_MOUSE_CAPTURE.as_bytes())?;
+    writer.flush()
+}
+
+fn drain_pending_terminal_events() -> std::io::Result<()> {
+    for _ in 0..DRAIN_TERMINAL_EVENT_LIMIT {
+        if !crossterm::event::poll(Duration::ZERO)? {
+            break;
+        }
+        let _ = crossterm::event::read()?;
+    }
+
     Ok(())
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn enables_only_mouse_modes_used_by_the_ui() {
+        let mut output = Vec::new();
+
+        enable_mouse_capture(&mut output).unwrap();
+
+        let output = String::from_utf8(output).unwrap();
+        assert!(output.contains("\x1B[?1000h"));
+        assert!(output.contains("\x1B[?1006h"));
+        assert!(!output.contains("?1002h"));
+        assert!(!output.contains("?1003h"));
+        assert!(!output.contains("?1015h"));
+    }
+
+    #[test]
+    fn disables_all_mouse_modes_crossterm_may_have_enabled() {
+        let mut output = Vec::new();
+
+        disable_mouse_capture(&mut output).unwrap();
+
+        let output = String::from_utf8(output).unwrap();
+        for mode in ["?1006l", "?1015l", "?1003l", "?1002l", "?1000l"] {
+            assert!(output.contains(mode), "missing {mode}");
+        }
+    }
+}
