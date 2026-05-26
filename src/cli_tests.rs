@@ -50,6 +50,37 @@ fn test_init_config_creates_file() {
 }
 
 #[test]
+fn test_init_config_theme_hint_is_root_config() {
+    let temp_dir = TempDir::new().unwrap();
+    let temp_path = temp_dir.path();
+
+    let procfile_path = temp_path.join("Procfile");
+    fs::write(&procfile_path, "web: rails server\n").unwrap();
+    let config_path = temp_path.join(".overitall.toml");
+
+    let result = init_config(
+        config_path.to_str().unwrap(),
+        Some(procfile_path.to_str().unwrap()),
+    );
+
+    assert!(result.is_ok(), "init_config should succeed: {:?}", result.err());
+
+    let config_content = fs::read_to_string(&config_path).unwrap();
+    assert!(config_content.contains("# theme = \"dark\"  # or \"light\" for light terminals"));
+
+    let config_content = config_content.replacen(
+        "# theme = \"dark\"  # or \"light\" for light terminals",
+        "theme = \"light\"",
+        1,
+    );
+    fs::write(&config_path, config_content).unwrap();
+
+    let config = crate::config::Config::from_file(config_path.to_str().unwrap())
+        .expect("config should load with uncommented root theme hint");
+    assert_eq!(config.theme.as_deref(), Some("light"));
+}
+
+#[test]
 fn test_init_config_skips_config_if_file_exists() {
     // Lock mutex to prevent parallel directory changes
     let _guard = CWD_MUTEX.lock().unwrap();

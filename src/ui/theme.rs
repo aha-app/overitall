@@ -35,7 +35,9 @@ pub struct Theme {
     pub error: Color,
     pub info: Color,
     pub selection_bg: Color,
-    pub selection_fg: Color,
+    pub cursor_bg: Color,
+    pub cursor_fg: Color,
+    pub truncation_hint_fg: Color,
     pub process_palette: &'static [Color],
     pub fallback_process: Color,
 }
@@ -51,7 +53,9 @@ impl Theme {
             error: Color::Red,
             info: Color::Yellow,
             selection_bg: Color::Rgb(30, 50, 70),
-            selection_fg: Color::White,
+            cursor_bg: Color::Blue,
+            cursor_fg: Color::White,
+            truncation_hint_fg: Color::Cyan,
             process_palette: DARK_PROCESS_PALETTE,
             fallback_process: Color::White,
         }
@@ -69,7 +73,9 @@ impl Theme {
             error: Color::Rgb(0x9d, 0x00, 0x06),           // faded red
             info: Color::Rgb(0xb5, 0x76, 0x14),            // faded yellow
             selection_bg: Color::Rgb(0xbd, 0xae, 0x93),    // bg3
-            selection_fg: Color::Rgb(0x28, 0x28, 0x28),    // fg0
+            cursor_bg: Color::Rgb(0x07, 0x66, 0x78),       // faded blue
+            cursor_fg: Color::Rgb(0xfb, 0xf1, 0xc7),       // bg0
+            truncation_hint_fg: Color::Black,
             process_palette: LIGHT_PROCESS_PALETTE,
             fallback_process: Color::Rgb(0x3c, 0x38, 0x36),
         }
@@ -139,5 +145,22 @@ mod tests {
         let t = Theme::light();
         assert_eq!(t.success, Color::Rgb(0x79, 0x74, 0x0e));
         assert_eq!(t.error, Color::Rgb(0x9d, 0x00, 0x06));
+    }
+
+    #[test]
+    fn light_theme_cursor_uses_readable_pair() {
+        let t = Theme::light();
+        assert_eq!(t.cursor_bg, Color::Rgb(0x07, 0x66, 0x78));
+        assert_eq!(t.cursor_fg, Color::Rgb(0xfb, 0xf1, 0xc7));
+    }
+
+    #[test]
+    fn dark_theme_truncation_hint_remains_cyan() {
+        assert_eq!(Theme::dark().truncation_hint_fg, Color::Cyan);
+    }
+
+    #[test]
+    fn light_theme_truncation_hint_uses_readable_token() {
+        assert_eq!(Theme::light().truncation_hint_fg, Color::Black);
     }
 }

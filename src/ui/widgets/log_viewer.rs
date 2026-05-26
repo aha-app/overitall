@@ -9,6 +9,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::log::LogLine;
 use crate::process::ProcessManager;
+use crate::ui::Theme;
 use crate::ui::ansi_cache::{AnsiCache, AnsiCacheKey};
 use crate::ui::app::App;
 use crate::ui::batch_cache::BatchCacheKey;
@@ -41,6 +42,30 @@ fn calculate_wrapped_height(line_width: usize, max_line_width: usize) -> usize {
     ((line_width + max_line_width - 1) / max_line_width).max(1)
 }
 
+fn line_selection_overrides(
+    theme: &Theme,
+    is_cursor: bool,
+    is_multi_selected: bool,
+) -> (Option<Color>, Option<Color>) {
+    if is_cursor {
+        (Some(theme.cursor_bg), Some(theme.cursor_fg))
+    } else if is_multi_selected {
+        (Some(theme.selection_bg), None)
+    } else {
+        (None, None)
+    }
+}
+
+fn truncation_hint_style(theme: &Theme, is_cursor: bool, is_multi_selected: bool) -> Style {
+    if is_cursor {
+        Style::default().fg(theme.cursor_fg)
+    } else if is_multi_selected {
+        Style::default().fg(theme.truncation_hint_fg)
+    } else {
+        Style::default().fg(Color::DarkGray)
+    }
+}
+
 /// Draw the log viewer in the middle of the screen
 pub fn draw_log_viewer(
     f: &mut Frame,
@@ -48,9 +73,6 @@ pub fn draw_log_viewer(
     manager: &ProcessManager,
     app: &mut App,
 ) {
-    let selection_bg = app.theme.selection_bg;
-    let selection_fg = app.theme.selection_fg;
-
     // Use snapshot if available (frozen/batch mode), otherwise use live buffer
     let logs_vec: Vec<&LogLine> = if let Some(ref snapshot) = app.navigation.snapshot {
         snapshot.iter().collect()
@@ -464,9 +486,8 @@ pub fn draw_log_viewer(
         // Check if this line is the cursor (selected by ID)
         let is_cursor = app.navigation.selected_line_id == Some(log.id);
 
-        // Check if this line is in a multi-select range (but not the cursor itself)
-        let is_multi_selected = !is_cursor
-            && app.navigation.has_multi_select()
+        // Check if this line is in a multi-select range
+        let is_multi_selected = app.navigation.has_multi_select()
             && app.navigation.is_in_selection_ref(log.id, display_logs);
 
         // Combined selection state (will be used by Step 6 for clearing on Escape)
@@ -505,19 +526,8 @@ pub fn draw_log_viewer(
         let line = if current_batch_validated.is_some() || app.display.is_wrap() {
             // In batch view mode or wrap mode: show full content with cached ANSI parsing
             // Paragraph wrapping is applied at the widget level
-            let bg_color = if is_cursor {
-                Some(Color::Blue)
-            } else if is_multi_selected {
-                Some(selection_bg)
-            } else {
-                None
-            };
-
-            let fg_override = if is_cursor {
-                Some(selection_fg)
-            } else {
-                None
-            };
+            let (bg_color, fg_override) =
+                line_selection_overrides(&app.theme, is_cursor, is_multi_selected);
 
             // Use cache: batch/wrap view mode always uses non-compact content
             let cache_key = AnsiCacheKey::new(log.id, false, app.display.timestamp_mode);
@@ -529,27 +539,10 @@ pub fn draw_log_viewer(
             let suffix_width = suffix.width();
             let target_width = max_line_width.saturating_sub(suffix_width);
 
-            let bg_color = if is_cursor {
-                Some(Color::Blue)
-            } else if is_multi_selected {
-                Some(selection_bg)
-            } else {
-                None
-            };
+            let (bg_color, fg_override) =
+                line_selection_overrides(&app.theme, is_cursor, is_multi_selected);
 
-            let fg_override = if is_cursor {
-                Some(selection_fg)
-            } else {
-                None
-            };
-
-            let hint_style = if is_cursor {
-                Style::default().fg(Color::Cyan)
-            } else if is_multi_selected {
-                Style::default().fg(Color::Cyan)
-            } else {
-                Style::default().fg(Color::DarkGray)
-            };
+            let hint_style = truncation_hint_style(&app.theme, is_cursor, is_multi_selected);
 
             // Use cached ANSI parsing and truncate the spans
             let cache_key = AnsiCacheKey::new(log.id, app.display.is_compact(), app.display.timestamp_mode);
@@ -557,19 +550,8 @@ pub fn draw_log_viewer(
             AnsiCache::to_truncated_line(cached, target_width, bg_color, fg_override, suffix, hint_style)
         } else {
             // Full line fits, parse ANSI codes with caching
-            let bg_color = if is_cursor {
-                Some(Color::Blue)
-            } else if is_multi_selected {
-                Some(selection_bg)
-            } else {
-                None
-            };
-
-            let fg_override = if is_cursor {
-                Some(selection_fg)
-            } else {
-                None
-            };
+            let (bg_color, fg_override) =
+                line_selection_overrides(&app.theme, is_cursor, is_multi_selected);
 
             // Use cache: key includes compact mode and timestamp mode since content may differ
             let cache_key = AnsiCacheKey::new(log.id, app.display.is_compact(), app.display.timestamp_mode);
@@ -614,4 +596,220 @@ pub fn draw_log_viewer(
     }
 
     f.render_widget(paragraph, area);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::log::{LogLine, LogSource};
+    use crate::process::ProcessManager;
+    use crate::ui::app::App;
+    use ratatui::{backend::TestBackend, Terminal};
+
+    fn render(
+        app: &mut App,
+        manager: &ProcessManager,
+        width: u16,
+        height: u16,
+    ) -> Terminal<TestBackend> {
+        let backend = TestBackend::new(width, height);
+        let mut terminal = Terminal::new(backend).unwrap();
+        terminal
+            .draw(|f| draw_log_viewer(f, f.area(), manager, app))
+            .unwrap();
+        terminal
+    }
+
+    #[test]
+    fn rendered_light_truncated_cursor_suffix_uses_cursor_tokens() {
+        let theme = Theme::light();
+        let mut app = App::new();
+        app.set_theme(theme);
+        app.display.timestamp_mode = TimestampMode::Off;
+
+        let mut manager = ProcessManager::new();
+        let cursor_log = LogLine::new(
+            LogSource::ProcessStdout("web".to_string()),
+            format!("cursor {}", "x".repeat(80)),
+        );
+        let cursor_log_id = cursor_log.id;
+        manager.add_test_log(cursor_log);
+
+        app.navigation.selected_line_id = Some(cursor_log_id);
+
+        let terminal = render(&mut app, &manager, 24, 3);
+        let suffix_cell = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .find(|cell| cell.symbol() == "↵")
+            .expect("rendered truncation suffix marker");
+
+        assert_eq!(suffix_cell.style().bg, Some(theme.cursor_bg));
+        assert_eq!(suffix_cell.style().fg, Some(theme.cursor_fg));
+    }
+
+    #[test]
+    fn rendered_light_multi_select_cursor_line_uses_cursor_tokens() {
+        let theme = Theme::light();
+        let mut app = App::new();
+        app.set_theme(theme);
+        app.display.timestamp_mode = TimestampMode::Off;
+
+        let mut manager = ProcessManager::new();
+        let selected_log = LogLine::new(
+            LogSource::ProcessStdout("web".to_string()),
+            "selected".to_string(),
+        );
+        let selected_log_id = selected_log.id;
+        let cursor_log = LogLine::new(
+            LogSource::ProcessStdout("web".to_string()),
+            "cursor Q".to_string(),
+        );
+        let cursor_log_id = cursor_log.id;
+        manager.add_test_log(selected_log);
+        manager.add_test_log(cursor_log);
+
+        app.navigation.selection_anchor = Some(selected_log_id);
+        app.navigation.selection_end = Some(cursor_log_id);
+        app.navigation.selected_line_id = Some(cursor_log_id);
+
+        let terminal = render(&mut app, &manager, 80, 4);
+        let cursor_cell = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .find(|cell| cell.symbol() == "Q")
+            .expect("rendered cursor marker");
+
+        assert_ne!(theme.cursor_bg, theme.selection_bg);
+        assert_eq!(cursor_cell.style().bg, Some(theme.cursor_bg));
+        assert_eq!(cursor_cell.style().fg, Some(theme.cursor_fg));
+    }
+
+    #[test]
+    fn rendered_light_multi_selected_truncation_suffix_uses_hint_fg_and_selection_bg() {
+        let theme = Theme::light();
+        let mut app = App::new();
+        app.set_theme(theme);
+        app.display.timestamp_mode = TimestampMode::Off;
+
+        let mut manager = ProcessManager::new();
+        let selected_log = LogLine::new(
+            LogSource::ProcessStdout("web".to_string()),
+            format!("selected {}", "x".repeat(80)),
+        );
+        let selected_log_id = selected_log.id;
+        let cursor_log = LogLine::new(
+            LogSource::ProcessStdout("web".to_string()),
+            "cursor".to_string(),
+        );
+        let cursor_log_id = cursor_log.id;
+        manager.add_test_log(selected_log);
+        manager.add_test_log(cursor_log);
+
+        app.navigation.selection_anchor = Some(selected_log_id);
+        app.navigation.selection_end = Some(cursor_log_id);
+        app.navigation.selected_line_id = Some(cursor_log_id);
+
+        let terminal = render(&mut app, &manager, 24, 4);
+        let suffix_cell = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .find(|cell| cell.symbol() == "↵")
+            .expect("rendered truncation suffix marker");
+
+        assert_eq!(suffix_cell.style().fg, Some(theme.truncation_hint_fg));
+        assert_eq!(suffix_cell.style().bg, Some(theme.selection_bg));
+    }
+
+    #[test]
+    fn cursor_line_uses_cursor_tokens() {
+        let theme = Theme::light();
+
+        let overrides = line_selection_overrides(&theme, true, true);
+
+        assert_eq!(overrides, (Some(theme.cursor_bg), Some(theme.cursor_fg)));
+    }
+
+    #[test]
+    fn multi_select_line_preserves_foreground() {
+        let theme = Theme::light();
+
+        let overrides = line_selection_overrides(&theme, false, true);
+
+        assert_eq!(overrides, (Some(theme.selection_bg), None));
+    }
+
+    #[test]
+    fn cursor_truncation_hint_uses_cursor_foreground() {
+        let theme = Theme::light();
+
+        assert_eq!(
+            truncation_hint_style(&theme, true, true).fg,
+            Some(theme.cursor_fg)
+        );
+    }
+
+    #[test]
+    fn selected_truncation_hint_uses_theme_token() {
+        let theme = Theme::light();
+
+        assert_eq!(
+            truncation_hint_style(&theme, false, true).fg,
+            Some(theme.truncation_hint_fg)
+        );
+    }
+
+    #[test]
+    fn unselected_truncation_hint_uses_dark_gray() {
+        let theme = Theme::light();
+
+        assert_eq!(
+            truncation_hint_style(&theme, false, false).fg,
+            Some(Color::DarkGray)
+        );
+    }
+
+    #[test]
+    fn rendered_multi_select_preserves_ansi_foreground() {
+        let theme = Theme::light();
+        let mut app = App::new();
+        app.set_theme(theme);
+
+        let mut manager = ProcessManager::new();
+        let red_log = LogLine::new(
+            LogSource::ProcessStdout("web".to_string()),
+            "plain \x1b[31mZ\x1b[0m tail".to_string(),
+        );
+        let red_log_id = red_log.id;
+        let cursor_log = LogLine::new(
+            LogSource::ProcessStdout("web".to_string()),
+            "cursor".to_string(),
+        );
+        let cursor_log_id = cursor_log.id;
+        manager.add_test_log(red_log);
+        manager.add_test_log(cursor_log);
+
+        app.navigation.selection_anchor = Some(red_log_id);
+        app.navigation.selection_end = Some(cursor_log_id);
+        app.navigation.selected_line_id = Some(cursor_log_id);
+
+        let terminal = render(&mut app, &manager, 80, 4);
+
+        let z_cell = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .find(|cell| cell.symbol() == "Z")
+            .expect("rendered red log marker");
+
+        assert_eq!(z_cell.style().fg, Some(Color::Red));
+        assert_eq!(z_cell.style().bg, Some(theme.selection_bg));
+    }
 }

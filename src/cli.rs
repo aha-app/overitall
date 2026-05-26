@@ -461,13 +461,22 @@ pub fn init_config(config_path: &str, procfile_override: Option<&str>) -> anyhow
         config.save(config_path)
             .with_context(|| format!("Failed to write config to '{}'", config_path))?;
 
-        use std::io::Write;
-        let mut file = std::fs::OpenOptions::new()
-            .append(true)
-            .open(config_path)
-            .with_context(|| format!("Failed to open '{}' to append theme hint", config_path))?;
-        writeln!(file, "\n# theme = \"dark\"  # or \"light\" for light terminals")
-            .with_context(|| format!("Failed to append theme hint to '{}'", config_path))?;
+        let theme_hint = "# theme = \"dark\"  # or \"light\" for light terminals\n";
+        let content = std::fs::read_to_string(config_path)
+            .with_context(|| format!("Failed to read '{}' to insert theme hint", config_path))?;
+        let insert_at = content
+            .find("\n[")
+            .map(|idx| idx + 1)
+            .unwrap_or(content.len());
+        let mut content_with_hint = String::with_capacity(content.len() + theme_hint.len() + 1);
+        content_with_hint.push_str(&content[..insert_at]);
+        if !content_with_hint.ends_with('\n') {
+            content_with_hint.push('\n');
+        }
+        content_with_hint.push_str(theme_hint);
+        content_with_hint.push_str(&content[insert_at..]);
+        std::fs::write(config_path, content_with_hint)
+            .with_context(|| format!("Failed to insert theme hint into '{}'", config_path))?;
 
         // Print success message
         println!("Created {} with {} processes:", config_path, process_names.len());
