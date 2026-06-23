@@ -8,6 +8,7 @@ mod log;
 mod operations;
 mod procfile;
 mod process;
+mod process_tree;
 mod skill;
 mod status_matcher;
 mod traces;

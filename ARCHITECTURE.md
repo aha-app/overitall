@@ -49,6 +49,14 @@ All business logic lives in `operations/` modules. Event handlers and commands j
 - **Widgets** (`ui/widgets/`) - stateless rendering (log viewer, process list, status bar)
 - **App state** drives what's rendered; widgets read from App
 
+### Content area views
+
+The main content area renders one of several views, selected by `DisplayState::content_view` (`ContentView` enum). `draw()` switches on it: `Logs` renders the log viewer, `ProcessTree` renders the process tree viewer. `P` toggles the tree; `Esc` returns to logs. The tree view owns its own scroll state (`process_tree_scroll`/`process_tree_viewport`); the widget clamps the offset against rendered content each frame. When the tree view is active, navigation keys scroll the tree and log navigation/search are suppressed.
+
+### Process tree
+
+`process_tree.rs` snapshots the OS process table via the cross-platform `sysinfo` crate (cached with a short TTL in `ProcessTreeCache`) and builds a descendant tree from each managed process's root pid (`ProcessHandle::root_pid()`, gated by status so stopped/failed processes never expose a stale pgid). Snapshot conversion and tree-line generation are pure functions; the `ui/widgets/process_tree.rs` widget styles and scrolls the result.
+
 ## IPC System
 
 External tools (AI agents, scripts) control oit via Unix socket IPC.

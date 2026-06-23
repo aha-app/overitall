@@ -6,7 +6,7 @@ use ratatui::{
 use crate::process::ProcessManager;
 use super::app::App;
 use super::overlays::{draw_help_overlay, draw_expanded_line_overlay, draw_expanded_line_panel, draw_trace_selection_overlay};
-use super::widgets::{draw_process_list, draw_log_viewer, draw_status_bar, draw_command_input, calculate_process_list_height};
+use super::widgets::{draw_process_list, draw_process_tree, draw_log_viewer, draw_status_bar, draw_command_input, calculate_process_list_height};
 
 /// Width threshold for split-screen view (below this, use overlay)
 const SPLIT_VIEW_THRESHOLD: u16 = 160;
@@ -37,8 +37,11 @@ pub fn draw(f: &mut Frame, app: &mut App, manager: &ProcessManager) {
     // Draw process list
     draw_process_list(f, chunks[0], manager, app);
 
-    // Draw log area - either split with detail panel or full width
-    if use_split_view {
+    // Draw the content area: process tree viewer or log viewer
+    if app.display.is_process_tree() {
+        app.regions.log_viewer_area = Some(chunks[1]);
+        draw_process_tree(f, chunks[1], manager, app);
+    } else if use_split_view {
         // Split horizontally: 60% log viewer, 40% detail panel
         let log_area_chunks = Layout::default()
             .direction(Direction::Horizontal)

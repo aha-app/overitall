@@ -57,6 +57,10 @@ pub fn draw_help_overlay(f: &mut Frame, scroll_offset: u16) {
             Span::styled("  p", Style::default().fg(Color::Yellow)),
             Span::raw("       Cycle process panel: normal → summary → minimal"),
         ]),
+        Line::from(vec![
+            Span::styled("  P", Style::default().fg(Color::Yellow)),
+            Span::raw("       Toggle process tree view (managed processes + children)"),
+        ]),
         Line::from(""),
         Line::from(vec![
             Span::styled("Commands:", Style::default().add_modifier(Modifier::BOLD)),

@@ -33,6 +33,16 @@ impl ProcessPanelViewMode {
     }
 }
 
+/// What the main content area renders.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ContentView {
+    /// Log viewer (default).
+    #[default]
+    Logs,
+    /// Tree of managed processes and their descendants.
+    ProcessTree,
+}
+
 /// Timestamp display mode for log lines
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum TimestampMode {
@@ -74,6 +84,12 @@ pub struct DisplayState {
     pub timestamp_mode: TimestampMode,
     /// Current process panel view mode
     pub process_panel_mode: ProcessPanelViewMode,
+    /// What the main content area renders (logs or process tree)
+    pub content_view: ContentView,
+    /// Scroll offset (in lines) for the process tree viewer
+    pub process_tree_scroll: u16,
+    /// Last rendered viewport height of the process tree (set by the widget)
+    pub process_tree_viewport: u16,
     /// Whether to show the help overlay
     pub show_help: bool,
     /// Scroll offset for help overlay
@@ -92,6 +108,9 @@ impl Default for DisplayState {
             display_mode: DisplayMode::Compact,
             timestamp_mode: TimestampMode::Seconds,
             process_panel_mode: ProcessPanelViewMode::Normal,
+            content_view: ContentView::Logs,
+            process_tree_scroll: 0,
+            process_tree_viewport: 0,
             show_help: false,
             help_scroll_offset: 0,
             expanded_line_view: false,
@@ -124,6 +143,55 @@ impl DisplayState {
 
     pub fn cycle_process_panel_mode(&mut self) {
         self.process_panel_mode = self.process_panel_mode.next();
+    }
+
+    /// Toggle the content area between logs and the process tree viewer.
+    /// Returns true if the process tree is now showing.
+    pub fn toggle_process_tree(&mut self) -> bool {
+        self.content_view = match self.content_view {
+            ContentView::Logs => ContentView::ProcessTree,
+            ContentView::ProcessTree => ContentView::Logs,
+        };
+        // Reset scroll when entering the tree so it always opens at the top.
+        if self.content_view == ContentView::ProcessTree {
+            self.process_tree_scroll = 0;
+        }
+        self.content_view == ContentView::ProcessTree
+    }
+
+    pub fn show_logs(&mut self) {
+        self.content_view = ContentView::Logs;
+    }
+
+    pub fn is_process_tree(&self) -> bool {
+        self.content_view == ContentView::ProcessTree
+    }
+
+    /// Scroll the process tree up by `n` lines.
+    pub fn process_tree_scroll_up(&mut self, n: u16) {
+        self.process_tree_scroll = self.process_tree_scroll.saturating_sub(n);
+    }
+
+    /// Scroll the process tree down by `n` lines. The widget clamps the offset
+    /// to the rendered content on the next draw.
+    pub fn process_tree_scroll_down(&mut self, n: u16) {
+        self.process_tree_scroll = self.process_tree_scroll.saturating_add(n);
+    }
+
+    /// Scroll the process tree to the top.
+    pub fn process_tree_scroll_home(&mut self) {
+        self.process_tree_scroll = 0;
+    }
+
+    /// Scroll the process tree to the bottom. The widget clamps the offset to
+    /// the last page on the next draw.
+    pub fn process_tree_scroll_end(&mut self) {
+        self.process_tree_scroll = u16::MAX;
+    }
+
+    /// Page size for the process tree, based on the last rendered viewport.
+    pub fn process_tree_page(&self) -> u16 {
+        self.process_tree_viewport.max(1)
     }
 
     pub fn toggle_help(&mut self) {

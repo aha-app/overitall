@@ -86,7 +86,7 @@ impl<'a> EventHandler<'a> {
                 Ok(false)
             }
             // Search mode
-            KeyCode::Char('/') if !self.app.input.command_mode && !self.app.input.search_mode && !self.app.display.show_help => {
+            KeyCode::Char('/') if !self.app.input.command_mode && !self.app.input.search_mode && !self.app.display.show_help && !self.app.display.is_process_tree() => {
                 self.app.input.enter_search_mode();
                 Ok(false)
             }
@@ -132,7 +132,7 @@ impl<'a> EventHandler<'a> {
                 traces::expand_trace_after(self.app);
                 Ok(false)
             }
-            KeyCode::Enter if !self.app.input.command_mode && !self.app.input.search_mode && !self.app.display.expanded_line_view => {
+            KeyCode::Enter if !self.app.input.command_mode && !self.app.input.search_mode && !self.app.display.expanded_line_view && !self.app.display.is_process_tree() => {
                 self.handle_toggle_expanded_view();
                 Ok(false)
             }
@@ -206,6 +206,47 @@ impl<'a> EventHandler<'a> {
             KeyCode::Char('p') if !self.app.input.command_mode && !self.app.input.search_mode
                 && !self.app.display.show_help && !self.app.display.expanded_line_view => {
                 self.handle_cycle_process_panel_mode();
+                Ok(false)
+            }
+            // Toggle process tree viewer in the content area
+            KeyCode::Char('P') if !self.app.input.command_mode && !self.app.input.search_mode
+                && !self.app.display.show_help && !self.app.display.expanded_line_view => {
+                self.handle_toggle_process_tree();
+                Ok(false)
+            }
+            // Process tree scrolling (must come before log navigation handlers).
+            // When the tree view is active, navigation keys scroll the tree and
+            // do not affect log selection/scroll position.
+            KeyCode::Up if self.app.display.is_process_tree()
+                && !self.app.input.command_mode && !self.app.input.search_mode => {
+                self.app.display.process_tree_scroll_up(1);
+                Ok(false)
+            }
+            KeyCode::Down if self.app.display.is_process_tree()
+                && !self.app.input.command_mode && !self.app.input.search_mode => {
+                self.app.display.process_tree_scroll_down(1);
+                Ok(false)
+            }
+            KeyCode::PageUp if self.app.display.is_process_tree()
+                && !self.app.input.command_mode && !self.app.input.search_mode => {
+                let page = self.app.display.process_tree_page();
+                self.app.display.process_tree_scroll_up(page);
+                Ok(false)
+            }
+            KeyCode::PageDown if self.app.display.is_process_tree()
+                && !self.app.input.command_mode && !self.app.input.search_mode => {
+                let page = self.app.display.process_tree_page();
+                self.app.display.process_tree_scroll_down(page);
+                Ok(false)
+            }
+            KeyCode::Home if self.app.display.is_process_tree()
+                && !self.app.input.command_mode && !self.app.input.search_mode => {
+                self.app.display.process_tree_scroll_home();
+                Ok(false)
+            }
+            KeyCode::End if self.app.display.is_process_tree()
+                && !self.app.input.command_mode && !self.app.input.search_mode => {
+                self.app.display.process_tree_scroll_end();
                 Ok(false)
             }
             // Multi-select with Shift+Up/Down (must come before plain Up/Down)
@@ -421,10 +462,19 @@ impl<'a> EventHandler<'a> {
         self.app.display.set_status_info(format!("Process panel: {}", mode));
     }
 
+    fn handle_toggle_process_tree(&mut self) {
+        if self.app.display.toggle_process_tree() {
+            self.app.display.set_status_info("Process tree (P or Esc to return to logs)".to_string());
+        } else {
+            self.app.display.set_status_info("Logs".to_string());
+        }
+    }
+
     /// Handle Esc key - all escape logic in one place for clarity.
     /// Priority order (first match wins):
     /// 0. Manual trace recording - cancel recording
     /// 1. Help overlay - close help
+    /// 1.5. Process tree viewer - return to logs
     /// 2. Expanded line view - close modal
     /// 3. Command mode - exit command input
     /// 4. Search mode - exit search input
@@ -445,6 +495,13 @@ impl<'a> EventHandler<'a> {
         // 1. Help overlay
         if self.app.display.show_help {
             self.app.display.toggle_help();
+            return;
+        }
+
+        // 1.5. Process tree viewer - return to logs
+        if self.app.display.is_process_tree() {
+            self.app.display.show_logs();
+            self.app.display.set_status_info("Logs".to_string());
             return;
         }
 
@@ -581,12 +638,20 @@ impl<'a> EventHandler<'a> {
                 }
             }
             MouseEventKind::ScrollUp => {
+                if self.app.display.is_process_tree() {
+                    self.app.display.process_tree_scroll_up(3);
+                    return Ok(false);
+                }
                 // Use selection navigation (same as keyboard) to properly enter selection mode
                 for _ in 0..3 {
                     navigation::select_prev_line(self.app, self.manager);
                 }
             }
             MouseEventKind::ScrollDown => {
+                if self.app.display.is_process_tree() {
+                    self.app.display.process_tree_scroll_down(3);
+                    return Ok(false);
+                }
                 // Use selection navigation (same as keyboard) to properly enter selection mode
                 for _ in 0..3 {
                     navigation::select_next_line(self.app, self.manager);

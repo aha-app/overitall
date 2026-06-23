@@ -20,6 +20,7 @@ This directory contains example files for testing overitall.
 - `monitor.rb` - Simulates a system monitor reporting resource usage
   - Generates logs every 500-1500ms (0.6-2 logs/second)
   - Outputs CPU, memory, disk, and network metrics with color coding
+  - Spawns a nested supervisor -> collector -> probe process tree for testing the process tree viewer
   - Occasionally checks service health status
 
 ## Testing

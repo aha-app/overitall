@@ -9,6 +9,7 @@ pub mod ipc;
 pub mod log;
 pub mod operations;
 pub mod process;
+pub mod process_tree;
 pub mod procfile;
 pub mod skill;
 pub mod status_matcher;

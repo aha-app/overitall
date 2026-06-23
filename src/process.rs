@@ -69,6 +69,20 @@ impl ProcessHandle {
         }
     }
 
+    /// Root pid of the process group (the `sh -c` leader), if the managed
+    /// process may still be alive. Used by the process tree viewer to find
+    /// descendant processes.
+    ///
+    /// Gated by status: a stopped/failed/restarting process must not expose a
+    /// stale pgid, since pid reuse could otherwise attach an unrelated process
+    /// tree to this entry.
+    pub fn root_pid(&self) -> Option<i32> {
+        match self.status {
+            ProcessStatus::Running | ProcessStatus::Terminating => self.pgid,
+            _ => None,
+        }
+    }
+
     /// Get custom display status if configured
     pub fn get_custom_status(&self) -> Option<(&str, Option<Color>)> {
         self.status_matcher.as_ref().and_then(|m| m.get_display_status())
@@ -228,6 +242,7 @@ impl ProcessHandle {
                     // Process has exited
                     self.status = ProcessStatus::Stopped;
                     self.child = None;
+                    self.pgid = None;
                     self.stdin_handle = None;
                     true
                 }
@@ -239,6 +254,7 @@ impl ProcessHandle {
                     // Error checking status, assume terminated
                     self.status = ProcessStatus::Stopped;
                     self.child = None;
+                    self.pgid = None;
                     self.stdin_handle = None;
                     true
                 }
@@ -264,6 +280,7 @@ impl ProcessHandle {
                         self.status = ProcessStatus::Failed(msg);
                     }
                     self.child = None;
+                    self.pgid = None;
                     self.stdin_handle = None;
                 }
                 Ok(None) => {
@@ -272,6 +289,7 @@ impl ProcessHandle {
                 Err(e) => {
                     self.status = ProcessStatus::Failed(e.to_string());
                     self.child = None;
+                    self.pgid = None;
                     self.stdin_handle = None;
                 }
             }
@@ -1256,6 +1274,34 @@ mod tests {
             None,
         );
         assert!(handle.get_custom_status().is_none());
+    }
+
+    #[test]
+    fn test_root_pid_gated_by_status() {
+        let mut handle = ProcessHandle::new(
+            "test".to_string(),
+            "echo hello".to_string(),
+            None,
+            None,
+            None,
+        );
+        // Simulate a spawned process group leader.
+        handle.pgid = Some(4242);
+
+        // Alive statuses expose the root pid.
+        handle.status = ProcessStatus::Running;
+        assert_eq!(handle.root_pid(), Some(4242));
+        handle.status = ProcessStatus::Terminating;
+        assert_eq!(handle.root_pid(), Some(4242));
+
+        // Dead/transitional statuses must not expose a stale pid even if pgid
+        // is still set, to avoid attaching unrelated trees after pid reuse.
+        handle.status = ProcessStatus::Stopped;
+        assert_eq!(handle.root_pid(), None);
+        handle.status = ProcessStatus::Restarting;
+        assert_eq!(handle.root_pid(), None);
+        handle.status = ProcessStatus::Failed("Exit code: 1".to_string());
+        assert_eq!(handle.root_pid(), None);
     }
 
     #[test]

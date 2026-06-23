@@ -63,6 +63,8 @@ pub struct App {
     pub regions: ClickRegions,
     /// Colors assigned to each process/log file
     pub process_colors: ProcessColors,
+    /// Cached OS process table for the process tree viewer
+    pub process_tree_cache: crate::process_tree::ProcessTreeCache,
     pub theme: Theme,
     /// Whether the app should quit
     pub should_quit: bool,
@@ -83,6 +85,7 @@ impl App {
             cache: RenderCache::new(),
             regions: ClickRegions::new(),
             process_colors: ProcessColors::new(&[], &[], &HashMap::new(), &theme),
+            process_tree_cache: crate::process_tree::ProcessTreeCache::new(),
             theme,
             should_quit: false,
             shutting_down: false,
