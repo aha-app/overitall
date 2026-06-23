@@ -115,6 +115,24 @@ pub fn build_tree_lines(roots: &[ManagedRoot], procs: &[ProcInfo]) -> Vec<TreeLi
     lines
 }
 
+/// Shorten command lines for display in narrow terminals.
+fn display_command(command: &str) -> String {
+    command
+        .split_whitespace()
+        .map(|part| {
+            let path = std::path::Path::new(part);
+            if path.is_absolute() {
+                path.file_name()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or(part)
+            } else {
+                part
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 /// Recursively render the subtree rooted at `pid`.
 fn push_node(
     lines: &mut Vec<TreeLine>,
@@ -133,11 +151,11 @@ fn push_node(
     let branch = if is_last { "└─ " } else { "├─ " };
     let command = by_pid
         .get(&pid)
-        .map(|p| p.command.as_str())
-        .unwrap_or("<unknown>");
+        .map(|p| display_command(&p.command))
+        .unwrap_or_else(|| "<unknown>".to_string());
     lines.push(TreeLine {
         kind: TreeLineKind::Node,
-        text: format!("{}{}{}  (pid {})", prefix, branch, command, pid),
+        text: format!("{}{}pid {}  {}", prefix, branch, pid, command),
     });
 
     let child_prefix = format!("{}{}", prefix, if is_last { "   " } else { "│  " });
@@ -351,11 +369,11 @@ mod tests {
             text,
             vec![
                 "web  running",
-                "└─ sh -c bin/rails server  (pid 100)",
-                "   └─ ruby bin/rails server  (pid 101)",
+                "└─ pid 100  sh -c bin/rails server",
+                "   └─ pid 101  ruby bin/rails server",
                 // children sorted by pid: 102 before 103
-                "      ├─ puma worker 0  (pid 102)",
-                "      └─ puma worker 1  (pid 103)",
+                "      ├─ pid 102  puma worker 0",
+                "      └─ pid 103  puma worker 1",
             ]
         );
     }
@@ -368,7 +386,15 @@ mod tests {
             pid: Some(999),
         }];
         let lines = build_tree_lines(&roots, &[]);
-        assert_eq!(lines[1].text, "└─ <unknown>  (pid 999)");
+        assert_eq!(lines[1].text, "└─ pid 999  <unknown>");
+    }
+
+    #[test]
+    fn display_command_shortens_paths() {
+        assert_eq!(
+            display_command("/usr/local/bin/ruby /app/example/monitor.rb collector cpu"),
+            "ruby monitor.rb collector cpu"
+        );
     }
 
     #[test]
