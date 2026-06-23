@@ -175,13 +175,15 @@ fn command_for(process: &sysinfo::Process) -> String {
 /// refreshes so repeated samples avoid reallocating the process map.
 ///
 /// The default `refresh_processes` does not populate command lines, so we
-/// request `cmd` explicitly (and nothing else we do not need) to keep the
-/// sample cheap while still rendering full command lines in the tree.
+/// request `cmd` explicitly. We also disable tasks so Linux threads do not
+/// appear as child processes in the tree.
 fn snapshot_processes(system: &mut System) -> Vec<ProcInfo> {
     system.refresh_processes_specifics(
         ProcessesToUpdate::All,
         true,
-        ProcessRefreshKind::nothing().with_cmd(UpdateKind::Always),
+        ProcessRefreshKind::nothing()
+            .without_tasks()
+            .with_cmd(UpdateKind::Always),
     );
     let raw = system.processes().values().map(|process| {
         (
