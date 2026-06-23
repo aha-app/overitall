@@ -162,7 +162,7 @@ oit --file Procfile.other
 - `w` - Cycle display mode: compact → full → wrap
 - `t` - Cycle timestamp display: seconds → milliseconds → off
 - `p` - Cycle process panel: normal → summary → minimal
-- `P` - Toggle process tree view (managed processes and their child processes) in the content area; `P` or `Esc` returns to logs
+- `P` - Toggle process tree view (managed processes and their child processes) in the content area; `P` or `Esc` returns to logs. In tree view, use `↑`/`↓`, `PageUp`/`PageDown`, `Home`/`End`, or mouse wheel to scroll.
 
 
 #### Batch Navigation

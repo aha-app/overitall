@@ -59,7 +59,11 @@ pub fn draw_help_overlay(f: &mut Frame, scroll_offset: u16) {
         ]),
         Line::from(vec![
             Span::styled("  P", Style::default().fg(Color::Yellow)),
-            Span::raw("       Toggle process tree view (managed processes + children)"),
+            Span::raw("       Toggle process tree view (P/Esc returns to logs)"),
+        ]),
+        Line::from(vec![
+            Span::styled("  tree", Style::default().fg(Color::Yellow)),
+            Span::raw("    Scroll with ↑/↓, PgUp/PgDn, Home/End, mouse wheel"),
         ]),
         Line::from(""),
         Line::from(vec![
