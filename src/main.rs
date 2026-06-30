@@ -224,6 +224,9 @@ async fn main() -> anyhow::Result<()> {
     enable_mouse_capture(&mut stdout)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
+    // Clear the alternate screen so leftover terminal content (e.g. pre-startup
+    // output) can't bleed through cells ratatui assumes are blank on first draw.
+    terminal.clear()?;
 
     // Create app state
     let mut app = App::new();
@@ -279,7 +282,10 @@ async fn main() -> anyhow::Result<()> {
     let mut ipc_server = match IpcServer::new(&socket_path) {
         Ok(server) => Some(server),
         Err(e) => {
-            eprintln!("Warning: Could not create IPC server at {:?}: {}", socket_path, e);
+            app.display.set_status_error(format!(
+                "Could not create IPC server at {:?}: {}",
+                socket_path, e
+            ));
             None
         }
     };
