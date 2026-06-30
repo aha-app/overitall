@@ -363,12 +363,12 @@ fn test_cli_no_subcommand_by_default() {
 }
 
 #[test]
-fn test_get_socket_path_uses_current_dir() {
+fn test_get_socket_path_is_relative_to_cwd() {
+    // The socket path is relative so the kernel sees a short bind()/connect()
+    // string even under deep directories, while the file still lives in cwd.
     let path = get_socket_path();
-    let expected = std::env::current_dir()
-        .unwrap()
-        .join(".oit.sock");
-    assert_eq!(path, expected);
+    assert!(path.is_relative(), "Socket path should be relative to cwd");
+    assert_eq!(path, std::path::PathBuf::from(".oit.sock"));
 }
 
 #[test]

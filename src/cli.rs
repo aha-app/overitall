@@ -494,12 +494,16 @@ pub fn init_config(config_path: &str, procfile_override: Option<&str>) -> anyhow
     Ok(())
 }
 
-/// Get the default IPC socket path
+/// Get the IPC socket path.
+///
+/// Returns the relative name `.oit.sock` so the socket file lives in the current
+/// directory (giving each directory its own independent instance) while keeping
+/// the path passed to bind()/connect() short. Unix domain socket paths are capped
+/// by the kernel (104 bytes on macOS, 108 on Linux); an absolute path under a deep
+/// cwd would exceed that and fail to bind. A relative path is resolved against the
+/// process cwd, so it stays short regardless of how deep the directory is.
 pub fn get_socket_path() -> std::path::PathBuf {
-    // Use current directory to allow multiple instances in different directories
-    std::env::current_dir()
-        .unwrap_or_else(|_| std::path::PathBuf::from("."))
-        .join(".oit.sock")
+    std::path::PathBuf::from(".oit.sock")
 }
 
 /// Check if another oit instance is already running.
