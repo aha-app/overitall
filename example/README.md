@@ -4,7 +4,7 @@ This directory contains example files for testing overitall.
 
 ## Files
 
-- `Procfile` - Defines three processes: web, worker, and monitor
+- `Procfile` - Defines the example processes: web, worker, monitor, broken, and flaky
 - `overitall.toml` - Configuration file with process-log mappings and example filters
 - `web_server.rb` - Simulates a web server generating HTTP request logs at high volume
   - Generates logs every 50-200ms (5-20 logs/second)
@@ -62,3 +62,24 @@ The example config demonstrates the custom process status feature. Each process 
 - **monitor**: Shows "Starting" initially, then "Active" (blue) when metrics start flowing
 
 Watch the process list at the top of the TUI - you'll see the status labels change from "Starting" to their active state within the first second as logs come in.
+
+## Auto-Restart
+
+The `flaky` process (`restart = "on-failure"` in the config) logs `flaky: booting`, sleeps 3 seconds, then exits with code 3. It does not start automatically, so it only runs when you ask for it:
+
+```
+:s flaky
+```
+
+Watch the process list: `flaky` cycles running -> failed -> running on its own. Each restart is delayed a bit longer (250ms, 500ms, 1s, 2s, ... capped at 10s) because the process never stays up for 10 seconds, so the backoff never resets.
+
+Stop the cycle with `:k flaky` - manual kills cancel the pending auto-restart. `:s flaky` arms it again.
+
+To watch it from outside the TUI:
+
+```bash
+oit start flaky
+oit processes
+oit logs --limit 50
+oit kill flaky
+```

@@ -50,6 +50,10 @@ pattern = "Processing"
 label = "Processing"
 color = "cyan"
 
+# Auto-restart demo: exits non-zero every few seconds
+[processes.flaky]
+restart = "on-failure"
+
 [[log_files]]
 name = "shared"
 path = "shared.log"
