@@ -37,6 +37,12 @@ All business logic lives in `operations/` modules. Event handlers and commands j
 1. Add handler method in `event_handler.rs`
 2. Call an operation from the handler
 
+## Auto-Restart
+
+`ProcessHandle` holds a `RestartPolicy` (`never`/`on-failure`/`always`) from `[processes.<name>].restart`. When `check_status` sees a process that was `Running` exit on its own and the policy covers that exit, it stores `auto_restart_at = now + backoff` (250ms doubling to a 10s cap; the counter resets when the previous run lasted at least `AUTO_RESTART_STABLE_UPTIME`).
+
+The main loop calls `poll_auto_restarts()` each tick. Due processes are flipped to `Restarting`, which hands them to the existing `spawn_pending_restarts`/`poll_restart_completions` path. Manual `start`, `kill`, and `set_restarting` call `cancel_auto_restart()`, so user actions always win and reset the backoff.
+
 ## Log System
 
 - **LogBuffer** (`log/buffer.rs`) - circular buffer with memory limit, FIFO eviction

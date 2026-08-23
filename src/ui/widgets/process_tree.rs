@@ -127,9 +127,9 @@ mod tests {
     #[test]
     fn collect_roots_sorted_by_name() {
         let mut manager = ProcessManager::new();
-        manager.add_process("web".to_string(), "true".to_string(), None, None, None);
-        manager.add_process("api".to_string(), "true".to_string(), None, None, None);
-        manager.add_process("worker".to_string(), "true".to_string(), None, None, None);
+        manager.add_process("web".to_string(), "true".to_string(), None, None, None, None);
+        manager.add_process("api".to_string(), "true".to_string(), None, None, None, None);
+        manager.add_process("worker".to_string(), "true".to_string(), None, None, None, None);
 
         let roots = collect_roots(&manager);
         let names: Vec<&str> = roots.iter().map(|(r, _)| r.name.as_str()).collect();

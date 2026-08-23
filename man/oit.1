@@ -317,6 +317,8 @@ log_file = "log/web.log"
 
 [processes.worker]
 log_file = "log/worker.log"
+# Restart the worker automatically when it crashes
+restart = "on-failure"
 
 # Filters
 [filters]
@@ -336,6 +338,16 @@ Path to the log file for a specific process.
 .TP
 .B processes.<name>.status
 Custom status configuration with pattern-based transitions.
+.TP
+.B processes.<name>.stdin
+Stdin mode for a specific process: "close" (default) or "open". Use "open" for
+processes that exit when stdin is closed, such as file watchers.
+.TP
+.B processes.<name>.restart
+Auto-restart policy for a specific process: "never" (default), "on-failure"
+(restart on non-zero exit or fatal signal), or "always" (restart on any exit).
+Restarts back off from 250ms up to 10s; a process that stays up for 10 seconds
+resets the backoff. Manual :s, :k, and :r cancel a pending auto-restart.
 .TP
 .B log_files
 Array of standalone log files to tail.

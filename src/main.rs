@@ -183,7 +183,11 @@ async fn main() -> anyhow::Result<()> {
         let stdin_config = config.processes.get(name)
             .and_then(|pc| pc.stdin.as_deref());
 
-        manager.add_process(name.clone(), command.clone(), Some(procfile_dir.clone()), status_config, stdin_config);
+        // Get auto-restart policy if configured
+        let restart_config = config.processes.get(name)
+            .and_then(|pc| pc.restart.as_deref());
+
+        manager.add_process(name.clone(), command.clone(), Some(procfile_dir.clone()), status_config, stdin_config, restart_config);
 
         // If this process has a log file configured, add it
         if let Some(proc_config) = config.processes.get(name) {
@@ -375,6 +379,13 @@ async fn run_app(
                 // Show the first failure in status bar (to avoid overwhelming)
                 let (name, msg) = &newly_failed[0];
                 app.display.set_status_error(format!("{}: {}", name, msg));
+            }
+
+            // Promote due auto-restarts; the restart machinery below picks them up
+            let auto_restarting = manager.poll_auto_restarts();
+            if !auto_restarting.is_empty() {
+                app.display.set_status_info(format!("Auto-restarting: {}", auto_restarting.join(", ")));
+                needs_redraw = true;
             }
         }
 

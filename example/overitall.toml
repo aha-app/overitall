@@ -19,6 +19,9 @@ theme = "dark" # "light"
 log_file = "web.log"
 # stdin = "close"  # Default - close stdin (most processes)
 # stdin = "open"   # Keep stdin open (for watchers like Tailwind, Vite)
+# restart = "never"       # Default - stay stopped after exit
+# restart = "on-failure"  # Auto-restart on crash (non-zero exit)
+# restart = "always"      # Auto-restart on any exit
 
 [processes.web.status]
 default = "Starting"

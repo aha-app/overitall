@@ -9,6 +9,7 @@ Overitall (`oit`) is a TUI that helps you manage multiple processes and their lo
 ### Key Features
 
 - **Process Management**: Start, stop, and restart processes defined in a Procfile
+- **Auto-Restart**: Optionally restart a process automatically when it exits or crashes
 - **Custom Status Labels**: Show meaningful status like "Starting", "Ready" based on log patterns
 - **Standalone Log Files**: Tail log files (like Rails logs) without an associated process
 - **Unified Log Viewing**: View logs from multiple sources in a single, interleaved stream
@@ -402,6 +403,29 @@ stdin = "open"  # Keep stdin open to prevent process from exiting
 - Any process that expects stdin to remain open
 
 The open mode creates a new pipe per process (does not share the parent's stdin). Most processes don't need this and should use the default `"close"` mode.
+
+### Process Auto-Restart
+
+By default a process that exits stays stopped. Set a restart policy per process to have `oit` bring it back automatically:
+
+```toml
+[processes.web]
+restart = "on-failure"  # restart when it crashes
+
+[processes.tailwind]
+restart = "always"      # restart on any exit, clean or not
+```
+
+**Options:**
+- `"never"` (default) - never restart automatically
+- `"on-failure"` - restart on a non-zero exit code or a fatal signal
+- `"always"` - restart on any exit, including exit code 0
+
+Behavior:
+- Restarts back off: 250ms, then 500ms, 1s, 2s, 4s, 8s, capped at 10s. A process that stays up for 10 seconds is considered healthy, so its next exit starts back at 250ms.
+- A crash loop keeps retrying at the 10s cap (the fix is usually a code edit), so you never have to babysit it.
+- Manual actions win: `:k`, `:s`, and `:r` cancel any pending auto-restart and reset the backoff. Auto-restart only applies to processes that exited on their own.
+- Restarts show as `Restarting` in the process list, with an `Auto-restarting: <name>` message in the status bar.
 
 ### Custom Process Status Labels
 

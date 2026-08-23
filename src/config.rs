@@ -49,6 +49,8 @@ pub struct ProcessConfig {
     pub status: Option<StatusConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stdin: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub restart: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -128,6 +130,16 @@ impl Config {
                     anyhow::bail!(
                         "Invalid stdin value '{}' for process '{}'. Must be 'close' or 'open'",
                         stdin_mode,
+                        process_name
+                    );
+                }
+            }
+
+            if let Some(restart) = &process_config.restart {
+                if !matches!(restart.as_str(), "never" | "on-failure" | "always") {
+                    anyhow::bail!(
+                        "Invalid restart value '{}' for process '{}'. Must be 'never', 'on-failure', or 'always'",
+                        restart,
                         process_name
                     );
                 }
@@ -709,6 +721,7 @@ log_file = "logs/worker.log"
                     ],
                 }),
                 stdin: None,
+                restart: None,
             },
         );
 
@@ -1376,6 +1389,7 @@ log_file = "web.log"
                 log_file: Some(PathBuf::from("web.log")),
                 status: None,
                 stdin: None,
+                restart: None,
             },
         );
 
@@ -1400,6 +1414,7 @@ log_file = "web.log"
                 log_file: None,
                 status: None,
                 stdin: Some("open".to_string()),
+                restart: None,
             },
         );
 
@@ -1424,6 +1439,7 @@ log_file = "web.log"
                 log_file: None,
                 status: None,
                 stdin: Some("open".to_string()),
+                restart: None,
             },
         );
 
@@ -1448,6 +1464,7 @@ log_file = "web.log"
                 log_file: None,
                 status: None,
                 stdin: Some("open".to_string()),
+                restart: None,
             },
         );
         processes.insert(
@@ -1456,6 +1473,7 @@ log_file = "web.log"
                 log_file: None,
                 status: None,
                 stdin: Some("close".to_string()),
+                restart: None,
             },
         );
 
@@ -1477,6 +1495,7 @@ log_file = "web.log"
                 log_file: None,
                 status: None,
                 stdin: Some("invalid".to_string()),
+                restart: None,
             },
         );
 
@@ -1489,5 +1508,118 @@ log_file = "web.log"
         let result = config.validate(&process_names);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Invalid stdin value"));
+    }
+
+    #[test]
+    fn test_restart_loads_from_config() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(
+            temp_file,
+            r#"
+procfile = "Procfile"
+
+[processes.web]
+restart = "always"
+
+[processes.worker]
+restart = "on-failure"
+"#
+        )
+        .unwrap();
+
+        let config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert_eq!(config.processes.get("web").unwrap().restart, Some("always".to_string()));
+        assert_eq!(config.processes.get("worker").unwrap().restart, Some("on-failure".to_string()));
+    }
+
+    #[test]
+    fn test_restart_defaults_when_missing() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(
+            temp_file,
+            r#"
+procfile = "Procfile"
+
+[processes.web]
+log_file = "web.log"
+"#
+        )
+        .unwrap();
+
+        let config = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert_eq!(config.processes.get("web").unwrap().restart, None);
+    }
+
+    #[test]
+    fn test_restart_roundtrip() {
+        let mut processes = HashMap::new();
+        processes.insert(
+            "web".to_string(),
+            ProcessConfig {
+                log_file: None,
+                status: None,
+                stdin: None,
+                restart: Some("always".to_string()),
+            },
+        );
+
+        let original = Config {
+            processes,
+            ..test_config()
+        };
+
+        let temp_file = NamedTempFile::new().unwrap();
+        original.save(temp_file.path().to_str().unwrap()).unwrap();
+
+        let loaded = Config::from_file(temp_file.path().to_str().unwrap()).unwrap();
+        assert_eq!(loaded.processes.get("web").unwrap().restart, Some("always".to_string()));
+    }
+
+    #[test]
+    fn test_validate_accepts_valid_restart_values() {
+        let mut processes = HashMap::new();
+        for (name, policy) in [("web", "never"), ("worker", "on-failure"), ("css", "always")] {
+            processes.insert(
+                name.to_string(),
+                ProcessConfig {
+                    log_file: None,
+                    status: None,
+                    stdin: None,
+                    restart: Some(policy.to_string()),
+                },
+            );
+        }
+
+        let config = Config {
+            processes,
+            ..test_config()
+        };
+
+        let process_names = vec!["web".to_string(), "worker".to_string(), "css".to_string()];
+        assert!(config.validate(&process_names).is_ok());
+    }
+
+    #[test]
+    fn test_validate_rejects_invalid_restart_value() {
+        let mut processes = HashMap::new();
+        processes.insert(
+            "web".to_string(),
+            ProcessConfig {
+                log_file: None,
+                status: None,
+                stdin: None,
+                restart: Some("on-exit".to_string()),
+            },
+        );
+
+        let config = Config {
+            processes,
+            ..test_config()
+        };
+
+        let process_names = vec!["web".to_string()];
+        let result = config.validate(&process_names);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Invalid restart value"));
     }
 }
