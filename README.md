@@ -133,7 +133,13 @@ oit web            # Start only the web process
 
 ### Without a Procfile
 
-Define commands directly in `.overitall.toml`, then run `oit`:
+Run `oit --init` in a directory without a Procfile to create `.overitall.toml` with a harmless example command. Replace the example with your commands, then run `oit`:
+
+```bash
+oit --init
+```
+
+For example:
 
 ```toml
 [procfile]
@@ -143,6 +149,8 @@ worker = "bundle exec sidekiq"
 [processes.worker]
 restart = "on-failure"
 ```
+
+When a Procfile exists, `--init` still uses it. An explicitly requested missing file (`--init -f path`) or an invalid Procfile remains an error. Existing configs are never overwritten.
 
 Use either `[procfile]` or `procfile = "path"`, not both. Inline commands and relative log paths use the config file's directory. File-based configs retain their existing path behavior. `-f` overrides either source without changing the saved config. If neither is configured, oit reads `Procfile` from the current directory.
 

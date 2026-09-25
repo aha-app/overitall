@@ -30,6 +30,9 @@ Path to Procfile. Overrides file or inline definitions in the config.
 .TP
 .B \-\-init
 Initialize a new \fB.overitall.toml\fR config file from an existing Procfile.
+If no Procfile exists, create an inline [procfile] table with a harmless example
+command to replace with your own. An explicitly requested missing file (-f)
+or an invalid Procfile is an error. Existing configs are not overwritten.
 .TP
 .B \-\-no\-update
 Skip auto-update check on startup.

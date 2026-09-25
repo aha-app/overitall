@@ -47,6 +47,20 @@ Or use overitall to run all processes from the Procfile:
 cargo run -- --config example/overitall.toml
 ```
 
+### Initialize without a Procfile
+
+Test initialization from an empty directory:
+
+```bash
+cargo build --bin oit
+oit_bin="$PWD/target/debug/oit"
+demo=$(mktemp -d)
+(cd "$demo" && "$oit_bin" --init)
+cat "$demo/.overitall.toml"
+```
+
+The generated `[procfile]` contains a harmless `example` command. Replace it with your processes, or use the Ruby example config below.
+
 ### Inline process definitions
 
 From the repository root:

@@ -95,6 +95,63 @@ fn inline_reload_and_override_without_procfile() {
 }
 
 #[test]
+fn init_without_procfile_creates_runnable_config() {
+    let temp = TempDir::new().unwrap();
+    let init = || {
+        std::process::Command::new(env!("CARGO_BIN_EXE_oit"))
+            .args(["--init", "--config", "custom.toml"])
+            .current_dir(temp.path())
+            .output()
+            .unwrap()
+    };
+    let output = init();
+    assert!(output.status.success(), "{:?}", output);
+    assert!(String::from_utf8_lossy(&output.stdout).contains("Edit [procfile]"));
+    let path = temp.path().join("custom.toml");
+    let content = std::fs::read_to_string(&path).unwrap();
+    let config: Config = toml::from_str(&content.replace("# theme =", "theme =")).unwrap();
+    assert_eq!(config.theme.as_deref(), Some("dark"));
+    let definitions = config.procfile.load().unwrap();
+    config
+        .validate(&definitions.processes.keys().cloned().collect::<Vec<_>>())
+        .unwrap();
+    let command = definitions.get_command("example").unwrap();
+    assert!(
+        std::process::Command::new("sh")
+            .args(["-c", command])
+            .current_dir(temp.path())
+            .output()
+            .unwrap()
+            .status
+            .success()
+    );
+    assert!(!temp.path().join("Procfile").exists());
+    assert!(init().status.success());
+    assert_eq!(std::fs::read_to_string(path).unwrap(), content);
+}
+
+#[test]
+fn init_does_not_hide_missing_explicit_or_invalid_default_procfile() {
+    let temp = TempDir::new().unwrap();
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_oit"))
+        .args(["--init", "-f", "missing"])
+        .current_dir(temp.path())
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("missing"));
+    assert!(!temp.path().join(".overitall.toml").exists());
+    std::fs::write(temp.path().join("Procfile"), "not a process definition").unwrap();
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_oit"))
+        .arg("--init")
+        .current_dir(temp.path())
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(!temp.path().join(".overitall.toml").exists());
+}
+
+#[test]
 fn example_inline_config_is_valid() {
     let config: Config = toml::from_str(include_str!("../example/inline.toml")).unwrap();
     let definitions = config.procfile.load().unwrap();

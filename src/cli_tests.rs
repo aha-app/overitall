@@ -111,7 +111,7 @@ fn test_init_config_skips_config_if_file_exists() {
 }
 
 #[test]
-fn test_init_config_fails_if_procfile_missing() {
+fn test_init_config_creates_inline_config_if_procfile_missing() {
     // Lock mutex to prevent parallel directory changes
     let _guard = CWD_MUTEX.lock().unwrap();
 
@@ -132,10 +132,12 @@ fn test_init_config_fails_if_procfile_missing() {
     // Restore original directory
     std::env::set_current_dir(original_dir).unwrap();
 
-    // Check that init failed
-    assert!(result.is_err(), "init_config should fail when Procfile is missing");
-    let err_msg = result.unwrap_err().to_string();
-    assert!(err_msg.contains("Procfile"), "Error should mention Procfile: {}", err_msg);
+    result.unwrap();
+    let config = Config::from_file(config_path.to_str().unwrap()).unwrap();
+    assert!(matches!(config.procfile, crate::procfile::ProcfileConfig::Inline(_)));
+    let definitions = config.procfile.load().unwrap();
+    assert!(definitions.get_command("example").unwrap().starts_with("echo "));
+    assert!(!temp_path.join("Procfile").exists());
 }
 
 #[test]

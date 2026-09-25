@@ -4,7 +4,6 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use crate::config::{self, Config};
-use crate::procfile::Procfile;
 
 /// Overitall - Process and log management TUI
 #[derive(Parser, Debug)]
@@ -17,8 +16,8 @@ It reads a Procfile or inline [procfile] TOML definitions to start and manage pr
 and provides an interactive TUI for viewing interleaved logs with filtering, search, and batch navigation.
 
 Quick start:
-  1. Create a Procfile with your processes (e.g., 'web: rails server')
-  2. Run 'oit --init' to generate a config file
+  1. Run 'oit --init' to generate a config file (uses Procfile if present)
+  2. Edit [procfile] in .overitall.toml to define commands if no Procfile exists
   3. Edit .overitall.toml to configure log files (optional)
   4. Run 'oit' to start the TUI
 
@@ -36,7 +35,7 @@ pub struct Cli {
     #[arg(short = 'f', long = "file")]
     pub procfile: Option<String>,
 
-    /// Initialize a new .overitall.toml config file from Procfile
+    /// Initialize config from Procfile, or create inline example definitions
     #[arg(long)]
     pub init: bool,
 
@@ -390,7 +389,7 @@ pub fn install_vscode_extension() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Initialize a new config file from an existing Procfile
+/// Initialize from a Procfile when available, otherwise use an inline example.
 pub fn init_config(config_path: &str, procfile_override: Option<&str>) -> anyhow::Result<()> {
     let config_exists = Path::new(config_path).exists();
 
@@ -399,27 +398,16 @@ pub fn init_config(config_path: &str, procfile_override: Option<&str>) -> anyhow
         // Use override or default Procfile location
         let procfile_path = procfile_override.unwrap_or("Procfile");
 
-        // Check if Procfile exists and provide helpful error if not
-        if !Path::new(procfile_path).exists() {
-            return Err(anyhow!(
-                "Procfile not found at '{}'.\n\n\
-                To use --init, first create a Procfile with your processes.\n\
-                Example Procfile:\n\
-                \n\
-                  web: rails server -p 3000\n\
-                  worker: bundle exec sidekiq\n\
-                \n\
-                See: https://devcenter.heroku.com/articles/procfile\n\
-                \n\
-                Then run 'oit --init' again to generate the config file.\n\
-                Or specify a Procfile with: oit --init -f <path>",
-                procfile_path
-            ));
-        }
-
-        // Try to parse the Procfile
-        let procfile = Procfile::from_file(procfile_path)
-            .with_context(|| format!("Failed to parse Procfile at '{}'", procfile_path))?;
+        let inline = procfile_override.is_none() && !Path::new(procfile_path).try_exists()?;
+        let definitions = if inline {
+            crate::procfile::ProcfileConfig::Inline(HashMap::from([
+                ("example".to_string(), "echo 'Replace this command in [procfile] with your own'".to_string()),
+            ]))
+        } else {
+            crate::procfile::ProcfileConfig::File(procfile_path.into())
+        };
+        let procfile = definitions.load()
+            .with_context(|| format!("Failed to load process definitions from '{}'", procfile_path))?;
 
         // Get sorted list of process names
         let process_names = procfile.process_names();
@@ -435,7 +423,7 @@ pub fn init_config(config_path: &str, procfile_override: Option<&str>) -> anyhow
         };
 
         let config = Config {
-            procfile: std::path::PathBuf::from(procfile_path).into(),
+            procfile: definitions,
             processes: HashMap::new(),
             log_files,
             filters: config::FilterConfig {
@@ -485,7 +473,11 @@ pub fn init_config(config_path: &str, procfile_override: Option<&str>) -> anyhow
         }
 
         println!("\nNext steps:");
-        println!("  1. Edit {} to configure log file paths", config_path);
+        if inline {
+            println!("  1. Edit [procfile] in {} to define your processes", config_path);
+        } else {
+            println!("  1. Edit {} to configure log file paths", config_path);
+        }
         println!("  2. Run 'oit' to start the TUI");
     } else {
         println!("Config file '{}' already exists.", config_path);
