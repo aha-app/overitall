@@ -19,7 +19,10 @@ use tempfile::TempDir;
 fn resolve_log_file_path(config: &Config, config_path: &std::path::Path) -> Option<PathBuf> {
     // Calculate procfile_dir (mimics main.rs lines 73-77)
     let config_dir = config_path.parent()?;
-    let procfile_abs = config_dir.join(&config.procfile);
+    let overitall::procfile::ProcfileConfig::File(path) = &config.procfile else {
+        return None;
+    };
+    let procfile_abs = config_dir.join(path);
 
     let procfile_dir = procfile_abs
         .parent()
@@ -187,11 +190,14 @@ log_file = "logs/app.log"
     let config = Config::from_file(config_path.to_str().unwrap()).unwrap();
 
     // Verify procfile path is relative
-    assert_eq!(config.procfile, PathBuf::from("app/Procfile"));
+    let overitall::procfile::ProcfileConfig::File(path) = &config.procfile else {
+        panic!("Expected a file source");
+    };
+    assert_eq!(path, &PathBuf::from("app/Procfile"));
 
     // Parse procfile to ensure it works
     let config_dir = config_path.parent().unwrap();
-    let procfile_abs = config_dir.join(&config.procfile);
+    let procfile_abs = config_dir.join(path);
     let _procfile = Procfile::from_file(procfile_abs.to_str().unwrap()).unwrap();
 
     // Resolve log file path - should be relative to app/ directory (where Procfile is)

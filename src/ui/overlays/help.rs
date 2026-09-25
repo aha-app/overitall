@@ -79,7 +79,7 @@ pub fn draw_help_overlay(f: &mut Frame, scroll_offset: u16) {
         ]),
         Line::from(vec![
             Span::styled("  :r [proc|group]", Style::default().fg(Color::Yellow)),
-            Span::raw(" Restart process/group (or all if no arg)"),
+            Span::raw(" Restart (all if omitted); reload definitions"),
         ]),
         Line::from(vec![
             Span::styled("  :k <proc|group>", Style::default().fg(Color::Yellow)),

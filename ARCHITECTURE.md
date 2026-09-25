@@ -37,6 +37,10 @@ All business logic lives in `operations/` modules. Event handlers and commands j
 1. Add handler method in `event_handler.rs`
 2. Call an operation from the handler
 
+## Process Definitions
+
+`ProcfileConfig` accepts a path or an inline `[procfile]` table, defaulting to `Procfile`. `ProcessSource` selects the runtime source (`-f` takes precedence), loads definitions, and resolves the working directory. Inline sources use the config directory; file sources use the Procfile directory. `ProcessManager` retains the selected source and re-reads it on command-driven restarts. Inline reloads update definitions only, not other process settings.
+
 ## Auto-Restart
 
 `ProcessHandle` holds a `RestartPolicy` (`never`/`on-failure`/`always`) from `[processes.<name>].restart`. When `check_status` sees a process that was `Running` exit on its own and the policy covers that exit, it stores `auto_restart_at = now + backoff` (250ms doubling to a 10s cap; the counter resets when the previous run lasted at least `AUTO_RESTART_STABLE_UPTIME`).

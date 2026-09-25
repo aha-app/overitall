@@ -13,7 +13,7 @@ use crate::procfile::Procfile;
 #[command(about = "Process and log management TUI")]
 #[command(long_about = "Overitall (oit) combines process management with log viewing.
 
-It reads a Procfile to start and manage processes, tracks their output and optional log files,
+It reads a Procfile or inline [procfile] TOML definitions to start and manage processes, tracks their output and optional log files,
 and provides an interactive TUI for viewing interleaved logs with filtering, search, and batch navigation.
 
 Quick start:
@@ -32,7 +32,7 @@ pub struct Cli {
     #[arg(short, long, default_value = ".overitall.toml")]
     pub config: String,
 
-    /// Path to Procfile (overrides config file setting)
+    /// Path to Procfile (overrides file or inline definitions in config)
     #[arg(short = 'f', long = "file")]
     pub procfile: Option<String>,
 
@@ -435,7 +435,7 @@ pub fn init_config(config_path: &str, procfile_override: Option<&str>) -> anyhow
         };
 
         let config = Config {
-            procfile: std::path::PathBuf::from(procfile_path),
+            procfile: std::path::PathBuf::from(procfile_path).into(),
             processes: HashMap::new(),
             log_files,
             filters: config::FilterConfig {

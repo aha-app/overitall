@@ -26,7 +26,7 @@ logs with filtering, search, and batch navigation.
 Path to config file. Defaults to \fB.overitall.toml\fR.
 .TP
 .BR \-f ", " \-\-file " " \fIpath\fR
-Path to Procfile. Overrides the config file setting.
+Path to Procfile. Overrides file or inline definitions in the config.
 .TP
 .B \-\-init
 Initialize a new \fB.overitall.toml\fR config file from an existing Procfile.
@@ -272,7 +272,7 @@ Hide a process or group from log view.
 Show a hidden process or group.
 .TP
 .BR restart ", " r " " \fI[name]\fR
-Restart a process, group, or all processes. Re-reads the Procfile to pick up command changes, new processes, and removed processes.
+Restart a process, group, or all processes. Re-reads the Procfile or inline [procfile] definitions to pick up command changes, new processes, and removed processes.
 .TP
 .BR kill ", " k " " \fIname\fR
 Kill a running process or group.
@@ -331,7 +331,20 @@ hidden_processes = ["worker"]
 .SS Configuration Options
 .TP
 .B procfile
-Path to your Procfile (required).
+Path to your Procfile (defaults to Procfile), or an inline table of process names and commands.
+Use either a path or a table, not both:
+.PP
+.nf
+[procfile]
+web = "bundle exec rails server -p 3000"
+worker = "bundle exec sidekiq"
+.fi
+.PP
+Inline commands and relative log paths use the config file's directory.
+Existing [processes.NAME] settings also apply to inline processes.
+The -f option overrides either source without changing the saved config.
+Restart commands reload inline definitions from disk. Switching source types
+requires restarting oit. Empty tables, blank names, and blank commands are errors.
 .TP
 .B processes.<name>.log_file
 Path to the log file for a specific process.

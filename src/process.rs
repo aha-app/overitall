@@ -15,7 +15,7 @@ use tokio::task::JoinHandle;
 pub use crate::log::{LogLine, LogSource};
 use crate::config::{Config, StatusConfig};
 use crate::log::{LogBuffer, FileReader, LogVelocityTracker};
-use crate::procfile::Procfile;
+use crate::procfile::ProcessSource;
 use crate::status_matcher::StatusMatcher;
 
 /// Status of a managed process
@@ -620,7 +620,7 @@ pub struct ProcessManager {
     restart_rx: mpsc::UnboundedReceiver<(Arc<AtomicBool>, RestartResult)>,
     restart_tx: mpsc::UnboundedSender<(Arc<AtomicBool>, RestartResult)>,
     restarts_in_flight: HashSet<String>,
-    procfile_path: Option<PathBuf>,
+    process_source: Option<ProcessSource>,
     procfile_dir: Option<PathBuf>,
 }
 
@@ -644,13 +644,17 @@ impl ProcessManager {
             restart_rx,
             restart_tx,
             restarts_in_flight: HashSet::new(),
-            procfile_path: None,
+            process_source: None,
             procfile_dir: None,
         }
     }
 
     pub fn set_procfile_path(&mut self, path: PathBuf, dir: PathBuf) {
-        self.procfile_path = Some(path);
+        self.set_process_source(ProcessSource::File(path), dir);
+    }
+
+    pub fn set_process_source(&mut self, source: ProcessSource, dir: PathBuf) {
+        self.process_source = Some(source);
         self.procfile_dir = Some(dir);
     }
 
@@ -665,11 +669,11 @@ impl ProcessManager {
     /// - Removed processes are put into Failed state with a message
     /// Returns a summary of changes, or an error if the Procfile can't be read.
     pub fn reload_procfile(&mut self, config: &Config) -> Result<ProcfileReloadResult> {
-        let procfile_path = self.procfile_path.as_ref()
+        let source = self.process_source.as_ref()
             .ok_or_else(|| anyhow::anyhow!("No Procfile path configured"))?;
         let procfile_dir = self.procfile_dir.clone();
 
-        let procfile = Procfile::from_file(procfile_path)?;
+        let procfile = source.load()?;
         let mut result = ProcfileReloadResult::default();
 
         // Check existing processes against new Procfile
@@ -2032,7 +2036,7 @@ mod tests {
 
     fn test_config() -> Config {
         Config {
-            procfile: PathBuf::from("Procfile"),
+            procfile: PathBuf::from("Procfile").into(),
             processes: HashMap::new(),
             log_files: Vec::new(),
             filters: crate::config::FilterConfig::default(),

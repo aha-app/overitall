@@ -20,7 +20,7 @@ use config::Config;
 use event_handler::EventHandler;
 use ipc::state::{BufferStats, FilterInfo, LogLineInfo, ProcessInfo, StateSnapshot, ViewModeInfo};
 use ipc::{IpcAction, IpcCommandHandler, IpcServer};
-use procfile::Procfile;
+use procfile::ProcessSource;
 use process::{ProcessManager, ProcessStatus};
 use ui::{App, DisplayMode, FilterType};
 
@@ -129,14 +129,8 @@ async fn main() -> anyhow::Result<()> {
     let mut config = Config::from_file(config_path)?;
     config.config_path = Some(std::path::PathBuf::from(config_path));
 
-    // Use CLI-specified procfile as a temporary override (not saved to config)
-    let runtime_procfile_path = cli.procfile
-        .as_ref()
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| config.procfile.clone());
-
-    // Parse procfile
-    let procfile = Procfile::from_file(&runtime_procfile_path)?;
+    let process_source = ProcessSource::resolve(&config, cli.procfile.as_deref())?;
+    let procfile = process_source.load()?;
 
     // Validate config (check for name collisions between processes and log files)
     let process_names: Vec<String> = procfile.processes.keys().cloned().collect();
@@ -145,7 +139,7 @@ async fn main() -> anyhow::Result<()> {
     // Validate CLI-specified process names exist in Procfile
     for name in &cli.processes {
         if !process_names.contains(name) {
-            eprintln!("Error: Process '{}' not found in Procfile.\n", name);
+            eprintln!("Error: Process '{}' not found in process definitions.\n", name);
             eprintln!("Available processes:");
             for pn in &process_names {
                 eprintln!("  - {}", pn);
@@ -154,19 +148,12 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
-    // Determine working directory from Procfile path
-    // If procfile is just "Procfile" (no directory), parent() returns Some("")
-    // We need to filter out empty paths and use current_dir instead
-    let procfile_dir = runtime_procfile_path
-        .parent()
-        .filter(|p| !p.as_os_str().is_empty())
-        .map(|p| p.to_path_buf())
-        .unwrap_or_else(|| std::env::current_dir().unwrap());
+    let procfile_dir = process_source.working_dir()?;
 
     // Create process manager
     let max_buffer_mb = config.max_log_buffer_mb.unwrap_or(50);
     let mut manager = ProcessManager::new_with_buffer_limit(max_buffer_mb);
-    manager.set_procfile_path(runtime_procfile_path.clone(), procfile_dir.clone());
+    manager.set_process_source(process_source, procfile_dir.clone());
 
     // Add ALL processes from Procfile (skip only ignored ones)
     for (name, command) in &procfile.processes {

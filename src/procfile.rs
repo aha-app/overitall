@@ -1,7 +1,97 @@
 use anyhow::{Context, Result};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ProcfileConfig {
+    File(PathBuf),
+    Inline(HashMap<String, String>),
+}
+
+impl Default for ProcfileConfig {
+    fn default() -> Self {
+        Self::File(PathBuf::from("Procfile"))
+    }
+}
+
+impl From<PathBuf> for ProcfileConfig {
+    fn from(path: PathBuf) -> Self {
+        Self::File(path)
+    }
+}
+
+impl ProcfileConfig {
+    pub fn load(&self) -> Result<Procfile> {
+        match self {
+            Self::File(path) => Procfile::from_file(path),
+            Self::Inline(processes) => {
+                anyhow::ensure!(
+                    !processes.is_empty(),
+                    "[procfile] contains no process definitions"
+                );
+                for (name, command) in processes {
+                    anyhow::ensure!(!name.trim().is_empty(), "Empty process name in [procfile]");
+                    anyhow::ensure!(
+                        !command.trim().is_empty(),
+                        "Empty command for process '{}' in [procfile]",
+                        name
+                    );
+                }
+                Ok(Procfile {
+                    processes: processes.clone(),
+                })
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum ProcessSource {
+    File(PathBuf),
+    Config(PathBuf),
+}
+
+impl ProcessSource {
+    pub fn resolve(config: &crate::config::Config, override_path: Option<&str>) -> Result<Self> {
+        if let Some(path) = override_path {
+            return Ok(Self::File(path.into()));
+        }
+        match &config.procfile {
+            ProcfileConfig::File(path) => Ok(Self::File(path.clone())),
+            ProcfileConfig::Inline(_) => Ok(Self::Config(
+                config
+                    .config_path
+                    .clone()
+                    .context("Inline processes require a config file path")?,
+            )),
+        }
+    }
+
+    pub fn load(&self) -> Result<Procfile> {
+        match self {
+            Self::File(path) => Procfile::from_file(path),
+            Self::Config(path) => {
+                let content = fs::read_to_string(path)
+                    .with_context(|| format!("Failed to read config at {:?}", path))?;
+                let config: crate::config::Config = toml::from_str(&content)?;
+                anyhow::ensure!(
+                    matches!(config.procfile, ProcfileConfig::Inline(_)),
+                    "[procfile] was removed; restart oit to change process sources"
+                );
+                config.procfile.load()
+            }
+        }
+    }
+
+    pub fn working_dir(&self) -> Result<PathBuf> {
+        let (Self::File(path) | Self::Config(path)) = self;
+        let parent = path.parent().filter(|p| !p.as_os_str().is_empty());
+        Ok(std::env::current_dir()?.join(parent.unwrap_or(Path::new(""))))
+    }
+}
 
 /// Represents a parsed Procfile containing process definitions
 #[derive(Debug, Clone)]
@@ -39,7 +129,11 @@ impl Procfile {
                 }
 
                 if command.is_empty() {
-                    anyhow::bail!("Empty command for process '{}' on line {}", name, line_num + 1);
+                    anyhow::bail!(
+                        "Empty command for process '{}' on line {}",
+                        name,
+                        line_num + 1
+                    );
                 }
 
                 if processes.contains_key(&name) {

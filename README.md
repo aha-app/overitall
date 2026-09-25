@@ -8,7 +8,7 @@ Overitall (`oit`) is a TUI that helps you manage multiple processes and their lo
 
 ### Key Features
 
-- **Process Management**: Start, stop, and restart processes defined in a Procfile
+- **Process Management**: Start, stop, and restart processes defined in a Procfile or inline TOML
 - **Auto-Restart**: Optionally restart a process automatically when it exits or crashes
 - **Custom Status Labels**: Show meaningful status like "Starting", "Ready" based on log patterns
 - **Standalone Log Files**: Tail log files (like Rails logs) without an associated process
@@ -131,6 +131,29 @@ oit web worker     # Start only web and worker processes
 oit web            # Start only the web process
 ```
 
+### Without a Procfile
+
+Define commands directly in `.overitall.toml`, then run `oit`:
+
+```toml
+[procfile]
+web = "bundle exec rails server -p 3000"
+worker = "bundle exec sidekiq"
+
+[processes.worker]
+restart = "on-failure"
+```
+
+Use either `[procfile]` or `procfile = "path"`, not both. Inline commands and relative log paths use the config file's directory. File-based configs retain their existing path behavior. `-f` overrides either source without changing the saved config. If neither is configured, oit reads `Procfile` from the current directory.
+
+Restart commands re-read inline definitions from the config file, just as they re-read an external Procfile. An empty table, blank name, or blank command is an error. Switching between inline and file-based sources requires restarting oit.
+
+Try the example without a separate Procfile:
+
+```bash
+cargo run -- --config example/inline.toml --no-update
+```
+
 Or specify a custom config file or Procfile:
 
 ```bash
@@ -189,7 +212,7 @@ All commands are entered by pressing `:` followed by the command.
 #### Process Management
 
 - `:s <name>` - Start a process
-- `:r <name>` - Restart a process (or all processes if no name given). Re-reads the Procfile to pick up changes.
+- `:r <name>` - Restart a process (or all processes if no name given). Re-reads the Procfile or inline `[procfile]` definitions to pick up changes.
 - `:k <name>` - Kill (stop) a process
 - `:q` / `:quit` / `:exit` - Quit the application
 
@@ -303,7 +326,7 @@ hidden_processes = ["worker"]
 
 ### Configuration Options
 
-- `procfile` - Path to your Procfile (required)
+- `procfile` - Path to your Procfile (defaults to `Procfile`), or a table of inline process definitions
 - `processes.<name>.log_file` - Path to the log file for a specific process (optional)
 - `processes.<name>.stdin` - Stdin mode for the process: `"close"` (default) or `"open"` (see below)
 - `processes.<name>.status` - Custom status configuration (see below)

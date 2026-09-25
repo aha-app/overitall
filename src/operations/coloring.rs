@@ -53,7 +53,7 @@ mod tests {
 
     fn create_test_config() -> Config {
         Config {
-            procfile: std::path::PathBuf::from("Procfile"),
+            procfile: std::path::PathBuf::from("Procfile").into(),
             processes: std::collections::HashMap::new(),
             log_files: Vec::new(),
             filters: crate::config::FilterConfig::default(),

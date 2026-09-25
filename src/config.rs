@@ -4,7 +4,8 @@ use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
-    pub procfile: PathBuf,
+    #[serde(default)]
+    pub procfile: crate::procfile::ProcfileConfig,
     #[serde(default)]
     pub processes: HashMap<String, ProcessConfig>,
     #[serde(default)]
@@ -207,7 +208,7 @@ mod tests {
 
     fn test_config() -> Config {
         Config {
-            procfile: PathBuf::from("Procfile"),
+            procfile: PathBuf::from("Procfile").into(),
             processes: HashMap::new(),
             log_files: Vec::new(),
             filters: FilterConfig::default(),

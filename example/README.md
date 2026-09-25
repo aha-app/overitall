@@ -6,6 +6,7 @@ This directory contains example files for testing overitall.
 
 - `Procfile` - Defines the example processes: web, worker, monitor, broken, and flaky
 - `overitall.toml` - Configuration file with process-log mappings and example filters
+- `inline.toml` - Self-contained process definitions, no Procfile required
 - `web_server.rb` - Simulates a web server generating HTTP request logs at high volume
   - Generates logs every 50-200ms (5-20 logs/second)
   - Outputs short HTTP request logs with color-coded status codes
@@ -45,6 +46,27 @@ Or use overitall to run all processes from the Procfile:
 ```bash
 cargo run -- --config example/overitall.toml
 ```
+
+### Inline process definitions
+
+From the repository root:
+
+```bash
+cargo run -- --config example/inline.toml --no-update
+```
+
+This starts web, worker, and monitor using `[procfile]` in `inline.toml`; `example/Procfile` is not read. Scripts and log paths resolve relative to `example/`, not the shell's working directory.
+
+To prove the example works without any Procfile, copy only its config and scripts to a temporary directory:
+
+```bash
+cargo build --bin oit
+demo=$(mktemp -d)
+cp example/inline.toml example/*.rb "$demo/"
+target/debug/oit --config "$demo/inline.toml" --no-update
+```
+
+While running, change a command in the copied config and use `:r <name>` to reload it. Add a definition and use `:r` to discover it. `:s flaky` tests the existing auto-restart policy. To verify precedence, run the original example with `-f example/Procfile`; it uses the external file instead.
 
 The high-volume log generation is perfect for testing:
 - Buffer eviction under memory pressure
