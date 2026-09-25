@@ -424,7 +424,7 @@ restart = "always"      # restart on any exit, clean or not
 Behavior:
 - Restarts back off: 250ms, then 500ms, 1s, 2s, 4s, 8s, capped at 10s. A process that stays up for 10 seconds is considered healthy, so its next exit starts back at 250ms.
 - A crash loop keeps retrying at the 10s cap (the fix is usually a code edit), so you never have to babysit it.
-- Manual actions win: `:k`, `:s`, and `:r` cancel any pending auto-restart and reset the backoff. Auto-restart only applies to processes that exited on their own.
+- Manual actions win: `:k`, `:s`, and `:r` cancel pending or in-flight auto-restarts and reset the backoff. Any replacement already spawned by a cancelled restart is cleaned up. Auto-restart only applies to processes that exited on their own.
 - Restarts show as `Restarting` in the process list, with an `Auto-restarting: <name>` message in the status bar.
 
 ### Custom Process Status Labels

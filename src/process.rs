@@ -3,6 +3,8 @@ use ratatui::style::Color;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::process::Stdio;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
@@ -98,6 +100,7 @@ pub struct ProcessHandle {
     started_at: Option<Instant>,
     auto_restart_at: Option<Instant>,
     auto_restart_attempts: u32,
+    restart_cancelled: Option<Arc<AtomicBool>>,
 }
 
 impl ProcessHandle {
@@ -120,14 +123,18 @@ impl ProcessHandle {
             started_at: None,
             auto_restart_at: None,
             auto_restart_attempts: 0,
+            restart_cancelled: None,
         }
     }
 
-    /// Drop any scheduled auto-restart and reset backoff.
+    /// Cancel scheduled and in-flight restarts and reset backoff.
     /// Called whenever the user takes over (start, kill, manual restart).
     fn cancel_auto_restart(&mut self) {
         self.auto_restart_at = None;
         self.auto_restart_attempts = 0;
+        if let Some(cancelled) = self.restart_cancelled.take() {
+            cancelled.store(true, Ordering::SeqCst);
+        }
     }
 
     /// Schedule an auto-restart if the policy covers this exit.
@@ -279,6 +286,9 @@ impl ProcessHandle {
         self.cancel_auto_restart();
 
         if self.child.is_none() {
+            if self.status == ProcessStatus::Restarting {
+                self.status = ProcessStatus::Stopped;
+            }
             return Ok(());
         }
 
@@ -427,6 +437,7 @@ struct RestartData {
     old_pgid: Option<i32>,
     log_tx: mpsc::UnboundedSender<LogLine>,
     stdin_mode: String,
+    cancelled: Arc<AtomicBool>,
 }
 
 /// Successful restart result containing new process handles
@@ -442,6 +453,23 @@ pub struct RestartSuccess {
 pub struct RestartResult {
     pub name: String,
     pub outcome: Result<RestartSuccess>,
+}
+
+impl Drop for RestartResult {
+    fn drop(&mut self) {
+        // Unclaimed replacements must not leave descendants or log readers behind.
+        if let Ok(success) = &mut self.outcome {
+            if let Some(pgid) = success.pgid {
+                let _ = nix::sys::signal::killpg(
+                    nix::unistd::Pid::from_raw(pgid),
+                    nix::sys::signal::Signal::SIGKILL,
+                );
+            }
+            let _ = success.child.start_kill();
+            success.stdout_task.abort();
+            success.stderr_task.abort();
+        }
+    }
 }
 
 /// Performs a restart operation in a background task
@@ -466,6 +494,7 @@ async fn perform_restart(data: RestartData) -> RestartResult {
 
     // Start new process
     let spawn_result = async {
+        anyhow::ensure!(!data.cancelled.load(Ordering::SeqCst), "Restart cancelled");
         let mut cmd = Command::new("sh");
         cmd.args(&["-c", &data.command]);
 
@@ -588,8 +617,8 @@ pub struct ProcessManager {
     velocity_tracker: LogVelocityTracker,
     log_tx: mpsc::UnboundedSender<LogLine>,
     log_rx: Option<mpsc::UnboundedReceiver<LogLine>>,
-    restart_rx: mpsc::UnboundedReceiver<RestartResult>,
-    restart_tx: mpsc::UnboundedSender<RestartResult>,
+    restart_rx: mpsc::UnboundedReceiver<(Arc<AtomicBool>, RestartResult)>,
+    restart_tx: mpsc::UnboundedSender<(Arc<AtomicBool>, RestartResult)>,
     restarts_in_flight: HashSet<String>,
     procfile_path: Option<PathBuf>,
     procfile_dir: Option<PathBuf>,
@@ -833,6 +862,9 @@ impl ProcessManager {
             }
 
             if let Some(process) = self.processes.get_mut(&name) {
+                let cancelled = Arc::new(AtomicBool::new(false));
+                process.restart_cancelled = Some(cancelled.clone());
+
                 // Collect data needed for restart
                 let restart_data = RestartData {
                     name: name.clone(),
@@ -841,6 +873,7 @@ impl ProcessManager {
                     old_pgid: process.pgid.take(),
                     log_tx: self.log_tx.clone(),
                     stdin_mode: process.stdin_mode.clone(),
+                    cancelled: cancelled.clone(),
                 };
 
                 // Abort old output capture tasks
@@ -863,7 +896,7 @@ impl ProcessManager {
                 let restart_tx = self.restart_tx.clone();
                 tokio::spawn(async move {
                     let result = perform_restart(restart_data).await;
-                    let _ = restart_tx.send(result);
+                    let _ = restart_tx.send((cancelled, result));
                 });
             }
         }
@@ -876,22 +909,32 @@ impl ProcessManager {
         let mut succeeded = Vec::new();
         let mut failed = Vec::new();
 
-        while let Ok(result) = self.restart_rx.try_recv() {
-            // Remove from in-flight tracking
+        while let Ok((cancelled, mut result)) = self.restart_rx.try_recv() {
             self.restarts_in_flight.remove(&result.name);
+            if cancelled.load(Ordering::SeqCst) || !self.processes.contains_key(&result.name) {
+                continue;
+            }
+            if let Some(process) = self.processes.get_mut(&result.name) {
+                process.restart_cancelled = None;
+            }
 
-            match result.outcome {
+            // Transfer ownership so Drop only cleans up unclaimed replacements.
+            let outcome = std::mem::replace(
+                &mut result.outcome,
+                Err(anyhow::anyhow!("Restart consumed")),
+            );
+            match outcome {
                 Ok(success) => {
                     if let Some(process) = self.processes.get_mut(&result.name) {
                         process.apply_restart_result(success);
-                        succeeded.push(result.name);
+                        succeeded.push(result.name.clone());
                     }
                 }
                 Err(e) => {
                     if let Some(process) = self.processes.get_mut(&result.name) {
                         process.status = ProcessStatus::Failed(e.to_string());
                     }
-                    failed.push((result.name, e.to_string()));
+                    failed.push((result.name.clone(), e.to_string()));
                 }
             }
         }
@@ -1510,6 +1553,57 @@ mod tests {
 
         // Clean up
         manager.kill_all().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_kill_cancels_in_flight_auto_restart() {
+        let mut manager = manager_after_exit("exit 1", Some("always")).await;
+        manager.poll_auto_restarts_at(far_future());
+        manager.spawn_pending_restarts();
+        manager.kill_process("web").await.unwrap();
+
+        for _ in 0..200 {
+            let (succeeded, failed) = manager.poll_restart_completions();
+            assert!(succeeded.is_empty());
+            assert!(failed.is_empty());
+            if manager.restarts_in_flight.is_empty() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        assert!(manager.restarts_in_flight.is_empty());
+        assert_eq!(manager.get_status("web"), Some(ProcessStatus::Stopped));
+        assert!(manager.poll_auto_restarts_at(far_future()).is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_kill_cleans_up_completed_auto_restart() {
+        let mut manager = manager_after_exit("exit 1", Some("always")).await;
+        manager.processes.get_mut("web").unwrap().command = "exec sleep 30".to_string();
+        manager.poll_auto_restarts_at(far_future());
+        manager.spawn_pending_restarts();
+
+        let completion = tokio::time::timeout(Duration::from_secs(2), manager.restart_rx.recv())
+            .await.unwrap().unwrap();
+        let success = completion.1.outcome.as_ref().unwrap();
+        let pgid = nix::unistd::Pid::from_raw(success.pgid.unwrap());
+        let stdout_abort = success.stdout_task.abort_handle();
+        let stderr_abort = success.stderr_task.abort_handle();
+        manager.restart_tx.send(completion).unwrap();
+
+        manager.kill_process("web").await.unwrap();
+        assert_eq!(manager.poll_restart_completions(), (vec![], vec![]));
+        assert_eq!(manager.get_status("web"), Some(ProcessStatus::Stopped));
+        assert!(manager.poll_auto_restarts_at(far_future()).is_empty());
+
+        for _ in 0..200 {
+            if nix::sys::signal::killpg(pgid, None).is_err()
+                && stdout_abort.is_finished() && stderr_abort.is_finished() {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        panic!("cancelled restart left a process or log reader alive");
     }
 
     // StatusMatcher integration tests
