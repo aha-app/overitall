@@ -659,6 +659,12 @@ fn test_cli_parses_restart_alias_r() {
 }
 
 #[test]
+fn test_cli_parses_quit_subcommand() {
+    let cli = Cli::parse_from(["oit", "quit"]);
+    assert!(matches!(cli.command, Some(Commands::Quit)));
+}
+
+#[test]
 fn test_cli_parses_kill_alias_k() {
     let cli = Cli::parse_from(["oit", "k", "web"]);
     match cli.command {

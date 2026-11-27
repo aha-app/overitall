@@ -784,6 +784,11 @@ async fn apply_ipc_action(
                 Err(msg) => app.display.set_status_error(msg),
             }
         }
+        IpcAction::Quit => {
+            if !app.shutting_down {
+                app.start_shutdown();
+            }
+        }
     }
 }
 

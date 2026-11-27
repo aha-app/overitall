@@ -172,6 +172,9 @@ Kill (stop) a specific process.
 ### `oit start <name>`
 Start a stopped process.
 
+### `oit quit`
+Stop all processes and exit the TUI. Only use when explicitly asked to shut oit down.
+
 ## AI-Optimized
 
 ### `oit summary`

@@ -542,6 +542,7 @@ Once installed, AI assistants can control the running TUI with commands like:
 - `oit restart worker` - Restart a process
 - `oit search "pattern"` - Search logs
 - `oit freeze on` - Pause the display
+- `oit quit` - Stop all processes and exit the TUI
 
 This enables AI pair-programming workflows where the AI can investigate logs, restart processes, and manage filters while you watch the TUI.
 

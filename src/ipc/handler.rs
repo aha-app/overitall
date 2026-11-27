@@ -47,6 +47,7 @@ impl IpcCommandHandler {
             "batch" => self.handle_batch(&request.args, state),
             "help" => IpcHandlerResult::response_only(self.handle_help()),
             "trace" => IpcHandlerResult::response_only(self.handle_trace(state)),
+            "quit" => self.handle_quit(),
             _ => IpcHandlerResult::response_only(IpcResponse::err(format!(
                 "unknown command: {}",
                 request.command
@@ -825,6 +826,13 @@ impl IpcCommandHandler {
         )
     }
 
+    fn handle_quit(&self) -> IpcHandlerResult {
+        IpcHandlerResult::with_actions(
+            IpcResponse::ok(json!({"quitting": true})),
+            vec![IpcAction::Quit],
+        )
+    }
+
     fn handle_help(&self) -> IpcResponse {
         IpcResponse::ok(json!({
             "commands": [
@@ -972,6 +980,11 @@ impl IpcCommandHandler {
                     "args": [
                         {"name": "name", "type": "string", "required": true, "description": "Process name to start"}
                     ]
+                },
+                {
+                    "name": "quit",
+                    "description": "Stop all processes and exit the TUI",
+                    "args": []
                 },
                 {
                     "name": "errors",
@@ -3074,6 +3087,18 @@ mod tests {
         assert!(command_names.contains(&"restart"));
         assert!(command_names.contains(&"kill"));
         assert!(command_names.contains(&"start"));
+        assert!(command_names.contains(&"quit"));
+    }
+
+    #[test]
+    fn quit_returns_quit_action() {
+        let handler = test_handler();
+        let request = IpcRequest::new("quit");
+        let result = handler.handle(&request, None);
+
+        assert!(result.response.success);
+        assert_eq!(result.response.result.unwrap()["quitting"], true);
+        assert_eq!(result.actions, vec![IpcAction::Quit]);
     }
 
     #[test]

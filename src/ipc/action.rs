@@ -41,6 +41,8 @@ pub enum IpcAction {
     KillProcess { name: String },
     /// Start a stopped process
     StartProcess { name: String },
+    /// Gracefully shut down all processes and exit the TUI
+    Quit,
 }
 
 /// Result of handling an IPC command: response to send + actions to apply

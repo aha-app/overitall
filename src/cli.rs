@@ -172,6 +172,8 @@ pub enum Commands {
         /// Process name to start
         name: String,
     },
+    /// Stop all processes and exit the running TUI
+    Quit,
     /// Get recent log lines containing error or warning patterns
     Errors {
         /// Maximum number of lines to return (default: 50)
@@ -640,6 +642,7 @@ pub async fn run_ipc_command(command: &Commands) -> anyhow::Result<()> {
             }
             IpcRequest::with_args("errors", args)
         }
+        Commands::Quit => IpcRequest::new("quit"),
         Commands::Summary => IpcRequest::new("summary"),
         Commands::Batch { id, scroll } => {
             IpcRequest::with_args("batch", serde_json::json!({"id": id, "scroll": scroll}))
